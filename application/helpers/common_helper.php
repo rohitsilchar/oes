@@ -110,6 +110,10 @@ if (!function_exists('has_permission')) {
             $admin_id = $CI->session->userdata('user_id');
         }
 
+        if ($admin_id == 1 || is_root_admin($admin_id)) {
+            return true;
+        }
+
         $CI->db->where('admin_id', $admin_id);
         $get_admin_permissions = $CI->db->get('permissions');
         if ($get_admin_permissions->num_rows() == 0) {
@@ -117,7 +121,7 @@ if (!function_exists('has_permission')) {
         } else {
             $get_admin_permissions = $get_admin_permissions->row_array();
             $permissions = json_decode($get_admin_permissions['permissions']);
-            if (in_array($permission_for, $permissions)) {
+            if (is_array($permissions) && in_array($permission_for, $permissions)) {
                 return true;
             } else {
                 return false;
@@ -150,6 +154,10 @@ if (!function_exists('is_root_admin')) {
         // GET THE LOGGEDIN IN ADMIN ID
         if (empty($admin_id)) {
             $admin_id = $CI->session->userdata('user_id');
+        }
+
+        if ($admin_id == 1) {
+            return true;
         }
 
         $CI->db->where('admin_id', $admin_id);
