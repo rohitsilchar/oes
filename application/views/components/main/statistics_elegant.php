@@ -28,7 +28,7 @@ $premium_courses = $this->db->where('is_free_course', 0)->get('course');
                 <div class="why-choose-wrap1">
                     <div class="why-choose1-single">
                         <h1 class="total"><span class="counter"><?php echo $total_students->num_rows(); ?></span>+</h1>
-                        <p class="info"><?php echo get_phrase('Happy Students'); ?></p>
+                        <p class="info"><?php echo get_phrase('Happy Pharmacists'); ?></p>
                     </div>
                     <div class="why-choose1-single">
                         <h1 class="total"><span class="counter"><?php echo $total_instructors->num_rows(); ?></span></h1>

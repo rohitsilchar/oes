@@ -193,7 +193,7 @@
                         <div>
                             <?php $all_students = $this->db->get_where('users', ['role_id !=' => 1]); ?>
                             <h2 class="kg-counter-title mb-2px"><span class="counter"><?php echo nice_number($all_students->num_rows()); ?></span>+</h2>
-                            <p class="title-3 fs-17px lh-23px"><?php echo get_phrase('Students Globally') ?></p>
+                            <p class="title-3 fs-17px lh-23px"><?php echo get_phrase('Pharmacists Globally') ?></p>
                         </div>
                     </div>
                 </div>
@@ -277,7 +277,7 @@
                                                 fill="#080808" fill-opacity="0.25" />
                                         </svg>
                                     </span>
-                                    <p class="course-meta-info1"><?php echo get_phrase('Students : '); ?><?php echo $number_of_enrolled_students; ?></p>
+                                    <p class="course-meta-info1"><?php echo get_phrase('Pharmacists : '); ?><?php echo $number_of_enrolled_students; ?></p>
                                 </div>
                             </div>
                             <div class="d-flex align-items-center gap-3 justify-content-between flex-wrap">
@@ -554,7 +554,7 @@
                                                 fill="#080808" fill-opacity="0.25" />
                                         </svg>
                                     </span>
-                                    <p class="course-meta-info1"><?php echo get_phrase('Students : '); ?><?php echo $number_of_enrolled_students; ?></p>
+                                    <p class="course-meta-info1"><?php echo get_phrase('Pharmacists : '); ?><?php echo $number_of_enrolled_students; ?></p>
                                 </div>
                             </div>
                             <div class="d-flex align-items-center gap-3 justify-content-between flex-wrap">

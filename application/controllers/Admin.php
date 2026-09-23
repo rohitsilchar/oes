@@ -34,8 +34,57 @@ class Admin extends CI_Controller
         if ($this->session->userdata('admin_login') != true) {
             redirect(site_url('login'), 'refresh');
         }
-        $page_data['page_name']  = 'dashboard';
-        $page_data['page_title'] = get_phrase('dashboard');
+
+        // Pharmacist counts & license stats
+        $total_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->count_all_results('users');
+        $licensed_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->where("licence_no IS NOT NULL AND licence_no != ''", null, false)->count_all_results('users');
+        $total_instructors = $this->db->where('is_instructor', 1)->count_all_results('users');
+
+        // Stores count
+        $total_stores = $this->db->table_exists('stores') ? $this->db->count_all_results('stores') : 0;
+
+        // Course counts
+        $status_wise_courses = $this->crud_model->get_status_wise_courses();
+        $active_courses_count = isset($status_wise_courses['active']) ? $status_wise_courses['active']->num_rows() : 0;
+        $pending_courses_count = isset($status_wise_courses['pending']) ? $status_wise_courses['pending']->num_rows() : 0;
+        $total_courses = $active_courses_count + $pending_courses_count;
+
+        // Enrollments
+        $total_enrollments = $this->db->count_all_results('enrol');
+
+        // Recent enrollments with user, course, and store details
+        $this->db->select('enrol.id as enrol_id, enrol.date_added as enrol_date, enrol.expiry_date, users.id as user_id, users.first_name, users.last_name, users.email, users.employee_id, users.licence_no, users.image, course.id as course_id, course.title as course_title, course.thumbnail as course_thumbnail, stores.store_name, stores.store_code');
+        $this->db->from('enrol');
+        $this->db->join('users', 'users.id = enrol.user_id', 'left');
+        $this->db->join('course', 'course.id = enrol.course_id', 'left');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->order_by('enrol.id', 'DESC');
+        $this->db->limit(6);
+        $recent_enrollments = $this->db->get()->result_array();
+
+        // Stores overview with pharmacist counts
+        $stores_list = [];
+        if ($this->db->table_exists('stores')) {
+            $this->db->select('stores.*, (SELECT COUNT(*) FROM users WHERE users.store_id = stores.id AND users.role_id = 2) as pharmacist_count');
+            $this->db->from('stores');
+            $this->db->order_by('stores.id', 'DESC');
+            $this->db->limit(5);
+            $stores_list = $this->db->get()->result_array();
+        }
+
+        $page_data['page_name']            = 'dashboard';
+        $page_data['page_title']           = get_phrase('dashboard');
+        $page_data['total_pharmacists']    = $total_pharmacists;
+        $page_data['licensed_pharmacists'] = $licensed_pharmacists;
+        $page_data['total_instructors']    = $total_instructors;
+        $page_data['total_stores']         = $total_stores;
+        $page_data['active_courses_count'] = $active_courses_count;
+        $page_data['pending_courses_count']= $pending_courses_count;
+        $page_data['total_courses']        = $total_courses;
+        $page_data['total_enrollments']    = $total_enrollments;
+        $page_data['recent_enrollments']   = $recent_enrollments;
+        $page_data['stores_list']          = $stores_list;
+
         $this->load->view('backend/index.php', $page_data);
     }
 
@@ -209,8 +258,184 @@ class Admin extends CI_Controller
         }
 
         $page_data['page_name']  = 'users';
-        $page_data['page_title'] = get_phrase('student');
+        $page_data['page_title'] = get_phrase('pharmacists');
         $this->load->view('backend/index', $page_data);
+    }
+
+    public function extract_licence_ocr()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo json_encode(['status' => false, 'message' => get_phrase('unauthorized_access')]);
+            return;
+        }
+
+        $raw_text = '';
+        if (!empty($this->input->post('client_extracted_text'))) {
+            $raw_text = $this->input->post('client_extracted_text');
+        } elseif (!empty($this->input->post('extracted_text'))) {
+            $raw_text = $this->input->post('extracted_text');
+        }
+
+        $file_key = isset($_FILES['licence_doc']) ? 'licence_doc' : (isset($_FILES['document']) ? 'document' : null);
+        if (empty($raw_text) && $file_key && !empty($_FILES[$file_key]['name'])) {
+            $file = $_FILES[$file_key];
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $tmp_path = $file['tmp_name'];
+
+            if ($ext === 'pdf' && file_exists($tmp_path)) {
+                $content = @file_get_contents($tmp_path);
+                if ($content) {
+                    preg_match_all('/\((.*?)\)\s*Tj/s', $content, $tj_matches);
+                    if (!empty($tj_matches[1])) {
+                        $raw_text .= implode(' ', $tj_matches[1]) . "\n";
+                    }
+                    preg_match_all('/\[(.*?)\]\s*TJ/s', $content, $tJ_matches);
+                    if (!empty($tJ_matches[1])) {
+                        foreach ($tJ_matches[1] as $chunk) {
+                            preg_match_all('/\((.*?)\)/', $chunk, $strings);
+                            if (!empty($strings[1])) {
+                                $raw_text .= implode('', $strings[1]) . " ";
+                            }
+                        }
+                        $raw_text .= "\n";
+                    }
+                    if (function_exists('gzuncompress')) {
+                        preg_match_all('/stream[\r\n]+(.*?)[\r\n]+endstream/s', $content, $streams);
+                        if (!empty($streams[1])) {
+                            foreach ($streams[1] as $stream) {
+                                $uncompressed = @gzuncompress($stream);
+                                if ($uncompressed) {
+                                    preg_match_all('/\((.*?)\)\s*Tj/s', $uncompressed, $decomp_tj);
+                                    if (!empty($decomp_tj[1])) {
+                                        $raw_text .= implode(' ', $decomp_tj[1]) . "\n";
+                                    }
+                                    preg_match_all('/\[(.*?)\]\s*TJ/s', $uncompressed, $decomp_tJ);
+                                    if (!empty($decomp_tJ[1])) {
+                                        foreach ($decomp_tJ[1] as $chunk) {
+                                            preg_match_all('/\((.*?)\)/', $chunk, $strings);
+                                            if (!empty($strings[1])) {
+                                                $raw_text .= implode('', $strings[1]) . " ";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $results = $this->parse_licence_data_from_text($raw_text);
+        $candidates = $results['licence_nos'];
+        $primary = $results['primary_licence'];
+        $extracted = $results['extracted_data'];
+
+        $name_parts = isset($extracted['member_name']) ? explode(' ', trim($extracted['member_name']), 2) : ['', ''];
+        $first_name = $name_parts[0];
+        $last_name = isset($name_parts[1]) ? $name_parts[1] : '';
+
+        echo json_encode([
+            'status'             => !empty($candidates),
+            'licence_no'         => $primary,
+            'primary_licence'    => $primary,
+            'licence_nos'        => $candidates,
+            'all_candidates'     => $candidates,
+            'candidate_count'    => count($candidates),
+            'member_name'        => isset($extracted['member_name']) ? $extracted['member_name'] : '',
+            'first_name'         => $first_name,
+            'last_name'          => $last_name,
+            'licence_start_date' => isset($extracted['start_date']) ? $extracted['start_date'] : '',
+            'extracted_data'     => $extracted,
+            'raw_text_snippet'   => mb_substr($raw_text, 0, 1000),
+            'message'            => !empty($candidates)
+                ? sprintf(get_phrase('extracted_%s_licence_number(s)_successfully'), count($candidates))
+                : get_phrase('no_drug_licence_numbers_found_in_document')
+        ]);
+    }
+
+    private function parse_licence_data_from_text($text)
+    {
+        $licence_nos = [];
+
+        // Pattern 1: RLF format (RLF + 2 digits + 2 letters + 10 digits) - e.g. RLF21DL2024002287, RLF20DL2024002284
+        if (preg_match_all('/\b(RLF\d{2}[A-Z]{2}\d{10})\b/i', $text, $m1)) {
+            foreach ($m1[1] as $lic) {
+                $lic = strtoupper(trim($lic));
+                if (!in_array($lic, $licence_nos)) $licence_nos[] = $lic;
+            }
+        }
+
+        // Pattern 2: Standard Indian drug license patterns
+        if (preg_match_all('/\b([A-Z]{2,4}\d{2}[A-Z]{2,4}\d{6,12})\b/i', $text, $m2)) {
+            foreach ($m2[1] as $lic) {
+                $lic = strtoupper(trim($lic));
+                if (!in_array($lic, $licence_nos)) $licence_nos[] = $lic;
+            }
+        }
+
+        // Pattern 3: Look for numbers specifically under/after "Licence No" or "License No"
+        if (preg_match_all('/(?:Licence|License|Drug\s*Licence|Form\s*2[01][A-Z]?)\s*(?:No|Number|\#)?[:\s\-\.]*([A-Z0-9\/\-]{8,25})/i', $text, $m3)) {
+            foreach ($m3[1] as $lic) {
+                $lic = strtoupper(trim($lic));
+                if (strlen($lic) >= 8 && !in_array($lic, $licence_nos) && !preg_match('/^(POST|APPROVAL|LETTER|CHANGE|MEMBER|GOVERNMENT|SUBJECT|DEPARTMENT)/i', $lic) && !preg_match('/^\//', $lic)) {
+                    $is_sub = false;
+                    foreach ($licence_nos as $existing) {
+                        if (strpos($existing, $lic) !== false) {
+                            $is_sub = true;
+                            break;
+                        }
+                    }
+                    if (!$is_sub) $licence_nos[] = $lic;
+                }
+            }
+        }
+
+        // Filter out invalid substrings or numeric fragments
+        $filtered = [];
+        foreach ($licence_nos as $lic) {
+            $is_sub = false;
+            foreach ($licence_nos as $other) {
+                if ($other !== $lic && strpos($other, $lic) !== false) {
+                    $is_sub = true;
+                    break;
+                }
+            }
+            if (!$is_sub && !preg_match('/^\//', $lic) && !preg_match('/^\d{4,8}$/', $lic)) {
+                $filtered[] = $lic;
+            }
+        }
+        $licence_nos = array_values($filtered);
+
+        // Extracted auxiliary data
+        $extracted = [];
+
+        // Detect Replacement Member Name
+        if (preg_match('/Replacement\s*(?:Member)?\s*Name[\s:\.\-]*\n*\s*(?:Mr\.|Ms\.|Mrs\.|Dr\.)?\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)/i', $text, $nm)) {
+            $name = trim($nm[1]);
+            $name = preg_replace('/\s+(?:Mr|Ms|Mrs|Dr)$/i', '', $name);
+            $extracted['member_name'] = $name;
+        } elseif (preg_match('/(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/', $text, $nm2)) {
+            $name = trim($nm2[1]);
+            $extracted['member_name'] = $name;
+        }
+
+        // Detect Effective / Start Date
+        if (preg_match('/(?:effective\s*date|dated)[\s:\.]*([0-9]{1,2}[\-\/][A-Za-z]{3,9}[\-\/][0-9]{2,4})/i', $text, $dm)) {
+            $d = strtotime($dm[1]);
+            if ($d) $extracted['start_date'] = date('Y-m-d', $d);
+        }
+
+        // Detect Firm / Store Name
+        if (preg_match('/To\s*\n\s*([A-Za-z0-9\s,\-\.]{4,60}?)\s*(?:Shop|Limited|Ltd|Store|Pvt)/i', $text, $fm)) {
+            $extracted['firm_name'] = trim($fm[1]);
+        }
+
+        return [
+            'licence_nos' => $licence_nos,
+            'primary_licence' => !empty($licence_nos) ? $licence_nos[0] : '',
+            'extracted_data' => $extracted
+        ];
     }
 
     public function server_side_users_data()
@@ -218,7 +443,7 @@ class Admin extends CI_Controller
 
         $data = [];
         //mentioned all with colum of database table that related with html table
-        $columns = ['id', 'id', 'first_name', 'email', 'phone', 'id', 'id'];
+        $columns = ['id', 'id', 'first_name', 'employee_id', 'gender', 'email', 'phone', 'licence_no', 'licence_start_date', 'id', 'id'];
 
         $limit = htmlspecialchars_($this->input->post('length'));
         $start = htmlspecialchars_($this->input->post('start'));
@@ -239,20 +464,32 @@ class Admin extends CI_Controller
             $students = $this->db->get('users')->result_array();
         } else {
             $this->db->select('*');
+            $this->db->group_start();
             $this->db->like('first_name', $search);
             $this->db->or_like('last_name', $search);
             $this->db->or_like('email', $search);
             $this->db->or_like('phone', $search);
+            $this->db->or_like('employee_id', $search);
+            $this->db->or_like('gender', $search);
+            $this->db->or_like('licence_no', $search);
+            $this->db->or_like('licence_start_date', $search);
+            $this->db->group_end();
             $this->db->where('role_id', 2);
             $this->db->limit($limit, $start);
             $this->db->order_by($column_index, $dir);
             $students = $this->db->get('users')->result_array();
 
             $this->db->select('*');
+            $this->db->group_start();
             $this->db->like('first_name', $search);
             $this->db->or_like('last_name', $search);
             $this->db->or_like('email', $search);
             $this->db->or_like('phone', $search);
+            $this->db->or_like('employee_id', $search);
+            $this->db->or_like('gender', $search);
+            $this->db->or_like('licence_no', $search);
+            $this->db->or_like('licence_start_date', $search);
+            $this->db->group_end();
             $this->db->where('role_id', 2);
             $filtered_number_of_row = $this->db->get('users')->num_rows();
         }
@@ -292,14 +529,18 @@ class Admin extends CI_Controller
 		                            </ul>
 		                        </div>';
 
-            $nestedData['key']              = ++$key;
-            $nestedData['photo']            = $photo;
-            $nestedData['name']             = $name;
-            $nestedData['email']            = $email;
-            $nestedData['phone']            = $student['phone'];
-            $nestedData['enrolled_courses'] = $enrolled_courses_title;
-            $nestedData['action']           = $action . '<script>$("a, i").tooltip();</script>';
-            $data[]                         = $nestedData;
+            $nestedData['key']                = ++$key;
+            $nestedData['photo']              = $photo;
+            $nestedData['name']               = $name;
+            $nestedData['employee_id']        = !empty($student['employee_id']) ? html_escape($student['employee_id']) : '-';
+            $nestedData['gender']             = !empty($student['gender']) ? ucfirst(html_escape($student['gender'])) : '-';
+            $nestedData['email']              = $email;
+            $nestedData['phone']              = !empty($student['phone']) ? html_escape($student['phone']) : '-';
+            $nestedData['licence_no']         = !empty($student['licence_no']) ? html_escape($student['licence_no']) : '-';
+            $nestedData['licence_start_date'] = !empty($student['licence_start_date']) ? html_escape($student['licence_start_date']) : '-';
+            $nestedData['enrolled_courses']   = $enrolled_courses_title;
+            $nestedData['action']             = $action . '<script>$("a, i").tooltip();</script>';
+            $data[]                           = $nestedData;
         endforeach;
 
         $json_data = [
@@ -449,12 +690,12 @@ class Admin extends CI_Controller
 
         if ($param1 == 'add_user_form') {
             $page_data['page_name']  = 'user_add';
-            $page_data['page_title'] = get_phrase('student_add');
+            $page_data['page_title'] = get_phrase('pharmacist_add');
             $this->load->view('backend/index', $page_data);
         } elseif ($param1 == 'edit_user_form') {
             $page_data['page_name']  = 'user_edit';
             $page_data['user_id']    = $param2;
-            $page_data['page_title'] = get_phrase('student_edit');
+            $page_data['page_title'] = get_phrase('pharmacist_edit');
             $this->load->view('backend/index', $page_data);
         }
     }
@@ -471,8 +712,8 @@ class Admin extends CI_Controller
         if ($param1 != "") {
             $date_range                   = $this->input->get('date_range');
             $date_range                   = explode(" - ", $date_range);
-            $page_data['timestamp_start'] = strtotime($date_range[0]);
-            $page_data['timestamp_end']   = strtotime($date_range[1]);
+            $page_data['timestamp_start'] = strtotime($date_range[0] . ' 00:00:00');
+            $page_data['timestamp_end']   = strtotime($date_range[1] . ' 23:59:59');
         } else {
             $first_day_of_month           = "1 " . date("M") . " " . date("Y") . ' 00:00:00';
             $last_day_of_month            = date("t") . " " . date("M") . " " . date("Y") . ' 23:59:59';
@@ -496,8 +737,82 @@ class Admin extends CI_Controller
 
         if ($param1 == 'enrol') {
             $this->crud_model->enrol_a_student_manually();
-            redirect(site_url('admin/enrol_history'), 'refresh');
+            $redirect_url = $this->input->post('redirect_to') ?: 'admin/enrol_student';
+            redirect(site_url($redirect_url), 'refresh');
         }
+
+        $selected_store_id     = $this->input->get('store_id') ?: 'all';
+        $selected_course_id    = $this->input->get('course_id') ?: 'all';
+        $selected_enrol_status = $this->input->get('enrol_status') ?: 'all';
+        $selected_status       = ($this->input->get('status') !== null && $this->input->get('status') !== '') ? $this->input->get('status') : 'all';
+        $selected_role         = $this->input->get('role') ?: 'all';
+
+        // Stores for filter dropdown
+        $page_data['stores'] = $this->db->where('status', 1)->order_by('store_name', 'asc')->get('stores')->result_array();
+
+        // Courses for filter dropdown & modal
+        $page_data['courses'] = $this->db->where('status', 'active')->or_where('status', 'private')->order_by('title', 'asc')->get('course')->result_array();
+
+        // Filter users query
+        $this->db->select('users.*, stores.store_name, stores.store_code, store_users.role_title as store_role_title');
+        $this->db->from('users');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->join('store_users', 'store_users.pharmacist_id = users.id', 'left');
+        $this->db->where('users.role_id !=', 1);
+
+        if ($selected_store_id != 'all' && !empty($selected_store_id)) {
+            if ($selected_store_id == 'no_store') {
+                $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+            } else {
+                $this->db->where('users.store_id', intval($selected_store_id));
+            }
+        }
+
+        if ($selected_status != 'all' && $selected_status !== '') {
+            $this->db->where('users.status', intval($selected_status));
+        }
+
+        if ($selected_role == 'instructor') {
+            $this->db->where('users.is_instructor', 1);
+        } elseif ($selected_role == 'pharmacist' || $selected_role == 'student') {
+            $this->db->where('users.is_instructor', 0);
+        }
+
+        if ($selected_course_id != 'all' && !empty($selected_course_id)) {
+            $course_id_int = intval($selected_course_id);
+            if ($selected_enrol_status == 'not_enrolled') {
+                $this->db->where("users.id NOT IN (SELECT user_id FROM enrol WHERE course_id = {$course_id_int})");
+            } else {
+                $this->db->where("users.id IN (SELECT user_id FROM enrol WHERE course_id = {$course_id_int})");
+            }
+        } else {
+            if ($selected_enrol_status == 'enrolled') {
+                $this->db->where("users.id IN (SELECT user_id FROM enrol)");
+            } elseif ($selected_enrol_status == 'not_enrolled') {
+                $this->db->where("users.id NOT IN (SELECT user_id FROM enrol)");
+            }
+        }
+
+        $this->db->order_by('users.id', 'desc');
+        $page_data['users'] = $this->db->get()->result_array();
+
+        // Preload enrollments with course titles
+        $enrolments = $this->db->select('enrol.user_id, enrol.course_id, enrol.expiry_date, enrol.date_added, course.title as course_title, course.status as course_status')
+            ->from('enrol')
+            ->join('course', 'course.id = enrol.course_id', 'left')
+            ->get()->result_array();
+        $user_enrolments = [];
+        foreach ($enrolments as $e) {
+            $user_enrolments[$e['user_id']][] = $e;
+        }
+        $page_data['user_enrolments'] = $user_enrolments;
+
+        $page_data['selected_store_id']     = $selected_store_id;
+        $page_data['selected_course_id']    = $selected_course_id;
+        $page_data['selected_enrol_status'] = $selected_enrol_status;
+        $page_data['selected_status']       = $selected_status;
+        $page_data['selected_role']         = $selected_role;
+
         $page_data['page_name']  = 'enrol_student';
         $page_data['page_title'] = get_phrase('course_enrolment');
         $this->load->view('backend/index', $page_data);
@@ -2477,7 +2792,7 @@ class Admin extends CI_Controller
                 if ($user_row->num_rows() > 0) {
                     if ($user_row->row('is_instructor') != 1) {
                         $user_status = '<p class="my-0">' . $user_row->row('first_name') . ' ' . $user_row->row('last_name') . '</p>';
-                        $user_status .= '<span class="badge badge-primary">' . get_phrase('Student') . '</span>';
+                        $user_status .= '<span class="badge badge-primary">' . get_phrase('Pharmacist') . '</span>';
                     } else {
                         $user_status = '<p class="my-0">' . $user_row->row('first_name') . ' ' . $user_row->row('last_name') . '</p>';
                         $user_status .= '<span class="badge badge-success">' . get_phrase('Instructor') . '</span>';
@@ -2858,7 +3173,7 @@ class Admin extends CI_Controller
                 $user_row = $this->db->where('email', $row['email'])->get('users');
                 if ($user_row->num_rows() > 0) {
                     if ($user_row->row('is_instructor') != 1) {
-                        $user_status = '<span class="badge badge-primary">' . get_phrase('Student') . '</span>';
+                        $user_status = '<span class="badge badge-primary">' . get_phrase('Pharmacist') . '</span>';
                     } else {
                         $user_status = '<span class="badge badge-success">' . get_phrase('Instructor') . '</span>';
                     }
@@ -3326,7 +3641,7 @@ class Admin extends CI_Controller
             }
 
             // Prepare the CSV header
-            $csv_data = '"Id","Student Name","Course Title","Purchase Date","Expiry Date"' . "\n";
+            $csv_data = '"Id","Pharmacist Name","Course Title","Purchase Date","Expiry Date"' . "\n";
 
             // Populate the CSV rows
             foreach ($query->result_array() as $row) {
@@ -3417,7 +3732,7 @@ class Admin extends CI_Controller
 
         // Set the headers to trigger a file download
         header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="student_progress.csv"');
+        header('Content-Disposition: attachment; filename="pharmacist_progress.csv"');
         echo $csv_data;
         exit;
     }
@@ -4369,7 +4684,1117 @@ $developer_html
                     }
                     // Home page builder
 
+    // ==========================================
+    // STORE ROLES CRUD
+    // ==========================================
+    public function store_roles($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == "add") {
+            $data['role_name']   = html_escape($this->input->post('role_name'));
+            $data['description'] = html_escape($this->input->post('description'));
+            $data['status']      = html_escape($this->input->post('status'));
+            $data['created_at']  = date('Y-m-d H:i:s');
+            $data['updated_at']  = date('Y-m-d H:i:s');
+            $this->db->insert('store_roles', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('role_added_successfully'));
+            redirect(site_url('admin/store_roles'), 'refresh');
+        } elseif ($param1 == "edit") {
+            $data['role_name']   = html_escape($this->input->post('role_name'));
+            $data['description'] = html_escape($this->input->post('description'));
+            $data['status']      = html_escape($this->input->post('status'));
+            $data['updated_at']  = date('Y-m-d H:i:s');
+            $this->db->where('id', $param2);
+            $this->db->update('store_roles', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('role_updated_successfully'));
+            redirect(site_url('admin/store_roles'), 'refresh');
+        } elseif ($param1 == "delete") {
+            $this->db->where('id', $param2);
+            $this->db->delete('store_roles');
+            $this->session->set_flashdata('flash_message', get_phrase('role_deleted_successfully'));
+            redirect(site_url('admin/store_roles'), 'refresh');
+        }
+
+        $page_data['roles']      = $this->db->order_by('id', 'desc')->get('store_roles')->result_array();
+        $page_data['page_name']  = 'store_roles';
+        $page_data['page_title'] = get_phrase('store_roles');
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function store_role_form($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == 'add_store_role_form') {
+            $page_data['page_name']  = 'store_role_add';
+            $page_data['page_title'] = get_phrase('add_new_role');
+            $this->load->view('backend/index', $page_data);
+        } elseif ($param1 == 'edit_store_role_form') {
+            $page_data['page_name']  = 'store_role_edit';
+            $page_data['role_data']  = $this->db->get_where('store_roles', array('id' => $param2))->row_array();
+            $page_data['page_title'] = get_phrase('edit_role');
+            $this->load->view('backend/index', $page_data);
+        }
+    }
+
+    // ==========================================
+    // STORES CRUD
+    // ==========================================
+    public function stores($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == "add") {
+            $data['store_name']         = html_escape($this->input->post('store_name'));
+            $data['store_code']         = html_escape($this->input->post('store_code'));
+            $data['phone']              = html_escape($this->input->post('phone'));
+            $data['email']              = html_escape($this->input->post('email'));
+            $data['portal_url']         = html_escape($this->input->post('portal_url'));
+            $roles                      = $this->input->post('assigned_role_ids');
+            $data['assigned_role_ids']  = is_array($roles) ? json_encode($roles) : json_encode([]);
+            $data['address']            = html_escape($this->input->post('address'));
+            $data['city']               = html_escape($this->input->post('city'));
+            $data['state']              = html_escape($this->input->post('state'));
+            $data['pin_code']           = html_escape($this->input->post('pin_code'));
+            $data['status']             = html_escape($this->input->post('status'));
+            $data['created_at']         = date('Y-m-d H:i:s');
+            $data['updated_at']         = date('Y-m-d H:i:s');
+            $this->db->insert('stores', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('store_added_successfully'));
+            redirect(site_url('admin/stores'), 'refresh');
+        } elseif ($param1 == "edit") {
+            $data['store_name']         = html_escape($this->input->post('store_name'));
+            $data['store_code']         = html_escape($this->input->post('store_code'));
+            $data['phone']              = html_escape($this->input->post('phone'));
+            $data['email']              = html_escape($this->input->post('email'));
+            $data['portal_url']         = html_escape($this->input->post('portal_url'));
+            $roles                      = $this->input->post('assigned_role_ids');
+            $data['assigned_role_ids']  = is_array($roles) ? json_encode($roles) : json_encode([]);
+            $data['address']            = html_escape($this->input->post('address'));
+            $data['city']               = html_escape($this->input->post('city'));
+            $data['state']              = html_escape($this->input->post('state'));
+            $data['pin_code']           = html_escape($this->input->post('pin_code'));
+            $data['status']             = html_escape($this->input->post('status'));
+            $data['updated_at']         = date('Y-m-d H:i:s');
+            $this->db->where('id', $param2);
+            $this->db->update('stores', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('store_updated_successfully'));
+            redirect(site_url('admin/stores'), 'refresh');
+        } elseif ($param1 == "delete") {
+            $this->db->where('id', $param2);
+            $this->db->delete('stores');
+            $this->session->set_flashdata('flash_message', get_phrase('store_deleted_successfully'));
+            redirect(site_url('admin/stores'), 'refresh');
+        }
+
+        $page_data['stores']    = $this->db->order_by('id', 'desc')->get('stores')->result_array();
+        $roles                  = $this->db->get('store_roles')->result_array();
+        $roles_map              = [];
+        foreach ($roles as $r) {
+            $roles_map[$r['id']] = $r['role_name'];
+        }
+        $page_data['roles_map']  = $roles_map;
+        $page_data['page_name']  = 'stores';
+        $page_data['page_title'] = get_phrase('stores');
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function store_form($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == 'add_store_form') {
+            $page_data['page_name']   = 'store_add';
+            $page_data['store_roles'] = $this->db->where('status', 1)->get('store_roles')->result_array();
+            $page_data['page_title']  = get_phrase('add_new_store');
+            $this->load->view('backend/index', $page_data);
+        } elseif ($param1 == 'edit_store_form') {
+            $page_data['page_name']   = 'store_edit';
+            $page_data['store_data']  = $this->db->get_where('stores', array('id' => $param2))->row_array();
+            $page_data['store_roles'] = $this->db->where('status', 1)->get('store_roles')->result_array();
+            $page_data['page_title']  = get_phrase('edit_store');
+            $this->load->view('backend/index', $page_data);
+        }
+    }
+
+    // ==========================================
+    // STORE USERS CRUD
+    // ==========================================
+    public function store_users($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == "add") {
+            $data['store_id']      = html_escape($this->input->post('store_id'));
+            $data['pharmacist_id'] = $this->input->post('pharmacist_id') ? html_escape($this->input->post('pharmacist_id')) : null;
+            $data['role_id']       = html_escape($this->input->post('role_id'));
+            $data['role_title']    = html_escape($this->input->post('role_title'));
+            $data['username']      = html_escape($this->input->post('username'));
+            $data['password']      = html_escape($this->input->post('password'));
+            $data['portal_link']   = html_escape($this->input->post('portal_link'));
+            $data['notes']         = html_escape($this->input->post('notes'));
+            $data['status']        = html_escape($this->input->post('status'));
+            $data['created_at']    = date('Y-m-d H:i:s');
+            $data['updated_at']    = date('Y-m-d H:i:s');
+            $this->db->insert('store_users', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('store_user_added_successfully'));
+            redirect(site_url('admin/store_users'), 'refresh');
+        } elseif ($param1 == "edit") {
+            $data['store_id']      = html_escape($this->input->post('store_id'));
+            $data['pharmacist_id'] = $this->input->post('pharmacist_id') ? html_escape($this->input->post('pharmacist_id')) : null;
+            $data['role_id']       = html_escape($this->input->post('role_id'));
+            $data['role_title']    = html_escape($this->input->post('role_title'));
+            $data['username']      = html_escape($this->input->post('username'));
+            $data['password']      = html_escape($this->input->post('password'));
+            $data['portal_link']   = html_escape($this->input->post('portal_link'));
+            $data['notes']         = html_escape($this->input->post('notes'));
+            $data['status']        = html_escape($this->input->post('status'));
+            $data['updated_at']    = date('Y-m-d H:i:s');
+            $this->db->where('id', $param2);
+            $this->db->update('store_users', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('store_user_updated_successfully'));
+            redirect(site_url('admin/store_users'), 'refresh');
+        } elseif ($param1 == "delete") {
+            $this->db->where('id', $param2);
+            $this->db->delete('store_users');
+            $this->session->set_flashdata('flash_message', get_phrase('store_user_deleted_successfully'));
+            redirect(site_url('admin/store_users'), 'refresh');
+        }
+
+        $this->db->select('store_users.*, stores.store_name, stores.store_code, users.first_name, users.last_name, users.email as pharmacist_email');
+        $this->db->from('store_users');
+        $this->db->join('stores', 'stores.id = store_users.store_id', 'left');
+        $this->db->join('users', 'users.id = store_users.pharmacist_id', 'left');
+        $this->db->order_by('store_users.id', 'desc');
+        $store_users = $this->db->get()->result_array();
+        foreach ($store_users as &$su) {
+            if (!empty($su['first_name'])) {
+                $su['pharmacist_name'] = $su['first_name'] . ' ' . $su['last_name'];
+            }
+        }
+        $page_data['store_users'] = $store_users;
+        $page_data['page_name']   = 'store_users';
+        $page_data['page_title']  = get_phrase('store_users');
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function store_user_form($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == 'add_store_user_form') {
+            $page_data['page_name']   = 'store_user_add';
+            $page_data['stores']      = $this->db->where('status', 1)->get('stores')->result_array();
+            $page_data['pharmacists'] = $this->db->where('role_id', 2)->where('status', 1)->get('users')->result_array();
+            $page_data['page_title']  = get_phrase('add_new_store_user');
+            $this->load->view('backend/index', $page_data);
+        } elseif ($param1 == 'edit_store_user_form') {
+            $page_data['page_name']   = 'store_user_edit';
+            $store_user               = $this->db->get_where('store_users', array('id' => $param2))->row_array();
+            $page_data['store_user']  = $store_user;
+            $page_data['stores']      = $this->db->where('status', 1)->get('stores')->result_array();
+            $page_data['pharmacists'] = $this->db->where('role_id', 2)->where('status', 1)->get('users')->result_array();
+
+            // Load roles for this store
+            $assigned_roles = [];
+            if (!empty($store_user['store_id'])) {
+                $store = $this->db->get_where('stores', array('id' => $store_user['store_id']))->row_array();
+                if ($store && !empty($store['assigned_role_ids'])) {
+                    $role_ids = json_decode($store['assigned_role_ids'], true);
+                    if (!empty($role_ids)) {
+                        $this->db->where_in('id', $role_ids);
+                        $this->db->where('status', 1);
+                        $assigned_roles = $this->db->get('store_roles')->result_array();
                     }
+                }
+            }
+            $page_data['store_roles'] = $assigned_roles;
+            $page_data['page_title']  = get_phrase('edit_store_user');
+            $this->load->view('backend/index', $page_data);
+        }
+    }
+
+    // AJAX Endpoint for fetching store roles
+    public function get_store_roles($store_id = 0)
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo json_encode([]);
+            return;
+        }
+        $store = $this->db->get_where('stores', array('id' => $store_id))->row_array();
+        if ($store && !empty($store['assigned_role_ids'])) {
+            $role_ids = json_decode($store['assigned_role_ids'], true);
+            if (!empty($role_ids)) {
+                $this->db->where_in('id', $role_ids);
+                $this->db->where('status', 1);
+                $roles = $this->db->get('store_roles')->result_array();
+                echo json_encode($roles);
+                return;
+            }
+        }
+        echo json_encode([]);
+    }
+
+    // ==========================================
+    // BULK IMPORT & SAMPLE TEMPLATE DOWNLOADS
+    // ==========================================
+    public function download_sample_template($type = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $filename = "";
+        $headers = [];
+        $sample_rows = [];
+
+        if ($type == 'pharmacists') {
+            $filename = "pharmacists_sample_template.csv";
+            $headers = ['first_name', 'last_name', 'email', 'password', 'employee_id', 'gender', 'phone', 'licence_no', 'licence_start_date', 'address', 'store_code', 'status'];
+            $sample_rows = [
+                ['John', 'Doe', 'john.doe@example.com', 'Pass@1234', 'EMP-001', 'Male', '9876543210', 'LIC-100234', '2024-01-15', '123 Main St, New York', 'STR-001', '1'],
+                ['Jane', 'Smith', 'jane.smith@example.com', '', 'EMP-002', 'Female', '9876543211', 'LIC-100235', '2024-03-01', '456 High St, Boston', 'STR-002', '1']
+            ];
+        } elseif ($type == 'stores') {
+            $filename = "stores_sample_template.csv";
+            $headers = ['store_name', 'store_code', 'phone', 'email', 'portal_url', 'assigned_roles', 'address', 'city', 'state', 'pin_code', 'status'];
+            $sample_rows = [
+                ['Apollo Pharmacy - Downtown', 'STR-001', '9876543210', 'apollo.downtown@example.com', 'https://store1.domain.com/login', 'Senior Pharmacist, Cashier, Dispenser', '123 Downtown Ave', 'New York', 'NY', '10001', '1'],
+                ['HealthPlus Pharmacy - Uptown', 'STR-002', '9876543211', 'healthplus.uptown@example.com', 'https://store2.domain.com/login', 'Pharmacist, Store Manager', '789 Uptown Blvd', 'Boston', 'MA', '02108', '1']
+            ];
+        } elseif ($type == 'roles') {
+            $filename = "roles_sample_template.csv";
+            $headers = ['role_name', 'description', 'status'];
+            $sample_rows = [
+                ['Senior Pharmacist', 'In charge of dispensing and inventory management', '1'],
+                ['Cashier', 'Handles billing and customer checkout', '1'],
+                ['Dispenser', 'Responsible for prescription fulfillment', '1']
+            ];
+        } elseif ($type == 'store_users') {
+            $filename = "store_users_sample_template.csv";
+            $headers = ['store_code', 'role_name', 'pharmacist_email', 'username', 'password', 'portal_link', 'notes', 'status'];
+            $sample_rows = [
+                ['STR-001', 'Senior Pharmacist', 'john.doe@example.com', 'john.apollo', 'Pass123!', '', 'Assigned to Apollo downtown', '1'],
+                ['STR-002', 'Cashier', 'jane.smith@example.com', 'jane.healthplus', '', '', 'Assigned to HealthPlus', '1']
+            ];
+        } elseif ($type == 'instructors' || $type == 'instructor') {
+            $filename = "instructors_sample_template.csv";
+            $headers = ['first_name', 'last_name', 'email', 'password', 'phone', 'address', 'biography', 'status'];
+            $sample_rows = [
+                ['Robert', 'Fox', 'robert.fox@example.com', 'Pass@1234', '9876543210', '123 Academic Way, Boston', 'Specialist in Pharmacology with 10+ years experience', '1'],
+                ['Sarah', 'Connor', 'sarah.connor@example.com', '', '9876543211', '456 College Blvd, New York', 'Clinical Pharmacy educator and researcher', '1']
+            ];
+        } elseif ($type == 'enrollments' || $type == 'enrollment' || $type == 'course_enrollment') {
+            $filename = "course_enrollment_sample_template.csv";
+            $headers = ['user_email', 'course_title', 'expiry_days'];
+            $sample_rows = [
+                ['bhargav@example.com', 'First Course', '180'],
+                ['student1@example.com', '1', '']
+            ];
+        } else {
+            show_404();
+            return;
+        }
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $output = fopen('php://output', 'w');
+        // Write UTF-8 BOM for Excel compatibility
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($output, $headers);
+        foreach ($sample_rows as $row) {
+            fputcsv($output, $row);
+        }
+        fclose($output);
+        exit;
+    }
+
+    private function parse_imported_file($file_path, $file_name)
+    {
+        $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+        $rows = [];
+
+        if ($ext === 'xlsx') {
+            $zip = new ZipArchive();
+            if ($zip->open($file_path) === true) {
+                $sharedStrings = [];
+                $ssXml = $zip->getFromName("xl/sharedStrings.xml");
+                if ($ssXml) {
+                    $xml = simplexml_load_string($ssXml);
+                    if ($xml && isset($xml->si)) {
+                        foreach ($xml->si as $si) {
+                            $t = "";
+                            if (isset($si->t)) {
+                                $t = (string)$si->t;
+                            } elseif (isset($si->r)) {
+                                foreach ($si->r as $r) {
+                                    $t .= (string)$r->t;
+                                }
+                            }
+                            $sharedStrings[] = $t;
+                        }
+                    }
+                }
+
+                $sheetXml = $zip->getFromName("xl/worksheets/sheet1.xml");
+                if ($sheetXml) {
+                    $xml = simplexml_load_string($sheetXml);
+                    if ($xml && isset($xml->sheetData->row)) {
+                        foreach ($xml->sheetData->row as $row) {
+                            $rowData = [];
+                            foreach ($row->c as $c) {
+                                $val = "";
+                                $type = (string)$c["t"];
+                                if ($type === "s") {
+                                    $idx = (int)$c->v;
+                                    $val = isset($sharedStrings[$idx]) ? $sharedStrings[$idx] : "";
+                                } elseif ($type === "inlineStr") {
+                                    $val = (string)$c->is->t;
+                                } else {
+                                    $val = isset($c->v) ? (string)$c->v : "";
+                                }
+                                $rowData[] = trim($val);
+                            }
+                            if (!empty(array_filter($rowData, 'strlen'))) {
+                                $rows[] = $rowData;
+                            }
+                        }
+                    }
+                }
+                $zip->close();
+            }
+        } else {
+            // CSV / TXT
+            if (($handle = fopen($file_path, "r")) !== false) {
+                // Check and strip UTF-8 BOM if present
+                $bom = fread($handle, 3);
+                if ($bom !== "\xEF\xBB\xBF") {
+                    rewind($handle);
+                }
+
+                // Detect delimiter
+                $firstLine = fgets($handle);
+                rewind($handle);
+                $bom = fread($handle, 3);
+                if ($bom !== "\xEF\xBB\xBF") {
+                    rewind($handle);
+                }
+
+                $delimiter = ",";
+                if (substr_count($firstLine, ";") > substr_count($firstLine, ",")) {
+                    $delimiter = ";";
+                } elseif (substr_count($firstLine, "\t") > substr_count($firstLine, ",")) {
+                    $delimiter = "\t";
+                }
+
+                while (($data = fgetcsv($handle, 5000, $delimiter)) !== false) {
+                    $rowData = array_map('trim', $data);
+                    if (!empty(array_filter($rowData, 'strlen'))) {
+                        $rows[] = $rowData;
+                    }
+                }
+                fclose($handle);
+            }
+        }
+
+        if (empty($rows) || count($rows) < 2) {
+            return [];
+        }
+
+        // Normalize headers
+        $rawHeaders = array_shift($rows);
+        $headers = [];
+        foreach ($rawHeaders as $h) {
+            $clean = strtolower(trim($h));
+            $clean = preg_replace('/[^a-z0-9_]/', '_', $clean);
+            $clean = preg_replace('/_+/', '_', $clean);
+            $clean = trim($clean, '_');
+            $headers[] = $clean;
+        }
+
+        $assocRows = [];
+        foreach ($rows as $row) {
+            $item = [];
+            foreach ($headers as $idx => $header) {
+                $item[$header] = isset($row[$idx]) ? trim($row[$idx]) : "";
+            }
+            $assocRows[] = $item;
+        }
+
+        return $assocRows;
+    }
+
+    private function import_pharmacists($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+            $email = isset($row['email']) ? trim($row['email']) : '';
+            $first_name = isset($row['first_name']) ? trim($row['first_name']) : '';
+            $last_name = isset($row['last_name']) ? trim($row['last_name']) : '';
+
+            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Invalid or missing email ('{$email}')";
+                continue;
+            }
+
+            if (empty($first_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing first name";
+                continue;
+            }
+
+            // Check duplicate email
+            $exists = $this->db->get_where('users', ['email' => $email])->num_rows();
+            if ($exists > 0) {
+                $skipped++;
+                $errors[] = "Row {$line}: Email '{$email}' already exists";
+                continue;
+            }
+
+            $password = !empty($row['password']) ? trim($row['password']) : '12345678';
+
+            $store_id = null;
+            if (!empty($row['store_code'])) {
+                $store = $this->db->group_start()
+                    ->where('store_code', trim($row['store_code']))
+                    ->or_where('store_name', trim($row['store_code']))
+                    ->group_end()
+                    ->get('stores')->row_array();
+                if ($store) {
+                    $store_id = $store['id'];
+                }
+            }
+
+            $user_data = [
+                'first_name'         => html_escape($first_name),
+                'last_name'          => html_escape($last_name),
+                'email'              => html_escape($email),
+                'password'           => sha1($password),
+                'employee_id'        => isset($row['employee_id']) ? html_escape(trim($row['employee_id'])) : '',
+                'gender'             => isset($row['gender']) ? html_escape(trim($row['gender'])) : '',
+                'phone'              => isset($row['phone']) ? html_escape(trim($row['phone'])) : '',
+                'licence_no'         => isset($row['licence_no']) ? html_escape(trim($row['licence_no'])) : '',
+                'licence_start_date' => isset($row['licence_start_date']) ? html_escape(trim($row['licence_start_date'])) : '',
+                'address'            => isset($row['address']) ? html_escape(trim($row['address'])) : '',
+                'store_id'           => $store_id,
+                'role_id'            => 2,
+                'status'             => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
+                'date_added'         => time(),
+                'social_links'       => json_encode(['facebook' => '', 'twitter' => '', 'linkedin' => '']),
+                'wishlist'           => json_encode([]),
+                'image'              => md5(rand(10000, 10000000))
+            ];
+
+            $this->db->insert('users', $user_data);
+            $success++;
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function import_stores($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        $roles_db = $this->db->get('store_roles')->result_array();
+        $roles_map = [];
+        foreach ($roles_db as $r) {
+            $roles_map[strtolower(trim($r['role_name']))] = (string)$r['id'];
+        }
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+            $store_name = isset($row['store_name']) ? trim($row['store_name']) : '';
+
+            if (empty($store_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing store name";
+                continue;
+            }
+
+            $store_code = isset($row['store_code']) ? trim($row['store_code']) : '';
+            if (!empty($store_code)) {
+                $exists = $this->db->get_where('stores', ['store_code' => $store_code])->num_rows();
+                if ($exists > 0) {
+                    $skipped++;
+                    $errors[] = "Row {$line}: Store code '{$store_code}' already exists";
+                    continue;
+                }
+            }
+
+            $assigned_role_ids = [];
+            if (!empty($row['assigned_roles'])) {
+                $role_names = explode(',', $row['assigned_roles']);
+                foreach ($role_names as $rname) {
+                    $rname_clean = strtolower(trim($rname));
+                    if (isset($roles_map[$rname_clean])) {
+                        $assigned_role_ids[] = $roles_map[$rname_clean];
+                    } else {
+                        $new_role = [
+                            'role_name'  => html_escape(trim($rname)),
+                            'status'     => 1,
+                            'created_at' => date('Y-m-d H:i:s'),
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ];
+                        $this->db->insert('store_roles', $new_role);
+                        $new_id = (string)$this->db->insert_id();
+                        $roles_map[$rname_clean] = $new_id;
+                        $assigned_role_ids[] = $new_id;
+                    }
+                }
+            }
+
+            $store_data = [
+                'store_name'        => html_escape($store_name),
+                'store_code'        => html_escape($store_code),
+                'phone'             => isset($row['phone']) ? html_escape(trim($row['phone'])) : '',
+                'email'             => isset($row['email']) ? html_escape(trim($row['email'])) : '',
+                'portal_url'        => isset($row['portal_url']) ? html_escape(trim($row['portal_url'])) : '',
+                'assigned_role_ids' => json_encode(array_values(array_unique($assigned_role_ids))),
+                'address'           => isset($row['address']) ? html_escape(trim($row['address'])) : '',
+                'city'              => isset($row['city']) ? html_escape(trim($row['city'])) : '',
+                'state'             => isset($row['state']) ? html_escape(trim($row['state'])) : '',
+                'pin_code'          => isset($row['pin_code']) ? html_escape(trim($row['pin_code'])) : (isset($row['pincode']) ? html_escape(trim($row['pincode'])) : (isset($row['pin']) ? html_escape(trim($row['pin'])) : '')),
+                'status'            => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
+                'created_at'        => date('Y-m-d H:i:s'),
+                'updated_at'        => date('Y-m-d H:i:s')
+            ];
+
+            $this->db->insert('stores', $store_data);
+            $success++;
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function import_roles($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+            $role_name = isset($row['role_name']) ? trim($row['role_name']) : '';
+
+            if (empty($role_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing role name";
+                continue;
+            }
+
+            $exists = $this->db->get_where('store_roles', ['role_name' => $role_name])->num_rows();
+            if ($exists > 0) {
+                $skipped++;
+                $errors[] = "Row {$line}: Role '{$role_name}' already exists";
+                continue;
+            }
+
+            $role_data = [
+                'role_name'   => html_escape($role_name),
+                'description' => isset($row['description']) ? html_escape(trim($row['description'])) : '',
+                'status'      => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
+                'created_at'  => date('Y-m-d H:i:s'),
+                'updated_at'  => date('Y-m-d H:i:s')
+            ];
+
+            $this->db->insert('store_roles', $role_data);
+            $success++;
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function import_store_users($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+            $store_code = isset($row['store_code']) ? trim($row['store_code']) : '';
+            $role_name = isset($row['role_name']) ? trim($row['role_name']) : '';
+            $username = isset($row['username']) ? trim($row['username']) : '';
+
+            if (empty($store_code)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing store code";
+                continue;
+            }
+
+            $store = $this->db->group_start()
+                ->where('store_code', $store_code)
+                ->or_where('store_name', $store_code)
+                ->group_end()
+                ->get('stores')->row_array();
+
+            if (!$store) {
+                $skipped++;
+                $errors[] = "Row {$line}: Store '{$store_code}' not found";
+                continue;
+            }
+
+            if (empty($role_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing role name";
+                continue;
+            }
+
+            $role = $this->db->get_where('store_roles', ['role_name' => $role_name])->row_array();
+            if (!$role) {
+                $new_role = [
+                    'role_name'   => html_escape($role_name),
+                    'status'      => 1,
+                    'created_at'  => date('Y-m-d H:i:s'),
+                    'updated_at'  => date('Y-m-d H:i:s')
+                ];
+                $this->db->insert('store_roles', $new_role);
+                $role_id = $this->db->insert_id();
+                $role_title = $role_name;
+            } else {
+                $role_id = $role['id'];
+                $role_title = $role['role_name'];
+            }
+
+            $assigned_role_ids = json_decode($store['assigned_role_ids'] ?: '[]', true);
+            if (!in_array((string)$role_id, $assigned_role_ids)) {
+                $assigned_role_ids[] = (string)$role_id;
+                $this->db->where('id', $store['id'])->update('stores', ['assigned_role_ids' => json_encode($assigned_role_ids)]);
+            }
+
+            $pharmacist_id = null;
+            if (!empty($row['pharmacist_email'])) {
+                $ph = $this->db->get_where('users', ['email' => trim($row['pharmacist_email']), 'role_id' => 2])->row_array();
+                if ($ph) {
+                    $pharmacist_id = $ph['id'];
+                    if (empty($username)) {
+                        $username = explode('@', $ph['email'])[0];
+                    }
+                }
+            }
+
+            if (empty($username)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing username";
+                continue;
+            }
+
+            $exists = $this->db->get_where('store_users', ['username' => $username, 'store_id' => $store['id']])->num_rows();
+            if ($exists > 0) {
+                $skipped++;
+                $errors[] = "Row {$line}: Username '{$username}' already exists for store '{$store['store_name']}'";
+                continue;
+            }
+
+            $password = !empty($row['password']) ? trim($row['password']) : substr(str_shuffle("abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"), 0, 10);
+            $portal_link = !empty($row['portal_link']) ? trim($row['portal_link']) : ($store['portal_url'] ?? '');
+
+            $store_user_data = [
+                'store_id'      => $store['id'],
+                'pharmacist_id' => $pharmacist_id,
+                'role_id'       => $role_id,
+                'role_title'    => html_escape($role_title),
+                'username'      => html_escape($username),
+                'password'      => html_escape($password),
+                'portal_link'   => html_escape($portal_link),
+                'notes'         => isset($row['notes']) ? html_escape(trim($row['notes'])) : '',
+                'status'        => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
+                'created_at'    => date('Y-m-d H:i:s'),
+                'updated_at'    => date('Y-m-d H:i:s')
+            ];
+
+            $this->db->insert('store_users', $store_user_data);
+            $success++;
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function import_instructors($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+            $email = isset($row['email']) ? trim($row['email']) : '';
+            $first_name = isset($row['first_name']) ? trim($row['first_name']) : '';
+            $last_name = isset($row['last_name']) ? trim($row['last_name']) : '';
+
+            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Invalid or missing email ('{$email}')";
+                continue;
+            }
+
+            if (empty($first_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing first name";
+                continue;
+            }
+
+            $existing_user = $this->db->get_where('users', ['email' => $email])->row_array();
+            if ($existing_user) {
+                if ($existing_user['is_instructor'] == 1) {
+                    $skipped++;
+                    $errors[] = "Row {$line}: Instructor with email '{$email}' already exists";
+                    continue;
+                } else {
+                    $update_data = [
+                        'is_instructor' => 1
+                    ];
+                    if (empty($existing_user['payment_keys'])) {
+                        $update_data['payment_keys'] = json_encode([]);
+                    }
+                    if (!empty($row['phone'])) {
+                        $update_data['phone'] = html_escape(trim($row['phone']));
+                    }
+                    if (!empty($row['address'])) {
+                        $update_data['address'] = html_escape(trim($row['address']));
+                    }
+                    if (!empty($row['biography'])) {
+                        $update_data['biography'] = html_escape(trim($row['biography']));
+                    }
+                    if (isset($row['status']) && $row['status'] !== '') {
+                        $update_data['status'] = (int)$row['status'];
+                    }
+                    $this->db->where('id', $existing_user['id'])->update('users', $update_data);
+                    $success++;
+                    continue;
+                }
+            }
+
+            $password = !empty($row['password']) ? trim($row['password']) : '12345678';
+
+            $user_data = [
+                'first_name'    => html_escape($first_name),
+                'last_name'     => html_escape($last_name),
+                'email'         => html_escape($email),
+                'password'      => sha1($password),
+                'phone'         => isset($row['phone']) ? html_escape(trim($row['phone'])) : '',
+                'address'       => isset($row['address']) ? html_escape(trim($row['address'])) : '',
+                'biography'     => isset($row['biography']) ? html_escape(trim($row['biography'])) : '',
+                'role_id'       => 2,
+                'is_instructor' => 1,
+                'status'        => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
+                'date_added'    => time(),
+                'social_links'  => json_encode(['facebook' => '', 'twitter' => '', 'linkedin' => '']),
+                'payment_keys'  => json_encode([]),
+                'wishlist'      => json_encode([]),
+                'image'         => md5(rand(10000, 10000000))
+            ];
+
+            $this->db->insert('users', $user_data);
+            $success++;
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function import_enrollments($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+
+            $user_identifier = '';
+            if (!empty($row['user_email'])) {
+                $user_identifier = trim($row['user_email']);
+            } elseif (!empty($row['email'])) {
+                $user_identifier = trim($row['email']);
+            } elseif (!empty($row['student_email'])) {
+                $user_identifier = trim($row['student_email']);
+            } elseif (!empty($row['pharmacist_email'])) {
+                $user_identifier = trim($row['pharmacist_email']);
+            } elseif (!empty($row['employee_id'])) {
+                $user_identifier = trim($row['employee_id']);
+            } elseif (!empty($row['user_id'])) {
+                $user_identifier = trim($row['user_id']);
+            } elseif (!empty($row['user'])) {
+                $user_identifier = trim($row['user']);
+            } elseif (!empty($row['student'])) {
+                $user_identifier = trim($row['student']);
+            } elseif (!empty($row['pharmacist'])) {
+                $user_identifier = trim($row['pharmacist']);
+            } elseif (!empty($row['username'])) {
+                $user_identifier = trim($row['username']);
+            }
+
+            if (empty($user_identifier)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing user email or identifier";
+                continue;
+            }
+
+            $user = $this->db->get_where('users', ['email' => $user_identifier])->row_array();
+            if (!$user) {
+                $user = $this->db->where('LOWER(email)', strtolower($user_identifier))->get('users')->row_array();
+            }
+            if (!$user) {
+                $user = $this->db->get_where('users', ['employee_id' => $user_identifier])->row_array();
+            }
+            if (!$user && is_numeric($user_identifier)) {
+                $user = $this->db->get_where('users', ['id' => (int)$user_identifier])->row_array();
+            }
+
+            // If user does not exist but a valid email was provided, auto-create student account
+            if (!$user && (filter_var($user_identifier, FILTER_VALIDATE_EMAIL) || strpos($user_identifier, '@') !== false)) {
+                $first_name = !empty($row['first_name']) ? trim($row['first_name']) : ucfirst(explode('@', $user_identifier)[0]);
+                $last_name  = !empty($row['last_name']) ? trim($row['last_name']) : '';
+                $new_user_data = [
+                    'first_name'   => html_escape($first_name),
+                    'last_name'    => html_escape($last_name),
+                    'email'        => html_escape($user_identifier),
+                    'password'     => sha1('12345678'),
+                    'role_id'      => 2,
+                    'status'       => 1,
+                    'date_added'   => time(),
+                    'social_links' => json_encode(['facebook' => '', 'twitter' => '', 'linkedin' => '']),
+                    'payment_keys' => json_encode([]),
+                    'wishlist'     => json_encode([]),
+                    'image'        => md5(rand(10000, 10000000))
+                ];
+                $this->db->insert('users', $new_user_data);
+                $new_id = $this->db->insert_id();
+                $user = $this->db->get_where('users', ['id' => $new_id])->row_array();
+            }
+
+            if (!$user) {
+                $skipped++;
+                $errors[] = "Row {$line}: User '{$user_identifier}' not found";
+                continue;
+            }
+
+            $course_identifier = '';
+            if (!empty($row['course_title'])) {
+                $course_identifier = trim($row['course_title']);
+            } elseif (!empty($row['course'])) {
+                $course_identifier = trim($row['course']);
+            } elseif (!empty($row['course_name'])) {
+                $course_identifier = trim($row['course_name']);
+            } elseif (!empty($row['course_id'])) {
+                $course_identifier = trim($row['course_id']);
+            } elseif (!empty($row['title'])) {
+                $course_identifier = trim($row['title']);
+            } elseif (!empty($row['courses'])) {
+                $course_identifier = trim($row['courses']);
+            }
+
+            if (empty($course_identifier)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing course title or ID";
+                continue;
+            }
+
+            $matched_courses = [];
+            $course = null;
+            if (is_numeric($course_identifier)) {
+                $course = $this->db->get_where('course', ['id' => (int)$course_identifier])->row_array();
+            }
+            if (!$course) {
+                $course = $this->db->get_where('course', ['title' => $course_identifier])->row_array();
+            }
+            if (!$course) {
+                $course = $this->db->where('LOWER(title)', strtolower($course_identifier))->get('course')->row_array();
+            }
+            if (!$course) {
+                $course = $this->db->like('LOWER(title)', strtolower($course_identifier))->get('course')->row_array();
+            }
+
+            if ($course) {
+                $matched_courses[] = $course;
+            } elseif (strpos($course_identifier, ',') !== false) {
+                $split_titles = explode(',', $course_identifier);
+                foreach ($split_titles as $st) {
+                    $st = trim($st);
+                    if (empty($st)) continue;
+                    $c = null;
+                    if (is_numeric($st)) {
+                        $c = $this->db->get_where('course', ['id' => (int)$st])->row_array();
+                    }
+                    if (!$c) {
+                        $c = $this->db->get_where('course', ['title' => $st])->row_array();
+                    }
+                    if (!$c) {
+                        $c = $this->db->where('LOWER(title)', strtolower($st))->get('course')->row_array();
+                    }
+                    if (!$c) {
+                        $c = $this->db->like('LOWER(title)', strtolower($st))->get('course')->row_array();
+                    }
+                    if ($c) {
+                        $matched_courses[] = $c;
+                    }
+                }
+            }
+
+            if (empty($matched_courses)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Course '{$course_identifier}' not found";
+                continue;
+            }
+
+            foreach ($matched_courses as $c_item) {
+                $expiry_date = null;
+                $expiry_days = '';
+                if (isset($row['expiry_days'])) {
+                    $expiry_days = trim($row['expiry_days']);
+                } elseif (isset($row['expiry_day'])) {
+                    $expiry_days = trim($row['expiry_day']);
+                } elseif (isset($row['expiry'])) {
+                    $expiry_days = trim($row['expiry']);
+                } elseif (isset($row['days'])) {
+                    $expiry_days = trim($row['days']);
+                } elseif (isset($row['duration'])) {
+                    $expiry_days = trim($row['duration']);
+                }
+
+                if (!empty($expiry_days)) {
+                    if (is_numeric($expiry_days)) {
+                        $expiry_date = strtotime("+" . (int)$expiry_days . " days");
+                    } else {
+                        $parsed = strtotime($expiry_days);
+                        if ($parsed !== false) {
+                            $expiry_date = $parsed;
+                        }
+                    }
+                } elseif (!empty($row['expiry_date'])) {
+                    $parsed = strtotime(trim($row['expiry_date']));
+                    if ($parsed !== false) {
+                        $expiry_date = $parsed;
+                    }
+                } elseif (!empty($c_item['expiry_period']) && $c_item['expiry_period'] > 0) {
+                    $days = $c_item['expiry_period'] * 30;
+                    $expiry_date = strtotime("+" . $days . " days");
+                }
+
+                $existing_enrol = $this->db->get_where('enrol', [
+                    'user_id'   => $user['id'],
+                    'course_id' => $c_item['id']
+                ])->row_array();
+
+                if ($existing_enrol) {
+                    $update_data = [
+                        'last_modified' => time(),
+                        'date_added'    => time()
+                    ];
+                    if ($expiry_date !== null) {
+                        $update_data['expiry_date'] = (string)$expiry_date;
+                    }
+                    $this->db->where('id', $existing_enrol['id'])->update('enrol', $update_data);
+                    $success++;
+                } else {
+                    $enrol_data = [
+                        'user_id'       => $user['id'],
+                        'course_id'     => $c_item['id'],
+                        'gifted_by'     => 0,
+                        'expiry_date'   => $expiry_date !== null ? (string)$expiry_date : null,
+                        'date_added'    => time(),
+                        'last_modified' => time()
+                    ];
+                    $this->db->insert('enrol', $enrol_data);
+                    $success++;
+                }
+            }
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    public function bulk_import($type = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $redirect_map = [
+            'pharmacists'       => 'admin/users',
+            'stores'            => 'admin/stores',
+            'roles'             => 'admin/store_roles',
+            'store_users'       => 'admin/store_users',
+            'instructors'       => 'admin/instructors',
+            'instructor'        => 'admin/instructors',
+            'enrollments'       => 'admin/enrol_history',
+            'enrollment'        => 'admin/enrol_history',
+            'course_enrollment' => 'admin/enrol_history'
+        ];
+
+        $redirect_url = isset($redirect_map[$type]) ? $redirect_map[$type] : 'admin/dashboard';
+
+        if (!isset($_FILES['import_file']) || empty($_FILES['import_file']['tmp_name'])) {
+            $this->session->set_flashdata('error_message', get_phrase('please_upload_a_valid_file'));
+            redirect(site_url($redirect_url), 'refresh');
+        }
+
+        $rows = $this->parse_imported_file($_FILES['import_file']['tmp_name'], $_FILES['import_file']['name']);
+
+        if (empty($rows)) {
+            $this->session->set_flashdata('error_message', get_phrase('no_valid_data_found_in_file'));
+            redirect(site_url($redirect_url), 'refresh');
+        }
+
+        $result = ['success' => 0, 'skipped' => 0, 'errors' => []];
+        if ($type == 'pharmacists') {
+            $result = $this->import_pharmacists($rows);
+        } elseif ($type == 'stores') {
+            $result = $this->import_stores($rows);
+        } elseif ($type == 'roles') {
+            $result = $this->import_roles($rows);
+        } elseif ($type == 'store_users') {
+            $result = $this->import_store_users($rows);
+        } elseif ($type == 'instructors' || $type == 'instructor') {
+            $result = $this->import_instructors($rows);
+        } elseif ($type == 'enrollments' || $type == 'enrollment' || $type == 'course_enrollment') {
+            $result = $this->import_enrollments($rows);
+        }
+
+        $msg = "Imported: {$result['success']} records. Skipped: {$result['skipped']}.";
+        if (!empty($result['errors'])) {
+            $msg .= " Details: " . implode(" | ", array_slice($result['errors'], 0, 5));
+            if (count($result['errors']) > 5) {
+                $msg .= " ...and " . (count($result['errors']) - 5) . " more.";
+            }
+        }
+
+        if ($result['success'] > 0 && $result['skipped'] == 0) {
+            $this->session->set_flashdata('flash_message', $msg);
+        } elseif ($result['success'] > 0 && $result['skipped'] > 0) {
+            $this->session->set_flashdata('flash_message', $msg);
+        } else {
+            $this->session->set_flashdata('error_message', $msg);
+        }
+
+        redirect(site_url($redirect_url), 'refresh');
+    }
+}
+
 
 
 

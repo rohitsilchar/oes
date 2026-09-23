@@ -11,7 +11,7 @@
           <h4 class="title"><?php echo get_phrase('Our Popular Instructor'); ?></h4>
           <div class="bar"></div>
         </div>
-        <p class="fz_15_m_24 c-8e8e96 pb-30"><?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?></p>
+        <p class="fz_15_m_24 c-8e8e96 pb-30"><?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?></p>
       </div>
 
       <?php foreach($top_instructor_ids as $top_instructor_id):

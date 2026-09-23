@@ -6,7 +6,7 @@
 		<select id="send_to" name="send_to" class="form-control select2" onchange="is_selected_user(this)">
 			<option value="selected_user"><?php echo get_phrase('Selected user'); ?></option>
 			<option value="all"><?php echo get_phrase('All users'); ?></option>
-			<option value="student"><?php echo get_phrase('All student'); ?></option>
+			<option value="student"><?php echo get_phrase('All pharmacist'); ?></option>
 			<option value="instructor"><?php echo get_phrase('All instructor'); ?></option>
 			<option value="all_subscriber"><?php echo get_phrase('Newsletter subscriber'); ?> (<?php echo get_phrase('All subscriber'); ?>)</option>
 			<option value="registered_subscriber"><?php echo get_phrase('Newsletter subscriber'); ?> (<?php echo get_phrase('Registered user'); ?>)</option>

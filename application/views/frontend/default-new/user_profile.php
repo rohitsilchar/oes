@@ -65,6 +65,41 @@
                                         </div>
                                     </div>
 
+                                    <div class="col-md-6 mt-3">
+                                        <label class="text-dark fw-600" for="employee_id"><?php echo site_phrase('employee_id'); ?></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-id-badge"></i></span>
+                                            <input type="text" class="form-control bg-white-2 text-14px" name="employee_id" id="employee_id" placeholder="<?php echo site_phrase('employee_id'); ?>" value="<?php echo htmlspecialchars($user_details['employee_id'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mt-3">
+                                        <label class="text-dark fw-600" for="gender"><?php echo site_phrase('gender'); ?></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-venus-mars"></i></span>
+                                            <select class="form-control bg-white-2 text-14px" name="gender" id="gender">
+                                                <option value=""><?php echo site_phrase('select_gender'); ?></option>
+                                                <option value="Male" <?php if (($user_details['gender'] ?? '') == 'Male') echo 'selected'; ?>><?php echo site_phrase('male'); ?></option>
+                                                <option value="Female" <?php if (($user_details['gender'] ?? '') == 'Female') echo 'selected'; ?>><?php echo site_phrase('female'); ?></option>
+                                                <option value="Other" <?php if (($user_details['gender'] ?? '') == 'Other') echo 'selected'; ?>><?php echo site_phrase('other'); ?></option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6 mt-3">
+                                        <label class="text-dark fw-600" for="licence_no"><?php echo site_phrase('licence_no'); ?></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-certificate"></i></span>
+                                            <input type="text" class="form-control bg-white-2 text-14px" name="licence_no" id="licence_no" placeholder="<?php echo site_phrase('licence_no'); ?>" value="<?php echo htmlspecialchars($user_details['licence_no'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mt-3">
+                                        <label class="text-dark fw-600" for="licence_start_date"><?php echo site_phrase('licence_start_date'); ?></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
+                                            <input type="date" class="form-control bg-white-2 text-14px" name="licence_start_date" id="licence_start_date" value="<?php echo htmlspecialchars($user_details['licence_start_date'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+
                                     <div class="col-12 mt-3">
                                         <?php if ($user_details['is_instructor'] > 0) : ?>
                                             <div class="form-group mb-3">

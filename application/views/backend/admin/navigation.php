@@ -526,7 +526,7 @@
                 <?php if (has_permission('student')): ?>
                 <li class="side-nav-item<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit'): ?> active<?php endif; ?>">
                     <a href="javascript: void(0);" aria-expanded="false"
-                        class="<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit'): ?> active<?php endif; ?>"><?php echo get_phrase('students'); ?>
+                        class="<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit'): ?> active<?php endif; ?>"><?php echo get_phrase('pharmacists'); ?>
                         <span class="menu-arrow"></span>
                     </a>
                     <ul class="side-nav-third-level" aria-expanded="false">
@@ -534,13 +534,13 @@
                                            echo 'active';
                                    }
                                    ?>">
-                            <a href="<?php echo site_url('admin/users'); ?>"><?php echo get_phrase('manage_students'); ?></a>
+                            <a href="<?php echo site_url('admin/users'); ?>"><?php echo get_phrase('manage_pharmacists'); ?></a>
                         </li>
                         <li class="<?php if ($page_name == 'user_add') {
                                            echo 'active';
                                    }
                                    ?>">
-                            <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>"><?php echo get_phrase('add_new_student'); ?></a>
+                            <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>"><?php echo get_phrase('add_new_pharmacist'); ?></a>
                         </li>
                     </ul>
                 </li>
@@ -548,6 +548,25 @@
             </ul>
         </li>
         <?php endif; ?>
+
+        <li class="side-nav-item <?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit' || $page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit' || $page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit'): ?> active <?php endif; ?>">
+            <a href="javascript: void(0);" class="side-nav-link <?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit' || $page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit' || $page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit'): ?> active <?php endif; ?>">
+                <i class="dripicons-store"></i>
+                <span> <?php echo get_phrase('stores'); ?> </span>
+                <span class="menu-arrow"></span>
+            </a>
+            <ul class="side-nav-second-level" aria-expanded="false">
+                <li class="<?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit') echo 'active'; ?>">
+                    <a href="<?php echo site_url('admin/stores'); ?>"><?php echo get_phrase('manage_stores'); ?></a>
+                </li>
+                <li class="<?php if ($page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit') echo 'active'; ?>">
+                    <a href="<?php echo site_url('admin/store_roles'); ?>"><?php echo get_phrase('store_roles'); ?></a>
+                </li>
+                <li class="<?php if ($page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit') echo 'active'; ?>">
+                    <a href="<?php echo site_url('admin/store_users'); ?>"><?php echo get_phrase('store_users'); ?></a>
+                </li>
+            </ul>
+        </li>
 
         <?php if (addon_status('offline_payment')): ?>
         <li class="side-nav-item">

@@ -47,7 +47,7 @@
                             <div class="col-auto">
                                 <?php $all_students = $this->db->get_where('users', ['role_id !=' => 1]); ?>
                                 <h1><?php echo nice_number($all_students->num_rows()); ?>+</h1>
-                                <p><?php echo get_phrase('Happy Students') ?></p>
+                                <p><?php echo get_phrase('Happy Pharmacists') ?></p>
                             </div>
                             <div class="col-auto ps-4">
                                 <?php $all_instructor = $this->db->get_where('users', ['is_instructor' => 1]); ?>
@@ -165,7 +165,7 @@
                     <img loading="lazy" src="<?php echo site_url('assets/frontend/default-new/'); ?>image/counter-graphic-5-1.svg" alt="" />
                 </span>
                 <h4 class="title"><?php echo nice_number($all_students->num_rows()); ?>+</h4>
-                <p class="info"><?php echo get_phrase('Happy student') ?></p>
+                <p class="info"><?php echo get_phrase('Happy pharmacist') ?></p>
             </div>
             <div class="item">
                 <span class="graphic">
@@ -488,7 +488,7 @@
                 <div class="title-two text-center pb-50">
                     <h4 class="title"><?php echo get_phrase('Popular Instructor') ?></h4>
                     <p class="info">
-                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?>
+                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?>
                     </p>
                 </div>
             </div>
@@ -707,7 +707,7 @@
                             <div class="student-body-text">
                                 <!-- <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png') ?>"> -->
                                 <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                 <?php if (get_settings('public_signup') == 'enable'): ?>
                                 <?php if ($this->session->userdata('user_id')): ?>
                                 <a href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

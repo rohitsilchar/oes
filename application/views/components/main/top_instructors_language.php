@@ -15,7 +15,7 @@
                     <h3 class="title-1 fs-32px lh-36px fw-bold text-center mb-30"><span class="builder-editable" builder-identity="1"><?php echo get_phrase('Let’s Meet ') ?></span> <span
                             class="lms1-text-purple-gradient builder-editable" builder-identity="2"><?php echo get_phrase('The Experts') ?></span></h3>
                     <p class="subtits16 fs-16px lms1-text-secondary text-center builder-editable" builder-identity=3>
-                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?>
+                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?>
                     </p>
                 </div>
             </div>

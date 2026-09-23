@@ -17,7 +17,7 @@
         </div>
 
         <div class="form-group">
-            <label for="bb_meeting_instruction"><?php echo get_phrase('Instructions for students'); ?></label>
+            <label for="bb_meeting_instruction"><?php echo get_phrase('Instructions for pharmacists'); ?></label>
             <textarea id="bb_meeting_instruction"><?php echo $bbb_meeting['instructions'] ?? '' ?></textarea>
         </div>
     </div>
@@ -25,7 +25,7 @@
         <div class="form-group mt-5 pt-5 text-center">
             <div class="alert alert-info w-75 text-center ml-auto mr-auto mb-4">
                 <strong><?php echo get_phrase('Attention!'); ?></strong><br>
-                <?php echo get_phrase('Give some instructions to keep your students informed about the meeting'); ?>
+                <?php echo get_phrase('Give some instructions to keep your pharmacists informed about the meeting'); ?>
             </div>
             <button type="button" onclick="save_bbb_meeting()" class="btn btn-info w-75 mb-2"><?php echo get_phrase('Save Meeting Info'); ?></button>
             <button type="button" onclick="start_bbb_meeting()" class="btn btn-success w-75"><?php echo get_phrase('Start Meeting'); ?></button>

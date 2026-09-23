@@ -129,7 +129,7 @@ $status_wise_courses = $this->crud_model->get_status_wise_courses();
 							</li>
 
 							<li class="<?php if ($page_name == 'booked_schedule_details') echo 'active'; ?>">
-								<a href="<?php echo site_url('addons/tutor_booking/booked_schedules'); ?>"><?php echo get_phrase('Student bookings'); ?></a>
+								<a href="<?php echo site_url('addons/tutor_booking/booked_schedules'); ?>"><?php echo get_phrase('Pharmacist bookings'); ?></a>
 							</li>
 
 						</ul>

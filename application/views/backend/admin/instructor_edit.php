@@ -1,10 +1,12 @@
 <?php
     $user_data = $this->db->get_where('users', array('id' => $user_id))->row_array();
-    $social_links = json_decode($user_data['social_links'], true);
-    $payment_keys = json_decode($user_data['payment_keys'], true);
-    $paypal_keys = $payment_keys['paypal'];
-    $stripe_keys = $payment_keys['stripe'];
-    $razorpay_keys = $payment_keys['razorpay'];
+    $social_links = !empty($user_data['social_links']) ? json_decode($user_data['social_links'], true) : [];
+    if (!is_array($social_links)) $social_links = [];
+    $payment_keys = !empty($user_data['payment_keys']) ? json_decode($user_data['payment_keys'], true) : [];
+    if (!is_array($payment_keys)) $payment_keys = [];
+    $paypal_keys = isset($payment_keys['paypal']) && is_array($payment_keys['paypal']) ? $payment_keys['paypal'] : [];
+    $stripe_keys = isset($payment_keys['stripe']) && is_array($payment_keys['stripe']) ? $payment_keys['stripe'] : [];
+    $razorpay_keys = isset($payment_keys['razorpay']) && is_array($payment_keys['razorpay']) ? $payment_keys['razorpay'] : [];
 ?>
 <div class="row ">
     <div class="col-xl-12">
@@ -153,19 +155,19 @@
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="facebook_link"> <?php echo get_phrase('facebook'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" id="facebook_link" name="facebook_link" class="form-control" value="<?php echo $social_links['facebook']; ?>">
+                                                <input type="text" id="facebook_link" name="facebook_link" class="form-control" value="<?php echo htmlspecialchars($social_links['facebook'] ?? ''); ?>">
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="twitter_link"><?php echo get_phrase('twitter'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" id="twitter_link" name="twitter_link" class="form-control" value="<?php echo $social_links['twitter']; ?>">
+                                                <input type="text" id="twitter_link" name="twitter_link" class="form-control" value="<?php echo htmlspecialchars($social_links['twitter'] ?? ''); ?>">
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="linkedin_link"><?php echo get_phrase('linkedin'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" id="linkedin_link" name="linkedin_link" class="form-control" value="<?php echo $social_links['linkedin']; ?>">
+                                                <input type="text" id="linkedin_link" name="linkedin_link" class="form-control" value="<?php echo htmlspecialchars($social_links['linkedin'] ?? ''); ?>">
                                             </div>
                                         </div>
                                     </div> <!-- end col -->
@@ -179,12 +181,13 @@
                                         <?php $payment_gateways = $this->db->get('payment_gateways')->result_array();
                                             foreach($payment_gateways as $key => $payment_gateway):
                                             $keys = json_decode($payment_gateway['keys'], true);
-                                            $user_keys = json_decode($user_data['payment_keys'], true);
+                                            $user_keys = !empty($user_data['payment_keys']) ? json_decode($user_data['payment_keys'], true) : [];
+                                            if (!is_array($user_keys)) $user_keys = [];
                                             ?>
                                             <div class="<?php if($payment_gateway['status'] != 1 || !addon_status($payment_gateway['identifier']) && $payment_gateway['is_addon'] == 1) echo 'd-none'; ?>">
                                                 <h4><?php echo get_phrase($payment_gateway['title']); ?></h4>
                                                 <?php foreach($keys as $index => $value):
-                                                    if(array_key_exists($payment_gateway['identifier'], $user_keys)){
+                                                    if(is_array($user_keys) && array_key_exists($payment_gateway['identifier'], $user_keys) && is_array($user_keys[$payment_gateway['identifier']])){
                                                         if(array_key_exists($index, $user_keys[$payment_gateway['identifier']])){
                                                             $value = $user_keys[$payment_gateway['identifier']][$index];
                                                         }else{

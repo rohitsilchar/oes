@@ -20,7 +20,7 @@
                    <div class="counter-area-wrap2">
                        <div class="counter-single-item2">
                            <h1 class="title-4 fs-82px lh-107px fw-semibold text-white text-center mb-5px"><span class="counter"><?php echo $total_students->num_rows(); ?></span>+</h1>
-                           <p class="subtitle-3 fs-18px lh-25px fw-normal text-white text-center"><?php echo get_phrase('Certified Students') ?></p>
+                           <p class="subtitle-3 fs-18px lh-25px fw-normal text-white text-center"><?php echo get_phrase('Certified Pharmacists') ?></p>
                        </div>
                        <div class="counter-single-item2">
                            <h1 class="title-4 fs-82px lh-107px fw-semibold text-white text-center mb-5px"><span class="counter"><?php echo $total_instructors->num_rows(); ?></span></h1>

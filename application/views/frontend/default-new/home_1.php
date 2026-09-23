@@ -739,7 +739,7 @@
             <div class="col-lg-12">
                 <div class="title-two text-center">
                     <h4 class="title"><?php echo get_phrase('Our Expert Instructor') ?></h4>
-                    <p><?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                    <p><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
                 </div>
             </div>
         </div>
@@ -1076,7 +1076,7 @@
                             <div class="student-body-text">
                                 <!-- <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png') ?>"> -->
                                 <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                 <?php if (get_settings('public_signup') == 'enable'): ?>
                                 <?php if ($this->session->userdata('user_id')): ?>
                                 <a href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

@@ -12,7 +12,7 @@
             <option value=""><?php echo get_phrase('select_a_course'); ?></option>
         </select>
     </div>
-    <button type="button" class="btn btn-primary float-right" onclick="checkRequiredFields()"><?php echo get_phrase('enrol_student'); ?></button>
+    <button type="button" class="btn btn-primary float-right" onclick="checkRequiredFields()"><?php echo get_phrase('enrol_pharmacist'); ?></button>
 </form>
 
 <script type="text/javascript">

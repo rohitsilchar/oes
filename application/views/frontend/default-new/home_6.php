@@ -51,7 +51,7 @@
                     <div class="item">
                         <?php $all_students = $this->db->get_where('users', ['role_id !=' => 1]); ?>
                         <h1><?php echo nice_number($all_students->num_rows()); ?>+</h1>
-                        <p><?php echo get_phrase('Happy Student') ?></p>
+                        <p><?php echo get_phrase('Happy Pharmacist') ?></p>
                     </div>
                     <div class="item">
                         <?php $all_instructor = $this->db->get_where('users', ['is_instructor' => 1]); ?>
@@ -652,7 +652,7 @@
         <div class="counter-6">
             <div class="item">
                 <h4 class="title"><?php echo nice_number($all_students->num_rows()); ?><span>+</span></h4>
-                <p class="info"><?php echo get_phrase('Happy Student') ?></p>
+                <p class="info"><?php echo get_phrase('Happy Pharmacist') ?></p>
             </div>
             <div class="item">
                 <h4 class="title"><?php echo nice_number($all_instructor->num_rows()); ?><span>+</span></h4>
@@ -688,7 +688,7 @@
                 <div class="title-two text-center pb-50">
                     <h4 class="title"><?php echo get_phrase('Popular Instructor') ?></h4>
                     <p class="info">
-                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?>
+                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?>
                     </p>
                 </div>
             </div>
@@ -987,7 +987,7 @@
                         <div class="col-lg-8 col-md-8 col-sm-8 col-8 ">
                             <div class="student-body-text">
                                 <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                 <?php if (get_settings('public_signup') == 'enable'): ?>
                                 <?php if ($this->session->userdata('user_id')): ?>
                                 <a href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

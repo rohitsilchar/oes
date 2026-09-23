@@ -77,18 +77,18 @@
 
                             <?php if ($this->session->userdata('admin_login') && has_permission('student')) : ?>
                                 <div class="col-6 p-0 border-right">
-                                    <a href="#" class="d-block text-center py-3 bg-hover-light" onclick="showAjaxModal('<?php echo site_url('modal/popup/shortcut_add_student'); ?>', '<?php echo get_phrase('add_student'); ?>')">
+                                    <a href="#" class="d-block text-center py-3 bg-hover-light" onclick="showAjaxModal('<?php echo site_url('modal/popup/shortcut_add_student'); ?>', '<?php echo get_phrase('add_pharmacist'); ?>')">
                                         <i class="dripicons-user text-20"></i>
-                                        <span class="w-100 d-block text-muted"><?= get_phrase('add_student'); ?></span>
+                                        <span class="w-100 d-block text-muted"><?= get_phrase('add_pharmacist'); ?></span>
                                     </a>
                                 </div>
                             <?php endif; ?>
 
                             <?php if ($this->session->userdata('admin_login') && has_permission('enrolment')) : ?>
                                 <div class="col-6 p-0">
-                                    <a href="#" class="d-block text-center py-3 bg-hover-light" onclick="showAjaxModal('<?php echo site_url('modal/popup/shortcut_enrol_student'); ?>', '<?php echo get_phrase('enrol_a_student'); ?>')">
+                                    <a href="#" class="d-block text-center py-3 bg-hover-light" onclick="showAjaxModal('<?php echo site_url('modal/popup/shortcut_enrol_student'); ?>', '<?php echo get_phrase('enrol_a_pharmacist'); ?>')">
                                         <i class="dripicons-network-3 text-20"></i>
-                                        <span class="d-block text-muted"><?= get_phrase('enrol_student'); ?></span>
+                                        <span class="d-block text-muted"><?= get_phrase('enrol_pharmacist'); ?></span>
                                     </a>
                                 </div>
                             <?php endif; ?>
@@ -199,7 +199,7 @@
                                 if ($this->session->userdata('is_instructor')) {
                                     echo get_phrase('instructor');
                                 } else {
-                                    echo get_phrase('student');
+                                    echo get_phrase('pharmacist');
                                 }
                             } else {
                                 echo get_phrase('admin');

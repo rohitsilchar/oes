@@ -370,7 +370,7 @@
                                                 <label class="col-md-2 col-form-label"><?php echo get_phrase('Number of month'); ?></label>
                                                 <div class="col-md-10">
                                                     <input class="form-control" type="number" name="number_of_month" min="1">
-                                                    <small class="badge badge-light"><?php echo get_phrase('After purchase, students can access the course until your selected time.'); ?></small>
+                                                    <small class="badge badge-light"><?php echo get_phrase('After purchase, pharmacists can access the course until your selected time.'); ?></small>
                                                 </div>
                                             </div>
                                         </div> <!-- end col -->

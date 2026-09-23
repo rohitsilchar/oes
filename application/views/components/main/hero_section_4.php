@@ -41,7 +41,7 @@
             <div class="item">
               <?php $all_students = $this->db->get_where('users', ['role_id !=' => 1]); ?>
               <h1><?php echo nice_number($all_students->num_rows()); ?>+</h1>
-              <p><?php echo get_phrase('Happy Student') ?></p>
+              <p><?php echo get_phrase('Happy Pharmacist') ?></p>
             </div>
             <div class="item">
               <?php $all_instructor = $this->db->get_where('users', ['is_instructor' => 1]); ?>

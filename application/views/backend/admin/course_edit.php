@@ -646,7 +646,7 @@ $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
                                                     <label class="col-md-2 col-form-label"><?php echo get_phrase('Number of month'); ?></label>
                                                     <div class="col-md-10">
                                                         <input class="form-control" type="number" name="number_of_month" min="1" value="<?php echo $course_details['expiry_period']; ?>">
-                                                        <small class="badge badge-light"><?php echo get_phrase('After purchase, students can access the course until your selected time.'); ?></small>
+                                                        <small class="badge badge-light"><?php echo get_phrase('After purchase, pharmacists can access the course until your selected time.'); ?></small>
                                                     </div>
                                                 </div>
                                             </div> <!-- end col -->

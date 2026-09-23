@@ -29,7 +29,7 @@
                                 <div class="student-body-text">
                                     <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png') ?>">
                                     <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                    <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                    <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                     <?php if (get_settings('public_signup') == 'enable'): ?>
                                         <?php if ($this->session->userdata('user_id')): ?>
                                             <a href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

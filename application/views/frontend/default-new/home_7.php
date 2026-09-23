@@ -58,7 +58,7 @@
                         </div>
                         <div class="col-lg-2 col-md-2 col-sm-2 col-2">
                             <p><?php echo get_phrase('Happy') ?></p>
-                            <p><?php echo get_phrase('Students') ?></p>
+                            <p><?php echo get_phrase('Pharmacists') ?></p>
                         </div>
                         <div class="col-lg-2 col-md-2 col-sm-2 col-2">
                             <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/h-1-ban-st.png') ?>" alt="">
@@ -693,7 +693,7 @@
             <div class="col-lg-3"></div>
             <div class="col-lg-6">
                 <h1 class="text-center mb-2"><?php echo get_phrase('Top Instructors') ?></h1>
-                <p class="text-center mb-5"><?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                <p class="text-center mb-5"><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
             </div>
             <div class="col-lg-3 "></div>
         </div>
@@ -991,7 +991,7 @@
                             <div class="student-body-text">
                                 <!-- <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png') ?>"> -->
                                 <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                 <?php if (get_settings('public_signup') == 'enable'): ?>
                                 <?php if ($this->session->userdata('user_id')): ?>
                                 <a href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

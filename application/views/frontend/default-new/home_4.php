@@ -54,7 +54,7 @@
             <div class="item">
               <?php $all_students = $this->db->get_where('users', ['role_id !=' => 1]); ?>
               <h1><?php echo nice_number($all_students->num_rows()); ?>+</h1>
-              <p><?php echo get_phrase('Happy Student') ?></p>
+              <p><?php echo get_phrase('Happy Pharmacist') ?></p>
             </div>
             <div class="item">
               <?php $all_instructor = $this->db->get_where('users', ['is_instructor' => 1]); ?>
@@ -249,7 +249,7 @@
                 </div>
                 <div class="view-play">
                   <div class="item">
-                    <div class="icon" title="<?php echo get_phrase('Number of enrolled students'); ?>" data-bs-toggle="tooltip">
+                    <div class="icon" title="<?php echo get_phrase('Number of enrolled pharmacists'); ?>" data-bs-toggle="tooltip">
                       <img loading="lazy" src="<?php echo site_url('assets/frontend/default-new/') ?>image/icon/eye.svg" alt="" />
                     </div>
                     <p class="info"><?php echo $number_of_enrolled_students; ?></p>
@@ -290,7 +290,7 @@
         <div class="about-info">
           <div class="item" style="--icon-color: #ff58aa">
             <h4 class="title"><?php echo nice_number($all_students->num_rows()); ?><span>+</span></h4>
-            <p class="info"><?php echo get_phrase('Happy Student') ?></p>
+            <p class="info"><?php echo get_phrase('Happy Pharmacist') ?></p>
           </div>
           <div class="item" style="--icon-color: #c874f4">
             <h4 class="title"><?php echo nice_number($all_instructor->num_rows()); ?><span>+</span></h4>
@@ -368,7 +368,7 @@
                 </div>
                 <div class="view-play">
                   <div class="item">
-                    <div class="icon" title="<?php echo get_phrase('Number of enrolled students'); ?>" data-bs-toggle="tooltip">
+                    <div class="icon" title="<?php echo get_phrase('Number of enrolled pharmacists'); ?>" data-bs-toggle="tooltip">
                       <img loading="lazy" src="<?php echo site_url('assets/frontend/default-new/') ?>image/icon/eye.svg" alt="" />
                     </div>
                     <p class="info"><?php echo $number_of_enrolled_students; ?></p>
@@ -457,7 +457,7 @@
           <h4 class="title"><?php echo get_phrase('Our Popular Instructor'); ?></h4>
           <div class="bar"></div>
         </div>
-        <p class="fz_15_m_24 c-8e8e96 pb-30"><?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?></p>
+        <p class="fz_15_m_24 c-8e8e96 pb-30"><?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?></p>
       </div>
 
       <?php foreach($top_instructor_ids as $top_instructor_id):
@@ -679,7 +679,7 @@
                                 <div class="student-body-text">
                                   <!-- <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png')?>"> -->
                                     <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                    <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!')?> </p>
+                                    <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!')?> </p>
                                      <?php if(get_settings('public_signup') == 'enable'): ?>  
                                         <?php if($this->session->userdata('user_id')): ?>
                                           <a  href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

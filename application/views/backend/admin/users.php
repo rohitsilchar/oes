@@ -2,6 +2,43 @@
   .buttons-csv {
     margin-bottom: 20px;
   }
+  .table-responsive {
+    overflow-x: auto !important;
+    width: 100%;
+  }
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12 {
+    overflow-x: auto !important;
+    width: 100%;
+    padding-bottom: 10px;
+  }
+  #server_side_users_data {
+    min-width: 1200px;
+    width: 100% !important;
+  }
+  #server_side_users_data th, 
+  #server_side_users_data td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  /* Custom bottom horizontal scrollbar */
+  .table-responsive::-webkit-scrollbar,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar {
+    height: 8px;
+  }
+  .table-responsive::-webkit-scrollbar-track,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-track {
+    background: #f1f3fa;
+    border-radius: 4px;
+  }
+  .table-responsive::-webkit-scrollbar-thumb,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-thumb {
+    background: #727cf5;
+    border-radius: 4px;
+  }
+  .table-responsive::-webkit-scrollbar-thumb:hover,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-thumb:hover {
+    background: #5b66d4;
+  }
 </style>
 
 <div class="row ">
@@ -9,32 +46,125 @@
         <div class="card">
             <div class="card-body">
                 <h4 class="page-title"> <i class="mdi mdi-apple-keyboard-command title_icon"></i> <?php echo $page_title; ?>
-                    <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle"><i class="mdi mdi-plus"></i><?php echo get_phrase('add_student'); ?></a>
+                    <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle"><i class="mdi mdi-plus"></i><?php echo get_phrase('add_pharmacist'); ?></a>
+                    <button type="button" class="btn btn-outline-info btn-rounded alignToTitle mr-1" data-toggle="modal" data-target="#bulkImportPharmacistsModal">
+                        <i class="mdi mdi-upload"></i> <?php echo get_phrase('bulk_import'); ?>
+                    </button>
                 </h4>
             </div> <!-- end card body-->
         </div> <!-- end card -->
     </div><!-- end col-->
 </div>
 
+<!-- Bulk Import Pharmacists Modal -->
+<div class="modal fade" id="bulkImportPharmacistsModal" tabindex="-1" role="dialog" aria-labelledby="bulkImportPharmacistsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="bulkImportPharmacistsModalLabel"><i class="mdi mdi-account-multiple-plus mr-1"></i> <?php echo get_phrase('bulk_import'); ?> - <?php echo get_phrase('pharmacists'); ?></h4>
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+            </div>
+            <form action="<?php echo site_url('admin/bulk_import/pharmacists'); ?>" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info" role="alert">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="mdi mdi-information-outline mr-1"></i> <strong><?php echo get_phrase('instructions'); ?>:</strong>
+                                <ul class="mb-0 mt-1 pl-3">
+                                    <li><?php echo get_phrase('supported_file_types'); ?>.</li>
+                                    <li><strong>first_name</strong>, <strong>last_name</strong>, and <strong>email</strong> are mandatory.</li>
+                                    <li>If <strong>password</strong> is blank, it defaults to <code>12345678</code>.</li>
+                                    <li><strong>store_code</strong> is optional and links pharmacist to an existing store.</li>
+                                </ul>
+                            </div>
+                            <div class="ml-3">
+                                <a href="<?php echo site_url('admin/download_sample_template/pharmacists'); ?>" class="btn btn-success btn-rounded text-nowrap">
+                                    <i class="mdi mdi-download"></i> <?php echo get_phrase('download_sample_template'); ?>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mb-3" style="overflow-x: auto !important;">
+                        <small class="text-muted font-weight-bold"><?php echo get_phrase('template_columns_preview'); ?>:</small>
+                        <table class="table table-bordered table-sm mt-1 mb-0" style="font-size: 12px; min-width: 950px; white-space: nowrap;">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>first_name <span class="text-danger">*</span></th>
+                                    <th>last_name <span class="text-danger">*</span></th>
+                                    <th>email <span class="text-danger">*</span></th>
+                                    <th>password</th>
+                                    <th>employee_id</th>
+                                    <th>gender</th>
+                                    <th>phone</th>
+                                    <th>licence_no</th>
+                                    <th>licence_start_date</th>
+                                    <th>address</th>
+                                    <th>store_code</th>
+                                    <th>status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>John</td>
+                                    <td>Doe</td>
+                                    <td>john.doe@example.com</td>
+                                    <td>Pass@1234</td>
+                                    <td>EMP-001</td>
+                                    <td>Male</td>
+                                    <td>9876543210</td>
+                                    <td>LIC-100234</td>
+                                    <td>2024-01-15</td>
+                                    <td>123 Main St, NY</td>
+                                    <td>STR-001</td>
+                                    <td>1</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="import_file_pharmacists"><?php echo get_phrase('select_csv_or_excel_file'); ?><span class="text-danger">*</span></label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="import_file_pharmacists" name="import_file" accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv" required onchange="$(this).next('.custom-file-label').html(this.files[0].name)">
+                            <label class="custom-file-label" for="import_file_pharmacists"><?php echo get_phrase('choose_file'); ?></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?php echo get_phrase('cancel'); ?></button>
+                    <button type="submit" class="btn btn-primary"><i class="mdi mdi-upload"></i> <?php echo get_phrase('import'); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="row">
   <div class="col-lg-12">
       <div class="card">
         <div class="card-body" data-collapsed="0">
-          <h4 class="mb-3 header-title"><?php echo get_phrase('student'); ?></h4>
+          <h4 class="mb-3 header-title"><?php echo get_phrase('pharmacist'); ?></h4>
+          <div class="table-responsive">
           <table class="table table-striped table-centered w-100" id="server_side_users_data">
             <thead>
               <tr>
                 <th>#</th>
                 <th><?php echo get_phrase('photo'); ?></th>
                 <th><?php echo get_phrase('name'); ?></th>
+                <th><?php echo get_phrase('employee_id'); ?></th>
+                <th><?php echo get_phrase('gender'); ?></th>
                 <th><?php echo get_phrase('email'); ?></th>
                 <th><?php echo get_phrase('Phone'); ?></th>
+                <th><?php echo get_phrase('licence_no'); ?></th>
+                <th><?php echo get_phrase('licence_start_date'); ?></th>
                 <th><?php echo get_phrase('enrolled_courses'); ?></th>
                 <th><?php echo get_phrase('actions'); ?></th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
+          </div>
       </div>
     </div>
   </div><!-- end col-->
@@ -43,7 +173,7 @@
 <script>
   $(document).ready(function () {
      var table = $('#server_side_users_data').DataTable({
-      responsive: true,
+      responsive: false,
       "processing": true,
       "serverSide": true,
       "ajax":{
@@ -56,8 +186,12 @@
         { "data": "key" },
         { "data": "photo" },
         { "data": "name" },
+        { "data": "employee_id" },
+        { "data": "gender" },
         { "data": "email" },
         { "data": "phone" },
+        { "data": "licence_no" },
+        { "data": "licence_start_date" },
         { "data": "enrolled_courses" },
         { "data": "action" }
       ],
@@ -69,7 +203,7 @@
             text: 'Export as CSV',
             filename: function () {
                 var currentTime = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');  // Get current time and format it
-                return 'students-' + currentTime;  // File name will be "users-YYYY_MM_DD_HH_MM_SS"
+                return 'pharmacists-' + currentTime;  // File name will be "users-YYYY_MM_DD_HH_MM_SS"
             },
             exportOptions: {
               columns: ':not(:last-child):not(:nth-child(2))'  // Exclude the last column ("action") and the second column ("photo")

@@ -8,7 +8,7 @@
         <!-- Title -->
         <div class="title-two text-center pb-50">
           <h4 class="title"><?php echo get_phrase('Popular Instructor') ?></h4>
-          <p class="info"><?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?></p>
+          <p class="info"><?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?></p>
         </div>
       </div>
     </div>

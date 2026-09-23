@@ -20,7 +20,7 @@
         <div class="card">
             <div class="card-body">
 
-                <h4 class="header-title mb-3"><?php echo get_phrase('student_edit_form'); ?></h4>
+                <h4 class="header-title mb-3"><?php echo get_phrase('pharmacist_edit_form'); ?></h4>
 
                 <form class="required-form" action="<?php echo site_url('admin/users/edit/'.$user_id); ?>" enctype="multipart/form-data" method="post">
                     <div id="progressbarwizard">
@@ -65,6 +65,8 @@
                             <div class="tab-pane" id="basic_info">
                                 <div class="row">
                                     <div class="col-12">
+                                        <?php include 'licence_ocr_scanner.php'; ?>
+
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="first_name"><?php echo get_phrase('first_name'); ?> <span class="required">*</span> </label>
                                             <div class="col-md-9">
@@ -75,6 +77,39 @@
                                             <label class="col-md-3 col-form-label" for="last_name"><?php echo get_phrase('last_name'); ?> <span class="required">*</span> </label>
                                             <div class="col-md-9">
                                                 <input type="text" class="form-control" id="last_name" name="last_name" value="<?php echo $user_data['last_name']; ?>" required>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="employee_id"><?php echo get_phrase('employee_id'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control" id="employee_id" name="employee_id" value="<?php echo htmlspecialchars($user_data['employee_id'] ?? ''); ?>" placeholder="e.g. EMP-001">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="gender"><?php echo get_phrase('gender'); ?></label>
+                                            <div class="col-md-9">
+                                                <select class="form-control select2" data-toggle="select2" name="gender" id="gender">
+                                                    <option value=""><?php echo get_phrase('select_gender'); ?></option>
+                                                    <option value="Male" <?php if (($user_data['gender'] ?? '') == 'Male') echo 'selected'; ?>><?php echo get_phrase('male'); ?></option>
+                                                    <option value="Female" <?php if (($user_data['gender'] ?? '') == 'Female') echo 'selected'; ?>><?php echo get_phrase('female'); ?></option>
+                                                    <option value="Other" <?php if (($user_data['gender'] ?? '') == 'Other') echo 'selected'; ?>><?php echo get_phrase('other'); ?></option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="licence_no"><?php echo get_phrase('licence_no'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control" id="licence_no" name="licence_no" value="<?php echo htmlspecialchars($user_data['licence_no'] ?? ''); ?>" placeholder="e.g. LIC-123456">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="licence_start_date"><?php echo get_phrase('licence_start_date'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="date" class="form-control" id="licence_start_date" name="licence_start_date" value="<?php echo htmlspecialchars($user_data['licence_start_date'] ?? ''); ?>">
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
@@ -95,6 +130,20 @@
                                             <label class="col-md-3 col-form-label" for="address"><?php echo get_phrase('address'); ?></label>
                                             <div class="col-md-9">
                                                 <input type="text" class="form-control" value="<?php echo $user_data['address']; ?>" id="address" name="address">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="store_id"><?php echo get_phrase('store'); ?> / <?php echo get_phrase('shop'); ?></label>
+                                            <div class="col-md-9">
+                                                <select class="form-control select2" data-toggle="select2" name="store_id" id="store_id">
+                                                    <option value=""><?php echo get_phrase('select_a_store'); ?></option>
+                                                    <?php 
+                                                    $all_stores = $this->db->where('status', 1)->get('stores')->result_array();
+                                                    foreach ($all_stores as $store): ?>
+                                                        <option value="<?php echo $store['id']; ?>" <?php if (isset($user_data['store_id']) && $user_data['store_id'] == $store['id']) echo 'selected'; ?>><?php echo htmlspecialchars($store['store_name']); ?> <?php echo !empty($store['store_code']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
                                             </div>
                                         </div>
                                         
