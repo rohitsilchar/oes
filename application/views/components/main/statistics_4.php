@@ -24,7 +24,7 @@ if (!isset($all_instructor)) {
                 <div class="about-info">
                     <div class="item" style="--icon-color: #ff58aa">
                         <h4 class="title"><?php echo nice_number($all_students->num_rows()); ?><span>+</span></h4>
-                        <p class="info"><?php echo get_phrase('Happy Student') ?></p>
+                        <p class="info"><?php echo get_phrase('Happy Pharmacist') ?></p>
                     </div>
                     <div class="item" style="--icon-color: #c874f4">
                         <h4 class="title"><?php echo nice_number($all_instructor->num_rows()); ?><span>+</span></h4>

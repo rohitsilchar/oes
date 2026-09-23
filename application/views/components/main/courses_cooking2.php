@@ -76,7 +76,7 @@
                                                 fill="#080808" fill-opacity="0.25" />
                                         </svg>
                                     </span>
-                                    <p class="course-meta-info1"><?php echo get_phrase('Students : '); ?><?php echo $number_of_enrolled_students; ?></p>
+                                    <p class="course-meta-info1"><?php echo get_phrase('Pharmacists : '); ?><?php echo $number_of_enrolled_students; ?></p>
                                 </div>
                             </div>
                             <div class="d-flex align-items-center gap-3 justify-content-between flex-wrap">

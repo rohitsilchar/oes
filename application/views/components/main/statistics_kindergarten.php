@@ -45,7 +45,7 @@
                         <div>
                             <?php $all_students = $this->db->get_where('users', ['role_id !=' => 1]); ?>
                             <h2 class="kg-counter-title mb-2px"><span class="counter"><?php echo nice_number($all_students->num_rows()); ?></span>+</h2>
-                            <p class="title-3 fs-17px lh-23px builder-editable" builder-identity="3"><?php echo get_phrase('Students Globally') ?></p>
+                            <p class="title-3 fs-17px lh-23px builder-editable" builder-identity="3"><?php echo get_phrase('Pharmacists Globally') ?></p>
                         </div>
                     </div>
                 </div>

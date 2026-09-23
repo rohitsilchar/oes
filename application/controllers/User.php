@@ -984,6 +984,19 @@ class User extends CI_Controller
             }
         }
 
+        // Auto email store credentials if pharmacist passed the test/quiz threshold
+        $quiz_attribute = json_decode($lesson['attachment'], true);
+        $pass_mark = isset($quiz_attribute['pass_mark']) ? (float)$quiz_attribute['pass_mark'] : 0;
+        $obtained_marks = isset($quiz_results['total_obtained_marks']) ? (float)$quiz_results['total_obtained_marks'] : 0;
+
+        if ($obtained_marks >= $pass_mark && (!isset($quiz_results['credential_email_sent']) || $quiz_results['credential_email_sent'] == 0)) {
+            $this->load->model('email_model');
+            $this->email_model->send_pharmacist_store_credentials($user_id, $quiz_id, $obtained_marks, $pass_mark);
+            if (isset($quiz_results['quiz_result_id'])) {
+                $this->db->where('quiz_result_id', $quiz_results['quiz_result_id'])->update('quiz_results', ['credential_email_sent' => 1]);
+            }
+        }
+
         $response['status'] = 'submit';
         $response['message'] = site_phrase('quiz_submission_successfully');
         echo json_encode($response);

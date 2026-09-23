@@ -6,7 +6,7 @@
         <div class="row justify-content-center">
             <div class="col-lg-6">
                 <h1 class="text-center mt-5"><?php echo get_phrase('Top Instructors') ?></h1>
-                <p class="text-center mt-4 mb-4"><?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                <p class="text-center mt-4 mb-4"><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
             </div>
         </div>
         <div class="container">

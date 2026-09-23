@@ -950,10 +950,99 @@ class Email_model extends CI_Model
 		
 	}
 
+	function send_pharmacist_store_credentials($user_id = "", $quiz_id = "", $obtained_marks = 0, $pass_mark = 0)
+	{
+		$user_details = $this->user_model->get_all_user($user_id)->row_array();
+		if (!$user_details) {
+			return false;
+		}
 
+		// Quiz & course details
+		$quiz = $this->db->get_where('lesson', array('id' => $quiz_id))->row_array();
+		$quiz_title = $quiz ? $quiz['title'] : 'Quiz';
+		$course_title = 'N/A';
+		if ($quiz && !empty($quiz['course_id'])) {
+			$course = $this->db->get_where('course', array('id' => $quiz['course_id']))->row_array();
+			if ($course) {
+				$course_title = $course['title'];
+			}
+		}
 
+		// Find store user record linked to this pharmacist
+		// First check store_users table where pharmacist_id = $user_id
+		$store_user = $this->db->get_where('store_users', array('pharmacist_id' => $user_id, 'status' => 1))->row_array();
 
+		// If not found by pharmacist_id, check if user has a store_id assigned in users table
+		$store = null;
+		if ($store_user) {
+			$store = $this->db->get_where('stores', array('id' => $store_user['store_id']))->row_array();
+		} elseif (!empty($user_details['store_id'])) {
+			$store = $this->db->get_where('stores', array('id' => $user_details['store_id']))->row_array();
+			// Look for any store user in this store or fallback
+			$store_user = $this->db->get_where('store_users', array('store_id' => $user_details['store_id'], 'status' => 1))->row_array();
+		}
 
-	
-	
+		// Variables
+		$pharmacist_name = $user_details['first_name'] . ' ' . $user_details['last_name'];
+		$shop_name       = $store ? $store['store_name'] : 'Main Store';
+		$link            = ($store_user && !empty($store_user['portal_link'])) ? $store_user['portal_link'] : ($store && !empty($store['portal_url']) ? $store['portal_url'] : site_url());
+		$username        = $store_user ? $store_user['username'] : $user_details['email'];
+		$password        = $store_user ? $store_user['password'] : 'Contact Admin';
+		$role            = $store_user ? $store_user['role_title'] : 'Pharmacist';
+
+		$type = 'pharmacist_test_passed_credentials';
+		$notification = $this->db->where('type', $type)->get('notification_settings')->row_array();
+		if (!$notification) {
+			return false;
+		}
+
+		$user_types = json_decode($notification['user_types'], true) ?: ['student', 'admin'];
+
+		foreach ($user_types as $user_type) {
+			$replaces = [
+				'pharmacist_name' => $pharmacist_name,
+				'course_title'    => $course_title,
+				'quiz_title'      => $quiz_title,
+				'score'           => (string)$obtained_marks,
+				'pass_mark'       => (string)$pass_mark,
+				'shop'            => $shop_name,
+				'link'            => $link,
+				'username'        => $username,
+				'password'        => $password,
+				'role'            => $role,
+			];
+
+			if ($user_type == 'student') {
+				$to_user = $user_details;
+			} elseif ($user_type == 'admin') {
+				$to_user = $this->db->get_where('users', array('role_id' => 1))->row_array();
+			} else {
+				$to_user = $user_details;
+			}
+
+			if (!$to_user) continue;
+
+			$template_data['replaces']     = $replaces;
+			$template_data['to_user']      = $to_user;
+			$template_data['notification'] = $notification;
+			$template_data['user_type']    = $user_type;
+
+			$subjects = json_decode($notification['subject'], true);
+			$subject  = isset($subjects[$user_type]) ? $subjects[$user_type] : 'Pharmacist Test Passed - Store Credentials';
+
+			$email_template = $this->load->view('email/common_template', $template_data, TRUE);
+
+			$system_notifs = json_decode($notification['system_notification'], true);
+			if (isset($system_notifs[$user_type]) && $system_notifs[$user_type] == 1) {
+				$this->notify($type, $to_user['id'], $subject, $email_template);
+			}
+
+			$email_notifs = json_decode($notification['email_notification'], true);
+			if (isset($email_notifs[$user_type]) && $email_notifs[$user_type] == 1) {
+				$this->send_smtp_mail($email_template, $subject, $to_user['email']);
+			}
+		}
+
+		return true;
+	}
 }

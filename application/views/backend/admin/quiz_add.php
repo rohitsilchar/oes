@@ -33,9 +33,9 @@ $sections = $this->crud_model->get_section('course', $param2)->result_array();
 
     <div class="form-group">
         <label><?php echo get_phrase('Drip content rule for quiz'); ?></label> <small class="text-12px">(<?php echo get_phrase('This will only work if drip content is enabled'); ?>)</small><br>
-        <input name="drip_content_for_passing_rule" type="radio" value="not_applicable" id = "drip_content_rule_not_applicable"> <label for="drip_content_rule_not_applicable"><?php echo get_phrase('Students can start the next lesson by submitting the quiz'); ?></label>
+        <input name="drip_content_for_passing_rule" type="radio" value="not_applicable" id = "drip_content_rule_not_applicable"> <label for="drip_content_rule_not_applicable"><?php echo get_phrase('Pharmacists can start the next lesson by submitting the quiz'); ?></label>
         <br>
-        <input name="drip_content_for_passing_rule" type="radio" value="applicable" id = "drip_content_rule_applicable"> <label for="drip_content_rule_applicable"><?php echo get_phrase('Students must achieve pass mark to start the next lesson'); ?></label>
+        <input name="drip_content_for_passing_rule" type="radio" value="applicable" id = "drip_content_rule_applicable"> <label for="drip_content_rule_applicable"><?php echo get_phrase('Pharmacists must achieve pass mark to start the next lesson'); ?></label>
     </div>
 
     <div class="form-group">

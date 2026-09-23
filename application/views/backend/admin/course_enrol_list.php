@@ -2,7 +2,7 @@
     <div class="col-xl-12">
         <div class="card">
             <div class="card-body">
-                <h4 class="mb-3 header-title"><?php echo get_phrase('enrol_student_list'); ?></h4>
+                <h4 class="mb-3 header-title"><?php echo get_phrase('enrol_pharmacist_list'); ?></h4>
                 <div class="pb-2">
                     <button type="button" class="btn btn-info float-end" id="export-button" onclick="export_csv();"> <?php echo get_phrase('Export CSV');?></button>
                 </div>

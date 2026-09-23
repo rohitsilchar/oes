@@ -106,7 +106,7 @@ $total_students = $this->db->get('enrol')->num_rows();
                         <div class="skill-point">
                             <div class="skill-point-1">
                                 <h1><?php echo $total_students; ?></h1>
-                                <h4><?php echo get_phrase('Total Students') ?></h4>
+                                <h4><?php echo get_phrase('Total Pharmacists') ?></h4>
                             </div>
                             <div class="skill-point-1">
                                 <h1><?php echo sizeof($course_ids); ?></h1>

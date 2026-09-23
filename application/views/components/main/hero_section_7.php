@@ -43,7 +43,7 @@
                         </div>
                         <div class="col-lg-2 col-md-2 col-sm-2 col-2">
                             <p><?php echo get_phrase('Happy') ?></p>
-                            <p><?php echo get_phrase('Students') ?></p>
+                            <p><?php echo get_phrase('Pharmacists') ?></p>
                         </div> 
                         <div class="col-lg-2 col-md-2 col-sm-2 col-2">
                             <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/h-1-ban-st.png')?>" alt="">

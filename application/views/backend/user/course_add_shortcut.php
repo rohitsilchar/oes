@@ -103,7 +103,7 @@
             <div class="form-group mb-3" id="number_of_monthShortcut" style="display: none">
                 <label><?php echo get_phrase('Number of month'); ?></label>
                 <input class="form-control" type="number" name="number_of_monthShortcut" min="1">
-                <small class="badge badge-light"><?php echo get_phrase('After purchase, students can access the course until your selected time.'); ?></small>
+                <small class="badge badge-light"><?php echo get_phrase('After purchase, pharmacists can access the course until your selected time.'); ?></small>
             </div>
 
             <div class="form-group">

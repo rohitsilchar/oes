@@ -15,7 +15,7 @@ if (!isset($all_instructor)) {
           <img loading="lazy" src="<?php echo site_url('assets/frontend/default-new/'); ?>image/counter-graphic-5-1.svg" alt="" />
         </span>
         <h4 class="title"><?php echo nice_number($all_students->num_rows()); ?>+</h4>
-        <p class="info"><?php echo get_phrase('Happy student') ?></p>
+        <p class="info"><?php echo get_phrase('Happy pharmacist') ?></p>
       </div>
       <div class="item">
         <span class="graphic">

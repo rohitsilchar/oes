@@ -7,7 +7,7 @@
                 <div class="col-lg-12 text-center">
                     <div class="h-3-expert-instructor-heading">
                         <h1 class="efont"><?php echo get_phrase('Top Instructors') ?></h1>
-                        <p class="mb-5"><?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                        <p class="mb-5"><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
                     </div>
                 </div>
             </div>

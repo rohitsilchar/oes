@@ -16,7 +16,7 @@
                             class="lms2-text-purple-gradient builder-editable" builder-identity="2"><?php echo get_phrase('The Experts') ?></span>
                     </h2>
                     <p class="subtitle-typo1 fs-16px lms1-text-secondary builder-editable" builder-identity="3">
-                        <?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                        <?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
                 </div>
             </div>
         </div>

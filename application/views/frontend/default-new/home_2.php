@@ -698,7 +698,7 @@
         <div class="row justify-content-center">
             <div class="col-lg-6">
                 <h1 class="text-center mt-5"><?php echo get_phrase('Top Instructors') ?></h1>
-                <p class="text-center mt-4 mb-4"><?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                <p class="text-center mt-4 mb-4"><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
             </div>
         </div>
         <div class="container">
@@ -967,7 +967,7 @@
                             <div class="student-body-text">
                                 <!-- <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png') ?>"> -->
                                 <h1><?php echo site_phrase('Learn from our quality instructors!'); ?></h1>
-                                <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                 <?php if (get_settings('public_signup') == 'enable'): ?>
                                 <a href="<?php echo site_url('sign_up'); ?>"><?php echo site_phrase('get_started'); ?></a>
                                 <?php endif; ?>
@@ -987,7 +987,7 @@
                             <div class="student-body-text">
                                 <!-- <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/2.png') ?>"> -->
                                 <h1><?php echo site_phrase('become_a_new_instructor'); ?></h1>
-                                <p><?php echo site_phrase('Teach_thousands_of_students_and_earn_money!') ?> </p>
+                                <p><?php echo site_phrase('Teach_thousands_of_pharmacists_and_earn_money!') ?> </p>
                                 <?php if (get_settings('public_signup') == 'enable'): ?>
                                 <?php if ($this->session->userdata('user_id')): ?>
                                 <a href="<?php echo site_url('user/become_an_instructor'); ?>"><?php echo site_phrase('join_now'); ?></a>

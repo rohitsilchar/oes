@@ -53,6 +53,23 @@ class User_model extends CI_Model
             $data['phone'] = html_escape($this->input->post('phone'));
             $data['address'] = html_escape($this->input->post('address'));
 
+            if ($this->input->post('store_id')) {
+                $data['store_id'] = html_escape($this->input->post('store_id'));
+            }
+
+            if ($this->input->post('employee_id') !== null) {
+                $data['employee_id'] = html_escape($this->input->post('employee_id'));
+            }
+            if ($this->input->post('gender') !== null) {
+                $data['gender'] = html_escape($this->input->post('gender'));
+            }
+            if ($this->input->post('licence_no') !== null) {
+                $data['licence_no'] = html_escape($this->input->post('licence_no'));
+            }
+            if ($this->input->post('licence_start_date') !== null) {
+                $data['licence_start_date'] = html_escape($this->input->post('licence_start_date'));
+            }
+
             if ($is_admin) {
                 $data['role_id'] = 1;
                 $data['is_instructor'] = 1;
@@ -195,6 +212,21 @@ class User_model extends CI_Model
 
             $data['phone'] = html_escape($this->input->post('phone'));
             $data['address'] = html_escape($this->input->post('address'));
+            if ($this->input->post('store_id') !== null) {
+                $data['store_id'] = html_escape($this->input->post('store_id'));
+            }
+            if ($this->input->post('employee_id') !== null) {
+                $data['employee_id'] = html_escape($this->input->post('employee_id'));
+            }
+            if ($this->input->post('gender') !== null) {
+                $data['gender'] = html_escape($this->input->post('gender'));
+            }
+            if ($this->input->post('licence_no') !== null) {
+                $data['licence_no'] = html_escape($this->input->post('licence_no'));
+            }
+            if ($this->input->post('licence_start_date') !== null) {
+                $data['licence_start_date'] = html_escape($this->input->post('licence_start_date'));
+            }
 
             if (isset($_FILES['user_image']) && $_FILES['user_image']['name'] != "") {
                 unlink('uploads/user_image/' . $this->db->get_where('users', array('id' => $user_id))->row('image') . '.jpg');

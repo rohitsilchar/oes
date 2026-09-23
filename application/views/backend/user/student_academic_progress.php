@@ -2,7 +2,7 @@
   <table class="studentAcademicProgress table table-striped table-centered mb-4">
     <thead>
       <tr>
-        <th><?php echo get_phrase('Student'); ?></th>
+        <th><?php echo get_phrase('Pharmacist'); ?></th>
         <th><?php echo get_phrase('Date') ?></th>
         <th><?php echo get_phrase('Progress'); ?></th>
         <th class="text-center"><?php echo get_phrase('Actions'); ?></th>

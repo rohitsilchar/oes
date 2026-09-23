@@ -158,7 +158,7 @@
                                 <th><?php echo get_phrase('title'); ?></th>
                                 <th><?php echo get_phrase('category'); ?></th>
                                 <th><?php echo get_phrase('lesson_and_section'); ?></th>
-                                <th><?php echo get_phrase('enrolled_student'); ?></th>
+                                <th><?php echo get_phrase('enrolled_pharmacist'); ?></th>
                                 <th><?php echo get_phrase('status'); ?></th>
                                 <th><?php echo get_phrase('price'); ?></th>
                                 <th><?php echo get_phrase('actions'); ?></th>

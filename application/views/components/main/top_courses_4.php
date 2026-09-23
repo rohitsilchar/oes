@@ -46,7 +46,7 @@
                 </div>
                 <div class="view-play">
                   <div class="item">
-                    <div class="icon" title="<?php echo get_phrase('Number of enrolled students'); ?>" data-bs-toggle="tooltip">
+                    <div class="icon" title="<?php echo get_phrase('Number of enrolled pharmacists'); ?>" data-bs-toggle="tooltip">
                       <img loading="lazy" src="<?php echo site_url('assets/frontend/default-new/') ?>image/icon/eye.svg" alt="" />
                     </div>
                     <p class="info"><?php echo $number_of_enrolled_students; ?></p>

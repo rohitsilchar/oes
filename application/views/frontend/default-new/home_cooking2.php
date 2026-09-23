@@ -72,7 +72,7 @@
         <div class="counter-6">
             <div class="item">
                 <h4 class="title"><span class="counter"><?php echo nice_number($all_students->num_rows()); ?></span>+</h4>
-                <p class="info"><?php echo get_phrase('Happy Student') ?></p>
+                <p class="info"><?php echo get_phrase('Happy Pharmacist') ?></p>
             </div>
             <div class="item">
                 <h4 class="title"><span class="counter"><?php echo nice_number($all_instructor->num_rows()); ?></span>+</h4>
@@ -206,7 +206,7 @@
 	                                            fill="#080808" fill-opacity="0.25" />
 	                                    </svg>
 	                                </span>
-	                                <p class="course-meta-info1"><?php echo get_phrase('Students : '); ?><?php echo $number_of_enrolled_students; ?></p>
+	                                <p class="course-meta-info1"><?php echo get_phrase('Pharmacists : '); ?><?php echo $number_of_enrolled_students; ?></p>
 	                            </div>
 	                        </div>
 	                        <div class="d-flex align-items-center gap-3 justify-content-between flex-wrap">
@@ -514,7 +514,7 @@
 	                                                fill="#080808" fill-opacity="0.25" />
 	                                        </svg>
 	                                    </span>
-	                                    <p class="course-meta-info1"><?php echo get_phrase('Students : '); ?><?php echo $number_of_enrolled_students; ?></p>
+	                                    <p class="course-meta-info1"><?php echo get_phrase('Pharmacists : '); ?><?php echo $number_of_enrolled_students; ?></p>
 	                                </div>
 	                            </div>
 	                            <div class="d-flex align-items-center gap-3 justify-content-between flex-wrap">
@@ -673,7 +673,7 @@
                 <!-- Title -->
                 <div class="title-two text-center pb-50">
                     <h4 class="title"><?php echo get_phrase('Let’s Meet The Experts') ?></h4>
-                    <p class="info"><?php echo get_phrase('They efficiently serve large number of students on our platform'); ?></p>
+                    <p class="info"><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform'); ?></p>
                 </div>
             </div>
         </div>

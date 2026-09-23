@@ -7,7 +7,7 @@
             <div class="col-lg-3"></div>
             <div class="col-lg-6">
                 <h1 class="text-center f-36 mt-0 pt-0"><?php echo get_phrase('Our Expert Instructor ') ?></h1>
-                <p class="text-center mt-4 mb-30"><?php echo get_phrase('They efficiently serve large number of students on our platform') ?></p>
+                <p class="text-center mt-4 mb-30"><?php echo get_phrase('They efficiently serve large number of pharmacists on our platform') ?></p>
             </div>
             <div class="col-lg-3 "></div>
         </div>

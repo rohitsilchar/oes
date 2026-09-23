@@ -51,7 +51,7 @@
                             <li class="nav-item">
                                 <a href="#courseCompleted" data-toggle="tab" aria-expanded="false" class="nav-link rounded-0 py-2">
                                     <i class="mdi mdi-account-circle d-lg-none d-block mr-1"></i>
-                                    <span class="d-none d-lg-block"><?php echo get_phrase('Student Course Completed'); ?></span>
+                                    <span class="d-none d-lg-block"><?php echo get_phrase('Pharmacist Course Completed'); ?></span>
                                 </a>
                             </li>
                             <?php if (addon_status('certificate')) : ?>

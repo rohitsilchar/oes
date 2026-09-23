@@ -46,7 +46,7 @@
                             </li>
                             <?php endforeach?>
                         </ul>
-                        <p class="subtitle-10 fs-16px text-dark-5 fw-normal"><?php echo get_phrase('Students') ?></p>
+                        <p class="subtitle-10 fs-16px text-dark-5 fw-normal"><?php echo get_phrase('Pharmacists') ?></p>
                     </div>
                     <ul class="brand-list-group2">
                         <li class="brand-list2-item">

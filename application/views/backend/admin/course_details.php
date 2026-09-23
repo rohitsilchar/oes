@@ -63,7 +63,7 @@
                             <td>
                                 <?php
                                     $enrolled_students = $this->db->get_where('enrol', array('course_id' => $course_details['id']));
-                                    echo $enrolled_students->num_rows().' '.get_phrase('students');
+                                    echo $enrolled_students->num_rows().' '.get_phrase('pharmacists');
                                 ?>
                             </td>
                         </tr>

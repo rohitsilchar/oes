@@ -16,7 +16,7 @@
 		            	<i class="float-right mdi mdi-reply"></i>
                         <select class="form-control select2" data-toggle="select2" name="receiver" id="receiver" required>
 							<option value=""><?php echo get_phrase('select_a_user');?></option>
-                            <optgroup label="<?php echo get_phrase('students'); ?>">
+                            <optgroup label="<?php echo get_phrase('pharmacists'); ?>">
                                 <?php foreach($student_list as $student):?>
                                     <option value="<?php echo $student['id']; ?>">
                                         - <?php echo $student['first_name'].' '.$student['last_name']; ?></option>

@@ -1,0 +1,218 @@
+<style>
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12 {
+    overflow-x: auto !important;
+  }
+  #basic-datatable {
+    width: 100% !important;
+    min-width: 1100px;
+  }
+  #basic-datatable th, #basic-datatable td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  /* Visible horizontal scrollbar styling */
+  .table-responsive::-webkit-scrollbar,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar {
+    height: 8px;
+  }
+  .table-responsive::-webkit-scrollbar-track,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  .table-responsive::-webkit-scrollbar-thumb,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-thumb {
+    background: #adb5bd;
+    border-radius: 4px;
+  }
+  .table-responsive::-webkit-scrollbar-thumb:hover,
+  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
+  }
+</style>
+
+<div class="row ">
+    <div class="col-xl-12">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="page-title"> <i class="mdi mdi-apple-keyboard-command title_icon"></i> <?php echo $page_title; ?>
+                    <a href="<?php echo site_url('admin/store_form/add_store_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle"><i class="mdi mdi-plus"></i><?php echo get_phrase('add_new_store'); ?></a>
+                    <button type="button" class="btn btn-outline-info btn-rounded alignToTitle mr-1" data-toggle="modal" data-target="#bulkImportStoresModal">
+                        <i class="mdi mdi-upload"></i> <?php echo get_phrase('bulk_import'); ?>
+                    </button>
+                </h4>
+            </div> <!-- end card body-->
+        </div> <!-- end card -->
+    </div><!-- end col-->
+</div>
+
+<!-- Bulk Import Stores Modal -->
+<div class="modal fade" id="bulkImportStoresModal" tabindex="-1" role="dialog" aria-labelledby="bulkImportStoresModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="bulkImportStoresModalLabel"><i class="mdi mdi-store mr-1"></i> <?php echo get_phrase('bulk_import'); ?> - <?php echo get_phrase('stores'); ?></h4>
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+            </div>
+            <form action="<?php echo site_url('admin/bulk_import/stores'); ?>" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info" role="alert">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="mdi mdi-information-outline mr-1"></i> <strong><?php echo get_phrase('instructions'); ?>:</strong>
+                                <ul class="mb-0 mt-1 pl-3">
+                                    <li><?php echo get_phrase('supported_file_types'); ?>.</li>
+                                    <li><strong>store_name</strong> is mandatory.</li>
+                                    <li><strong>store_code</strong> is optional but must be unique if provided.</li>
+                                    <li><strong>assigned_roles</strong> can be comma-separated role names (e.g. <code>Senior Pharmacist, Cashier, Dispenser</code>).</li>
+                                </ul>
+                            </div>
+                            <div class="ml-3">
+                                <a href="<?php echo site_url('admin/download_sample_template/stores'); ?>" class="btn btn-success btn-rounded text-nowrap">
+                                    <i class="mdi mdi-download"></i> <?php echo get_phrase('download_sample_template'); ?>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mb-3" style="overflow-x: auto !important;">
+                        <small class="text-muted font-weight-bold"><?php echo get_phrase('template_columns_preview'); ?>:</small>
+                        <table class="table table-bordered table-sm mt-1 mb-0" style="font-size: 12px; min-width: 900px; white-space: nowrap;">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>store_name <span class="text-danger">*</span></th>
+                                    <th>store_code</th>
+                                    <th>phone</th>
+                                    <th>email</th>
+                                    <th>portal_url</th>
+                                    <th>assigned_roles</th>
+                                    <th>address</th>
+                                    <th>city</th>
+                                    <th>state</th>
+                                    <th>pin_code</th>
+                                    <th>status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Apollo Pharmacy - Downtown</td>
+                                    <td>STR-001</td>
+                                    <td>9876543210</td>
+                                    <td>apollo.downtown@example.com</td>
+                                    <td>https://store1.domain.com/login</td>
+                                    <td>Senior Pharmacist, Cashier, Dispenser</td>
+                                    <td>123 Downtown Ave</td>
+                                    <td>New York</td>
+                                    <td>NY</td>
+                                    <td>10001</td>
+                                    <td>1</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="import_file_stores"><?php echo get_phrase('select_csv_or_excel_file'); ?><span class="text-danger">*</span></label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="import_file_stores" name="import_file" accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv" required onchange="$(this).next('.custom-file-label').html(this.files[0].name)">
+                            <label class="custom-file-label" for="import_file_stores"><?php echo get_phrase('choose_file'); ?></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?php echo get_phrase('cancel'); ?></button>
+                    <button type="submit" class="btn btn-primary"><i class="mdi mdi-upload"></i> <?php echo get_phrase('import'); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="mb-3 header-title"><?php echo get_phrase('stores'); ?></h4>
+                <div class="table-responsive mt-4">
+                    <table id="basic-datatable" class="table table-striped table-centered mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th><?php echo get_phrase('store_name'); ?></th>
+                                <th><?php echo get_phrase('store_code'); ?></th>
+                                <th><?php echo get_phrase('contact'); ?></th>
+                                <th><?php echo get_phrase('portal_url'); ?></th>
+                                <th><?php echo get_phrase('assigned_roles'); ?></th>
+                                <th><?php echo get_phrase('status'); ?></th>
+                                <th><?php echo get_phrase('actions'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($stores as $key => $store) : 
+                                $assigned_role_ids = json_decode($store['assigned_role_ids'] ?: '[]', true);
+                            ?>
+                                <tr>
+                                    <td><?php echo $key + 1; ?></td>
+                                    <td><strong><?php echo htmlspecialchars($store['store_name']); ?></strong></td>
+                                    <td><span class="badge badge-light"><?php echo htmlspecialchars($store['store_code'] ?? 'N/A'); ?></span></td>
+                                    <td>
+                                        <?php if (!empty($store['phone'])): ?>
+                                            <div><i class="mdi mdi-phone"></i> <?php echo htmlspecialchars($store['phone']); ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($store['email'])): ?>
+                                            <div><i class="mdi mdi-email"></i> <?php echo htmlspecialchars($store['email']); ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($store['portal_url'])): ?>
+                                            <a href="<?php echo htmlspecialchars($store['portal_url']); ?>" target="_blank" class="text-info"><?php echo htmlspecialchars($store['portal_url']); ?></a>
+                                        <?php else: ?>
+                                            <span class="text-muted">N/A</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php 
+                                        if (!empty($assigned_role_ids)) {
+                                            foreach ($assigned_role_ids as $r_id) {
+                                                if (isset($roles_map[$r_id])) {
+                                                    echo '<span class="badge badge-info mr-1 mb-1">' . htmlspecialchars($roles_map[$r_id]) . '</span>';
+                                                }
+                                            }
+                                        } else {
+                                            echo '<span class="text-muted">' . get_phrase('none') . '</span>';
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($store['status'] == 1) : ?>
+                                            <span class="badge badge-success"><?php echo get_phrase('active'); ?></span>
+                                        <?php else : ?>
+                                            <span class="badge badge-danger"><?php echo get_phrase('inactive'); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="dropright dropright">
+                                            <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-icon" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i class="mdi mdi-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="<?php echo site_url('admin/store_form/edit_store_form/' . $store['id']); ?>"><?php echo get_phrase('edit'); ?></a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="confirm_modal('<?php echo site_url('admin/stores/delete/' . $store['id']); ?>');"><?php echo get_phrase('delete'); ?></a></li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div> <!-- end card body-->
+        </div> <!-- end card -->
+    </div><!-- end col-->
+</div>

@@ -2657,12 +2657,22 @@ class Crud_model extends CI_Model
     {
         $courses_id = $this->input->post('course_id');
         $users_id   = $this->input->post('user_id');
+        $expiry_days = $this->input->post('expiry_days');
 
+        if (!is_array($courses_id)) {
+            $courses_id = !empty($courses_id) ? [$courses_id] : [];
+        }
+        if (!is_array($users_id)) {
+            $users_id = !empty($users_id) ? [$users_id] : [];
+        }
+
+        $enrolled_count = 0;
         foreach ($users_id as $user_id) {
-
             foreach ($courses_id as $course_id) {
                 $course_details = $this->get_course_by_id($course_id)->row_array();
-                if ($course_details['expiry_period'] > 0) {
+                if (!empty($expiry_days) && is_numeric($expiry_days) && $expiry_days > 0) {
+                    $data['expiry_date'] = strtotime("+" . intval($expiry_days) . " days");
+                } elseif (!empty($course_details['expiry_period']) && $course_details['expiry_period'] > 0) {
                     $days = $course_details['expiry_period'] * 30;
                     $data['expiry_date'] = strtotime("+" . $days . " days");
                 } else {
@@ -2670,22 +2680,30 @@ class Crud_model extends CI_Model
                 }
                 $data['gifted_by'] = 0;
 
-
                 if ($this->db->get_where('enrol', ['user_id' => $user_id, 'course_id' => $course_id])->num_rows() == 0) {
                     $data['user_id'] = $user_id;
                     $data['course_id'] = $course_id;
-                    $data['date_added'] = strtotime(date('D, d-M-Y'));
+                    $data['date_added'] = time();
+                    $data['last_modified'] = time();
                     $this->db->insert('enrol', $data);
                 } else {
+                    $data['date_added'] = time();
                     $data['last_modified'] = time();
                     $this->db->where('course_id', $course_id);
                     $this->db->where('user_id', $user_id);
                     $this->db->update('enrol', $data);
                 }
+                $enrolled_count++;
             }
         }
 
-        $this->session->set_flashdata('flash_message', get_phrase('student_has_been_enrolled'));
+        if ($enrolled_count > 0) {
+            $user_count = count($users_id);
+            $msg = $user_count > 1 ? $user_count . ' ' . get_phrase('pharmacists_have_been_enrolled_successfully') : get_phrase('pharmacist_has_been_enrolled');
+            $this->session->set_flashdata('flash_message', $msg);
+        } else {
+            $this->session->set_flashdata('error_message', get_phrase('no_users_or_courses_were_selected'));
+        }
     }
 
     public function shortcut_enrol_a_student_manually()
@@ -2713,7 +2731,7 @@ class Crud_model extends CI_Model
             $this->db->insert('enrol', $data);
         }
 
-        $this->session->set_flashdata('flash_message', get_phrase('student_has_been_enrolled_to_that_course'));
+        $this->session->set_flashdata('flash_message', get_phrase('pharmacist_has_been_enrolled_to_that_course'));
         $response['status'] = 1;
         return json_encode($response);
     }

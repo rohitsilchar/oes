@@ -87,7 +87,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="language"><?php echo get_phrase('student_email_verification'); ?></label>
+                            <label for="language"><?php echo get_phrase('pharmacist_email_verification'); ?></label>
                             <select class="form-control select2" data-toggle="select2" name="student_email_verification" id="student_email_verification">
                                 <option value="enable" <?php if(get_settings('student_email_verification') == "enable") echo 'selected'; ?>><?php echo get_phrase('enable'); ?></option>
                                 <option value="disable" <?php if(get_settings('student_email_verification') == "disable") echo 'selected'; ?>><?php echo get_phrase('disable'); ?></option>
@@ -161,7 +161,7 @@
 
 
                         <div class="form-group">
-                            <label><?php echo get_phrase('Can students disable their own accounts?'); ?></label><br>
+                            <label><?php echo get_phrase('Can pharmacists disable their own accounts?'); ?></label><br>
                             <input type="radio" id="account_disable_yes" value="1" name="account_disable" <?php if(get_settings('account_disable') == 1) echo 'checked'; ?>> <label for="account_disable_yes"><?php echo get_phrase('Yes'); ?></label>
                             &nbsp;&nbsp;
                             <input type="radio" id="account_disable_no" value="0" name="account_disable" <?php if(get_settings('account_disable') == 0) echo 'checked'; ?>> <label for="account_disable_no"><?php echo get_phrase('No'); ?></label>

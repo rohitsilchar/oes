@@ -22,7 +22,7 @@ $premium_courses = $this->db->where('is_free_course', 0)->get('course');
         <div class="row mb-120px row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 gy-30px">
             <div class="col fitness-single-counter">
                 <h1 class="title-6 fs-82px text-center mb-1"><span class="counter"><?php echo $total_students->num_rows(); ?></span>+</h1>
-                <p class="subtitle-3 fs-20px lh-28px text-yellow-2 fw-medium text-center"><?php echo get_phrase('Happy Students'); ?></p>
+                <p class="subtitle-3 fs-20px lh-28px text-yellow-2 fw-medium text-center"><?php echo get_phrase('Happy Pharmacists'); ?></p>
             </div>
             <div class="col fitness-single-counter">
                 <h1 class="title-6 fs-82px text-center mb-1"><span class="counter"><?php echo $total_instructors->num_rows(); ?></span>+</h1>

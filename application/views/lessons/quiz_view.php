@@ -66,11 +66,11 @@
                 <div class="col-12"></div>
                 <?php if($is_course_instructor == 1): ?>
                     <div class="col-md-6 mt-4">
-                        <p class="text-center fw-bold text-danger"><?php echo get_phrase('total_participant_students'); ?> : <?php echo $quiz_results->num_rows(); ?></p>
+                        <p class="text-center fw-bold text-danger"><?php echo get_phrase('total_participant_pharmacists'); ?> : <?php echo $quiz_results->num_rows(); ?></p>
                         <div class="form-group">
-                            <span class="text-muted"><?php echo site_phrase('participant_students'); ?></span>
+                            <span class="text-muted"><?php echo site_phrase('participant_pharmacists'); ?></span>
                             <select onchange="viewAnswerSheet(this.value)" class="form-control" name="participant_students">
-                                <option value=""><?php echo site_phrase('select_student'); ?></option>
+                                <option value=""><?php echo site_phrase('select_pharmacist'); ?></option>
                                 <?php
                                 foreach($quiz_results->result_array() as $participant_student):
                                     $student_details = $this->user_model->get_all_user($participant_student['user_id'])->row_array();
@@ -78,7 +78,7 @@
                                     <option value="<?php echo $participant_student['quiz_result_id']; ?>" <?php if(isset($preloaded_result_id) && $preloaded_result_id == $participant_student['quiz_result_id']) echo 'selected'; ?>><?php echo $student_details['first_name'].' '.$student_details['last_name']; ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <small class="text-muted"><?php echo site_phrase('select_a_student_to_view_the_answer_sheet'); ?></small>
+                            <small class="text-muted"><?php echo site_phrase('select_a_pharmacist_to_view_the_answer_sheet'); ?></small>
                         </div>
                     </div>
                     <div class="col-12 pt-4" id="viewAnswerSheet"></div>

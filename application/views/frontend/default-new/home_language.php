@@ -43,7 +43,7 @@
                             </li>
                             <?php endforeach?>
                         </ul>
-                        <p class="subtitle-10 fs-16px text-dark-5 fw-normal"><?php echo get_phrase('Students') ?></p>
+                        <p class="subtitle-10 fs-16px text-dark-5 fw-normal"><?php echo get_phrase('Pharmacists') ?></p>
                     </div>
                     <ul class="brand-list-group2">
                         <li class="brand-list2-item">
@@ -156,7 +156,7 @@
                                                 fill="#080808" fill-opacity="0.25" />
                                         </svg>
                                     </span>
-                                    <p class="course-meta-info2"><?php echo get_phrase('Students : '); ?><?php echo $number_of_enrolled_students; ?></p>
+                                    <p class="course-meta-info2"><?php echo get_phrase('Pharmacists : '); ?><?php echo $number_of_enrolled_students; ?></p>
                                 </div>
 
                             </div>
@@ -439,7 +439,7 @@
                     <h3 class="title-1 fs-32px lh-36px fw-bold text-center mb-30"><?php echo get_phrase('Let’s Meet ') ?> <span
                             class="lms1-text-purple-gradient"><?php echo get_phrase('The Experts') ?></span></h3>
                     <p class="subtits16 fs-16px lms1-text-secondary text-center">
-                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates students with engaging lessons, making learning a delightful and enriching experience.') ?>
+                        <?php echo get_phrase('Our popular instructor is a charismatic and knowledgeable individual who captivates pharmacists with engaging lessons, making learning a delightful and enriching experience.') ?>
                     </p>
                 </div>
             </div>
