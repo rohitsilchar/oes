@@ -235,7 +235,14 @@
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="password"><?php echo get_phrase('password'); ?><span class="required">*</span></label>
                                             <div class="col-md-9">
-                                                <input type="password" id="password" name="password" class="form-control" required>
+                                                <div class="input-group">
+                                                    <input type="password" id="password" name="password" class="form-control" required autocomplete="new-password">
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" onclick="togglePasswordVisibility()" title="<?php echo get_phrase('show_or_hide_password'); ?>">
+                                                            <i class="mdi mdi-eye-outline" id="togglePasswordIcon"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div> <!-- end col -->
@@ -305,6 +312,18 @@
 </style>
 
 <script>
+function togglePasswordVisibility() {
+    var passwordInput = $('#password');
+    var icon = $('#togglePasswordIcon');
+    if (passwordInput.attr('type') === 'password') {
+        passwordInput.attr('type', 'text');
+        icon.removeClass('mdi-eye-outline').addClass('mdi-eye-off-outline');
+    } else {
+        passwordInput.attr('type', 'password');
+        icon.removeClass('mdi-eye-off-outline').addClass('mdi-eye-outline');
+    }
+}
+
 $(document).ready(function() {
     function toggleWizardNextBtn() {
         if ($('#finish').hasClass('active')) {

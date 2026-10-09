@@ -36,7 +36,7 @@ class Home extends CI_Controller
         // Pharmacist licence restriction check: restrict all pages if licence_no is missing
         if (is_pharmacist_licence_missing()) {
             $curr_method = strtolower($this->router->fetch_method());
-            $allowed_methods = ['index', 'home', 'profile', 'update_profile', 'extract_licence_ocr', 'isloggedin', 'switch_language', 'logout'];
+            $allowed_methods = ['index', 'home', 'profile', 'update_profile', 'extract_licence_ocr', 'isloggedin', 'switch_language', 'logout', 'get_my_notification'];
             if (!in_array($curr_method, $allowed_methods)) {
                 $this->session->set_flashdata('licence_missing_modal', 1);
                 redirect(site_url('home'), 'refresh');
@@ -2048,23 +2048,10 @@ class Home extends CI_Controller
         $this->db->where('read_status !=', 1);
         $unread_message_count = $this->db->get('message')->num_rows();
 
-        // Latest unread message notification
-        $latest_msg = $this->db->where('to_user', $user_id)
-            ->where('status', 0)
-            ->where('type', 'message')
-            ->order_by('id', 'desc')
-            ->limit(1)
-            ->get('notifications')
-            ->row_array();
 
         $response['unread_count'] = $unread_count;
         $response['unread_message_count'] = $unread_message_count;
-        $response['latest_message_notification'] = $latest_msg ? [
-            'id'          => (int)$latest_msg['id'],
-            'title'       => $latest_msg['title'],
-            'description' => $latest_msg['description'],
-            'created_at'  => $latest_msg['created_at'],
-        ] : null;
+        $response['message_alert'] = $this->crud_model->get_message_alert($user_id, intval($this->input->get('since')), 'user');
 
         $response['html'] = [
             'elem' => '#headerNotification',

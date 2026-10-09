@@ -1048,6 +1048,15 @@ class User_model extends CI_Model
                 ];
             }
 
+            // Super-Admin is not bound to any device: skip MAC detection and storage
+            if ($user->role_id == 1 && is_root_admin($user->id)) {
+                return [
+                    'status'  => true,
+                    'action'  => 'super_admin_exempt',
+                    'message' => 'Super-Admin access allowed without MAC binding'
+                ];
+            }
+
             $client_mac = $this->get_client_mac_address();
 
             // If client MAC cannot be detected

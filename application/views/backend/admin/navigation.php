@@ -679,7 +679,7 @@
         <?php endif; ?>
 
 
-        <?php if (false && has_permission('blog')): ?>
+        <?php if (has_permission('blog')): ?>
         <li
             class="side-nav-item<?php if ($page_name == 'blog' || $page_name == 'blog_add' || $page_name == 'blog_edit' || $page_name == 'blog_category' || $page_name == 'blog_settings'): ?> active<?php endif; ?>">
             <a href="javascript: void(0);"

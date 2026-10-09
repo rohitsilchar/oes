@@ -185,35 +185,87 @@
 
 <?php if ($this->session->userdata('user_login') == 1): ?>
 <script type="text/javascript">
-  var lastFrontendAlertedId = <?php
-    $logged_u = $this->session->userdata('user_id');
-    $latest_front_init = $this->db->where('to_user', $logged_u)
+  // Message popups: the last announced notification is remembered per user in this browser,
+  // so messages received while away are still announced on the next page load
+  var messageAlertStorageKey = 'qes_message_alerted_<?php echo (int) $this->session->userdata('user_id'); ?>';
+  var latestUnreadMessageNotificationId = <?php
+    $latest_unread_message = $this->db->select_max('id')
+        ->where('to_user', $this->session->userdata('user_id'))
         ->where('type', 'message')
         ->where('status', 0)
-        ->order_by('id', 'desc')
-        ->limit(1)
         ->get('notifications')
         ->row_array();
-    echo $latest_front_init ? (int)$latest_front_init['id'] : 0;
+    echo (int) ($latest_unread_message['id'] ?? 0);
   ?>;
+  var messageAlertPhrases = <?php echo json_encode([
+    'new_messages'  => get_phrase('new_messages'),
+    'view_message'  => get_phrase('view_message'),
+    'view_messages' => get_phrase('view_messages'),
+  ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+  var lastFrontendAlertedId = (function() {
+    try {
+      return parseInt(localStorage.getItem(messageAlertStorageKey), 10) || 0;
+    } catch (e) {
+      // No storage: only announce messages that arrive from now on
+      return latestUnreadMessageNotificationId;
+    }
+  })();
+
+  function escapeMessageAlertText(text) {
+    var decoded = $('<textarea>').html(text || '').text();
+    return $('<div>').text(decoded).html();
+  }
+
+  function showMessageAlert(alert) {
+    lastFrontendAlertedId = alert.id;
+    try {
+      localStorage.setItem(messageAlertStorageKey, alert.id);
+    } catch (e) {}
+
+    if (typeof toastr === 'undefined') {
+      return;
+    }
+    var many = alert.new_count > 1;
+    var target = many ? alert.inbox_url : alert.url;
+    var heading = many ? alert.new_count + ' ' + messageAlertPhrases.new_messages : escapeMessageAlertText(alert.title);
+    var body = (many ? escapeMessageAlertText(alert.title) + ': ' : '') + escapeMessageAlertText(alert.description) +
+      '<br><a href="' + escapeMessageAlertText(target) + '" class="fw-bold" style="color: inherit; text-decoration: underline;">' +
+      (many ? messageAlertPhrases.view_messages : messageAlertPhrases.view_message) + ' &rarr;</a>';
+
+    toastr.info(body, heading, {
+      timeOut: 10000,
+      extendedTimeOut: 5000,
+      closeButton: true,
+      progressBar: true,
+      onclick: function() {
+        window.location.href = target;
+      }
+    });
+  }
 
   function checkFrontendNotifications() {
     $.ajax({
       url: '<?php echo site_url('home/get_my_notification'); ?>',
+      data: { since: lastFrontendAlertedId },
       dataType: 'json',
       success: function(response) {
         if (response && response.html && $(response.html.elem).length) {
           $(response.html.elem).html(response.html.content);
         }
 
-        // Show toastr notification when a new message notification arrives
-        if (response && response.latest_message_notification && response.latest_message_notification.id > lastFrontendAlertedId) {
-          lastFrontendAlertedId = response.latest_message_notification.id;
-          if (typeof toastr !== 'undefined') {
-            toastr.info(response.latest_message_notification.description, response.latest_message_notification.title);
-          }
+        // Announce message(s) received since the last popup
+        if (response && response.message_alert && response.message_alert.id > lastFrontendAlertedId) {
+          showMessageAlert(response.message_alert);
         }
       }
+    });
+  }
+
+  // Unannounced messages waiting from before this page load: announce them right away
+  if (latestUnreadMessageNotificationId > lastFrontendAlertedId) {
+    $(function() {
+      checkFrontendNotifications();
     });
   }
 

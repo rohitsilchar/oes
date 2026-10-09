@@ -2353,60 +2353,6 @@ class Admin extends CI_Controller
         // Courses for filter dropdown & modal
         $page_data['courses'] = $this->db->where('status', 'active')->or_where('status', 'private')->order_by('title', 'asc')->get('course')->result_array();
 
-        // Filter users query
-        $this->db->select('users.*, stores.store_name, stores.store_code, store_users.role_title as store_role_title');
-        $this->db->from('users');
-        $this->db->join('stores', 'stores.id = users.store_id', 'left');
-        $this->db->join('store_users', 'store_users.pharmacist_id = users.id', 'left');
-        $this->db->where('users.role_id !=', 1);
-
-        if ($selected_store_id != 'all' && !empty($selected_store_id)) {
-            if ($selected_store_id == 'no_store') {
-                $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
-            } else {
-                $this->db->where('users.store_id', intval($selected_store_id));
-            }
-        }
-
-        if ($selected_status != 'all' && $selected_status !== '') {
-            $this->db->where('users.status', intval($selected_status));
-        }
-
-        if ($selected_role == 'instructor') {
-            $this->db->where('users.is_instructor', 1);
-        } elseif ($selected_role == 'pharmacist' || $selected_role == 'student') {
-            $this->db->where('users.is_instructor', 0);
-        }
-
-        if ($selected_course_id != 'all' && !empty($selected_course_id)) {
-            $course_id_int = intval($selected_course_id);
-            if ($selected_enrol_status == 'not_enrolled') {
-                $this->db->where("users.id NOT IN (SELECT user_id FROM enrol WHERE course_id = {$course_id_int})");
-            } else {
-                $this->db->where("users.id IN (SELECT user_id FROM enrol WHERE course_id = {$course_id_int})");
-            }
-        } else {
-            if ($selected_enrol_status == 'enrolled') {
-                $this->db->where("users.id IN (SELECT user_id FROM enrol)");
-            } elseif ($selected_enrol_status == 'not_enrolled') {
-                $this->db->where("users.id NOT IN (SELECT user_id FROM enrol)");
-            }
-        }
-
-        $this->db->order_by('users.id', 'desc');
-        $page_data['users'] = $this->db->get()->result_array();
-
-        // Preload enrollments with course titles
-        $enrolments = $this->db->select('enrol.id as enrol_id, enrol.user_id, enrol.course_id, enrol.expiry_date, enrol.date_added, course.title as course_title, course.status as course_status')
-            ->from('enrol')
-            ->join('course', 'course.id = enrol.course_id', 'left')
-            ->get()->result_array();
-        $user_enrolments = [];
-        foreach ($enrolments as $e) {
-            $user_enrolments[$e['user_id']][] = $e;
-        }
-        $page_data['user_enrolments'] = $user_enrolments;
-
         $page_data['selected_store_id']     = $selected_store_id;
         $page_data['selected_course_id']    = $selected_course_id;
         $page_data['selected_enrol_status'] = $selected_enrol_status;
@@ -2416,6 +2362,214 @@ class Admin extends CI_Controller
         $page_data['page_name']  = 'enrol_student';
         $page_data['page_title'] = get_phrase('course_enrolment');
         $this->load->view('backend/index', $page_data);
+    }
+
+    // Applies the course enrolment page filters (and optional search) to the users query
+    private function apply_enrol_student_filters($filters, $search = '')
+    {
+        $this->db->from('users');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id !=', 1);
+
+        if ($filters['store_id'] != 'all' && !empty($filters['store_id'])) {
+            if ($filters['store_id'] == 'no_store') {
+                $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+            } else {
+                $this->db->where('users.store_id', intval($filters['store_id']));
+            }
+        }
+
+        if ($filters['status'] != 'all' && $filters['status'] !== '') {
+            $this->db->where('users.status', intval($filters['status']));
+        }
+
+        if ($filters['role'] == 'instructor') {
+            $this->db->where('users.is_instructor', 1);
+        } elseif ($filters['role'] == 'pharmacist' || $filters['role'] == 'student') {
+            $this->db->where('users.is_instructor', 0);
+        }
+
+        if ($filters['course_id'] != 'all' && !empty($filters['course_id'])) {
+            $course_id_int = intval($filters['course_id']);
+            if ($filters['enrol_status'] == 'not_enrolled') {
+                $this->db->where("users.id NOT IN (SELECT user_id FROM enrol WHERE course_id = {$course_id_int})");
+            } else {
+                $this->db->where("users.id IN (SELECT user_id FROM enrol WHERE course_id = {$course_id_int})");
+            }
+        } else {
+            if ($filters['enrol_status'] == 'enrolled') {
+                $this->db->where("users.id IN (SELECT user_id FROM enrol)");
+            } elseif ($filters['enrol_status'] == 'not_enrolled') {
+                $this->db->where("users.id NOT IN (SELECT user_id FROM enrol)");
+            }
+        }
+
+        if ($search !== '') {
+            $like = $this->db->escape('%' . $this->db->escape_like_str($search) . '%');
+            $this->db->where("(CONCAT_WS(' ', users.first_name, users.last_name) LIKE {$like} ESCAPE '!'
+                OR users.email LIKE {$like} ESCAPE '!'
+                OR users.employee_id LIKE {$like} ESCAPE '!'
+                OR stores.store_name LIKE {$like} ESCAPE '!'
+                OR stores.store_code LIKE {$like} ESCAPE '!')", null, false);
+        }
+    }
+
+    // Server-side DataTables source for the course enrolment users table
+    public function enrol_student_data()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        // CHECK ACCESS PERMISSION
+        check_permission('enrolment');
+
+        $filters = [
+            'store_id'     => $this->input->get('store_id') ?: 'all',
+            'course_id'    => $this->input->get('course_id') ?: 'all',
+            'enrol_status' => $this->input->get('enrol_status') ?: 'all',
+            'status'       => ($this->input->get('status') !== null && $this->input->get('status') !== '') ? $this->input->get('status') : 'all',
+            'role'         => $this->input->get('role') ?: 'all',
+        ];
+
+        $draw   = intval($this->input->get('draw'));
+        $start  = max(0, intval($this->input->get('start')));
+        $length = intval($this->input->get('length'));
+        $length = ($length > 0 && $length <= 500) ? $length : 10;
+        $search = trim((string) ($this->input->get('search')['value'] ?? ''));
+
+        // Sortable table columns (by column index) => database columns
+        $order_columns = [
+            1 => ['users.id'],
+            3 => ['users.first_name', 'users.last_name'],
+            4 => ['users.email'],
+            5 => ['users.is_instructor', 'store_role_title'],
+            6 => ['users.employee_id'],
+            7 => ['stores.store_name'],
+            9 => ['users.status'],
+        ];
+        $order     = $this->input->get('order');
+        $order_col = isset($order[0]['column']) ? intval($order[0]['column']) : null;
+        $order_dir = (isset($order[0]['dir']) && strtolower($order[0]['dir']) == 'asc') ? 'asc' : 'desc';
+
+        $records_total = $this->db->where('role_id !=', 1)->count_all_results('users');
+
+        $this->apply_enrol_student_filters($filters, $search);
+        $records_filtered = $this->db->count_all_results();
+
+        $this->db->select('users.id, users.first_name, users.last_name, users.email, users.image, users.employee_id, users.is_instructor, users.status, stores.store_name, stores.store_code');
+        $this->db->select('(SELECT su.role_title FROM store_users su WHERE su.pharmacist_id = users.id ORDER BY su.id LIMIT 1) AS store_role_title', false);
+        $this->apply_enrol_student_filters($filters, $search);
+        if ($order_col !== null && isset($order_columns[$order_col])) {
+            foreach ($order_columns[$order_col] as $column) {
+                $this->db->order_by($column, $order_dir);
+            }
+        } else {
+            $this->db->order_by('users.id', 'desc');
+        }
+        $this->db->limit($length, $start);
+        $users = $this->db->get()->result_array();
+
+        // Enrolments with course titles, only for the users on this page
+        $user_enrolments = [];
+        $user_ids = array_column($users, 'id');
+        if (!empty($user_ids)) {
+            $enrolments = $this->db->select('enrol.id as enrol_id, enrol.user_id, enrol.course_id, enrol.expiry_date, enrol.date_added, course.title as course_title, course.status as course_status')
+                ->from('enrol')
+                ->join('course', 'course.id = enrol.course_id', 'left')
+                ->where_in('enrol.user_id', $user_ids)
+                ->get()->result_array();
+            foreach ($enrolments as $e) {
+                $user_enrolments[$e['user_id']][] = $e;
+            }
+        }
+
+        $phrases = [];
+        foreach (['instructor', 'pharmacist', 'none', 'lifetime_access', 'expired_on', 'expires_on', 'not_enrolled', 'active', 'inactive', 'enrol_course', 'enrol', 'edit_course_enrolment', 'edit'] as $phrase) {
+            $phrases[$phrase] = get_phrase($phrase);
+        }
+
+        $data = [];
+        foreach ($users as $key => $user) {
+            $user_id       = $user['id'];
+            $full_name     = trim($user['first_name'] . ' ' . $user['last_name']);
+            $enrolled_list = $user_enrolments[$user_id] ?? [];
+            $user_photo    = $this->user_model->get_user_image_url($user_id, $user['image']);
+
+            if (!empty($user['is_instructor'])) {
+                $role = '<span class="badge badge-info-lighten">' . $phrases['instructor'] . '</span>';
+            } elseif (!empty($user['store_role_title'])) {
+                $role = '<span class="badge badge-primary-lighten">' . htmlspecialchars($user['store_role_title']) . '</span>';
+            } else {
+                $role = '<span class="badge badge-secondary-lighten">' . $phrases['pharmacist'] . '</span>';
+            }
+
+            if (!empty($user['store_name'])) {
+                $store = '<span class="badge badge-primary-lighten">' . htmlspecialchars($user['store_name']) . '</span>';
+                if (!empty($user['store_code'])) {
+                    $store .= '<small class="text-muted d-block">' . htmlspecialchars($user['store_code']) . '</small>';
+                }
+            } else {
+                $store = '<span class="text-muted">' . $phrases['none'] . '</span>';
+            }
+
+            if (count($enrolled_list) > 0) {
+                $courses = '<div class="d-flex flex-wrap" style="gap: 3px; max-width: 260px;">';
+                foreach ($enrolled_list as $enrol_item) {
+                    $is_expired   = (!empty($enrol_item['expiry_date']) && $enrol_item['expiry_date'] < time());
+                    $expiry_label = empty($enrol_item['expiry_date']) ? $phrases['lifetime_access'] : ($is_expired ? $phrases['expired_on'] . ' ' . date('d M Y', $enrol_item['expiry_date']) : $phrases['expires_on'] . ' ' . date('d M Y', $enrol_item['expiry_date']));
+                    $badge_class  = $is_expired ? 'badge-danger-lighten' : 'badge-success-lighten';
+                    $course_title = $enrol_item['course_title'] ?? 'Course';
+                    $courses .= '<span class="badge ' . $badge_class . ' course-badge" data-toggle="tooltip" data-placement="top" title="' . htmlspecialchars($course_title . ' — ' . $expiry_label) . '">'
+                        . '<i class="mdi mdi-book-open-page-variant mr-1"></i>' . htmlspecialchars($course_title)
+                        . ($is_expired ? '<span class="text-danger ml-1 font-weight-bold">•</span>' : '')
+                        . '</span>';
+                }
+                $courses .= '</div>';
+            } else {
+                $courses = '<span class="badge badge-secondary-lighten">' . $phrases['not_enrolled'] . '</span>';
+            }
+
+            $status = $user['status'] == 1
+                ? '<span class="badge badge-success">' . $phrases['active'] . '</span>'
+                : '<span class="badge badge-danger">' . $phrases['inactive'] . '</span>';
+
+            $action = '<div class="d-flex align-items-center" style="gap: 5px;">'
+                . '<button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-single-enrol" data-user-id="' . $user_id . '" data-name="' . htmlspecialchars($full_name) . '" data-email="' . htmlspecialchars($user['email']) . '" title="' . $phrases['enrol_course'] . '">'
+                . '<i class="mdi mdi-school mr-1"></i>' . $phrases['enrol'] . '</button>';
+            if (count($enrolled_list) > 0) {
+                $role_label = !empty($user['is_instructor']) ? $phrases['instructor'] : (!empty($user['store_role_title']) ? $user['store_role_title'] : $phrases['pharmacist']);
+                $action .= '<button type="button" class="btn btn-sm btn-outline-info btn-rounded btn-edit-enrol" data-user-id="' . $user_id . '" data-name="' . htmlspecialchars($full_name) . '" data-email="' . htmlspecialchars($user['email']) . '"'
+                    . ' data-role="' . htmlspecialchars($role_label) . '"'
+                    . ' data-store="' . htmlspecialchars($user['store_name'] ?? $phrases['none']) . '"'
+                    . " data-enrolments='" . json_encode($enrolled_list, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . "'"
+                    . ' title="' . $phrases['edit_course_enrolment'] . '">'
+                    . '<i class="mdi mdi-pencil mr-1"></i>' . $phrases['edit'] . '</button>';
+            }
+            $action .= '</div>';
+
+            $data[] = [
+                'DT_RowId'    => 'user_row_' . $user_id,
+                'checkbox'    => '<input type="checkbox" class="user-checkbox" value="' . $user_id . '" data-name="' . htmlspecialchars($full_name) . '" data-email="' . htmlspecialchars($user['email']) . '">',
+                'key'         => $start + $key + 1,
+                'photo'       => '<img src="' . $user_photo . '" alt="" height="36" width="36" class="img-fluid rounded-circle img-thumbnail shadow-sm">',
+                'name'        => '<strong>' . htmlspecialchars($full_name) . '</strong>',
+                'email'       => htmlspecialchars($user['email']),
+                'role'        => $role,
+                'employee_id' => !empty($user['employee_id']) ? '<code>' . htmlspecialchars($user['employee_id']) . '</code>' : '<span class="text-muted">-</span>',
+                'store'       => $store,
+                'courses'     => $courses,
+                'status'      => $status,
+                'action'      => $action,
+            ];
+        }
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'draw'            => $draw,
+            'recordsTotal'    => $records_total,
+            'recordsFiltered' => $records_filtered,
+            'data'            => $data,
+        ]));
     }
 
     public function shortcut_enrol_student()
@@ -4304,25 +4458,8 @@ class Admin extends CI_Controller
         $this->db->where('read_status !=', 1);
         $response['unread_message_count'] = $this->db->get('message')->num_rows();
 
-        // Check if there is an unread message notification
-        $latest_msg = $this->db->where('to_user', $user_id)
-            ->where('status', 0)
-            ->where('type', 'message')
-            ->order_by('id', 'desc')
-            ->limit(1)
-            ->get('notifications')
-            ->row_array();
-
-        if ($latest_msg) {
-            $response['latest_message_notification'] = [
-                'id'          => (int)$latest_msg['id'],
-                'title'       => $latest_msg['title'],
-                'description' => $latest_msg['description'],
-                'created_at'  => $latest_msg['created_at'],
-            ];
-        } else {
-            $response['latest_message_notification'] = null;
-        }
+        // Newest unread message notification for the popup alert
+        $response['message_alert'] = $this->crud_model->get_message_alert($user_id, intval($this->input->get('since')), 'admin');
 
         $response['rendered_view'] = $this->load->view('backend/header_notification', $page_data, true);
 

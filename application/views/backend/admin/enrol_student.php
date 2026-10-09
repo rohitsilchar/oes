@@ -303,7 +303,7 @@
                     <div>
                         <h4 class="header-title mb-1">
                             <i class="mdi mdi-account-group mr-1 text-primary"></i><?php echo get_phrase('users_list'); ?>
-                            <span class="badge badge-secondary ml-1"><?php echo count($users); ?></span>
+                            <span class="badge badge-secondary ml-1" id="users_total_badge">0</span>
                         </h4>
                         <p class="text-muted font-13 mb-0"><?php echo get_phrase('select_users_and_click_add_course_for_selected_users'); ?></p>
                     </div>
@@ -342,109 +342,7 @@
                                 <th><?php echo get_phrase('action'); ?></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php foreach ($users as $key => $user): 
-                                $user_id = $user['id'];
-                                $full_name = trim($user['first_name'] . ' ' . $user['last_name']);
-                                $enrolled_list = $user_enrolments[$user_id] ?? [];
-                                $user_photo = $this->user_model->get_user_image_url($user_id);
-                            ?>
-                                <tr id="user_row_<?php echo $user_id; ?>">
-                                    <td class="text-center">
-                                        <input type="checkbox" class="user-checkbox" 
-                                               value="<?php echo $user_id; ?>" 
-                                               data-name="<?php echo htmlspecialchars($full_name); ?>" 
-                                               data-email="<?php echo htmlspecialchars($user['email']); ?>">
-                                    </td>
-                                    <td><?php echo $key + 1; ?></td>
-                                    <td>
-                                        <img src="<?php echo $user_photo; ?>" alt="" height="36" width="36" class="img-fluid rounded-circle img-thumbnail shadow-sm">
-                                    </td>
-                                    <td>
-                                        <strong><?php echo htmlspecialchars($full_name); ?></strong>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                    <td>
-                                        <?php if (!empty($user['is_instructor'])): ?>
-                                            <span class="badge badge-info-lighten"><?php echo get_phrase('instructor'); ?></span>
-                                        <?php elseif (!empty($user['store_role_title'])): ?>
-                                            <span class="badge badge-primary-lighten"><?php echo htmlspecialchars($user['store_role_title']); ?></span>
-                                        <?php else: ?>
-                                            <span class="badge badge-secondary-lighten"><?php echo get_phrase('pharmacist'); ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if (!empty($user['employee_id'])): ?>
-                                            <code><?php echo htmlspecialchars($user['employee_id']); ?></code>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if (!empty($user['store_name'])): ?>
-                                            <span class="badge badge-primary-lighten"><?php echo htmlspecialchars($user['store_name']); ?></span>
-                                            <?php if (!empty($user['store_code'])): ?>
-                                                <small class="text-muted d-block"><?php echo htmlspecialchars($user['store_code']); ?></small>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <span class="text-muted"><?php echo get_phrase('none'); ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if (count($enrolled_list) > 0): ?>
-                                            <div class="d-flex flex-wrap" style="gap: 3px; max-width: 260px;">
-                                                <?php foreach ($enrolled_list as $enrol_item): 
-                                                    $is_expired = (!empty($enrol_item['expiry_date']) && $enrol_item['expiry_date'] < time());
-                                                    $expiry_label = empty($enrol_item['expiry_date']) ? get_phrase('lifetime_access') : ($is_expired ? get_phrase('expired_on') . ' ' . date('d M Y', $enrol_item['expiry_date']) : get_phrase('expires_on') . ' ' . date('d M Y', $enrol_item['expiry_date']));
-                                                    $badge_class = $is_expired ? 'badge-danger-lighten' : 'badge-success-lighten';
-                                                ?>
-                                                    <span class="badge <?php echo $badge_class; ?> course-badge" 
-                                                          data-toggle="tooltip" data-placement="top" 
-                                                          title="<?php echo htmlspecialchars(($enrol_item['course_title'] ?? 'Course') . ' — ' . $expiry_label); ?>">
-                                                        <i class="mdi mdi-book-open-page-variant mr-1"></i><?php echo htmlspecialchars($enrol_item['course_title'] ?? 'Course'); ?>
-                                                        <?php if ($is_expired): ?>
-                                                            <span class="text-danger ml-1 font-weight-bold">•</span>
-                                                        <?php endif; ?>
-                                                    </span>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        <?php else: ?>
-                                            <span class="badge badge-secondary-lighten"><?php echo get_phrase('not_enrolled'); ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($user['status'] == 1): ?>
-                                            <span class="badge badge-success"><?php echo get_phrase('active'); ?></span>
-                                        <?php else: ?>
-                                            <span class="badge badge-danger"><?php echo get_phrase('inactive'); ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center" style="gap: 5px;">
-                                            <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-single-enrol" 
-                                                    data-user-id="<?php echo $user_id; ?>" 
-                                                    data-name="<?php echo htmlspecialchars($full_name); ?>" 
-                                                    data-email="<?php echo htmlspecialchars($user['email']); ?>"
-                                                    title="<?php echo get_phrase('enrol_course'); ?>">
-                                                <i class="mdi mdi-school mr-1"></i><?php echo get_phrase('enrol'); ?>
-                                            </button>
-                                            <?php if (count($enrolled_list) > 0): ?>
-                                                <button type="button" class="btn btn-sm btn-outline-info btn-rounded btn-edit-enrol" 
-                                                        data-user-id="<?php echo $user_id; ?>" 
-                                                        data-name="<?php echo htmlspecialchars($full_name); ?>" 
-                                                        data-email="<?php echo htmlspecialchars($user['email']); ?>"
-                                                        data-role="<?php echo htmlspecialchars(!empty($user['is_instructor']) ? get_phrase('instructor') : (!empty($user['store_role_title']) ? $user['store_role_title'] : get_phrase('pharmacist'))); ?>"
-                                                        data-store="<?php echo htmlspecialchars($user['store_name'] ?? get_phrase('none')); ?>"
-                                                        data-enrolments='<?php echo json_encode($enrolled_list, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>'
-                                                        title="<?php echo get_phrase('edit_course_enrolment'); ?>">
-                                                    <i class="mdi mdi-pencil mr-1"></i><?php echo get_phrase('edit'); ?>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
             </div> <!-- end card body -->
@@ -636,8 +534,41 @@ $(document).ready(function() {
     var selectedUsers = new Map();
 
     // Initialize DataTable on the users enrolment table
+    // Rows are loaded page by page from the server using the active filters
+    var enrolFilters = <?php echo json_encode([
+        'store_id'     => $selected_store_id,
+        'course_id'    => $selected_course_id,
+        'enrol_status' => $selected_enrol_status,
+        'status'       => $selected_status,
+        'role'         => $selected_role,
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
     var table = $('#users_enrolment_datatable').DataTable({
         keys: true,
+        processing: true,
+        serverSide: true,
+        searchDelay: 400,
+        ajax: {
+            url: "<?php echo site_url('admin/enrol_student_data'); ?>",
+            type: "GET",
+            dataType: "json",
+            data: function(d) {
+                return $.extend(d, enrolFilters);
+            }
+        },
+        columns: [
+            { data: "checkbox", className: "text-center" },
+            { data: "key" },
+            { data: "photo" },
+            { data: "name" },
+            { data: "email" },
+            { data: "role" },
+            { data: "employee_id" },
+            { data: "store" },
+            { data: "courses" },
+            { data: "status" },
+            { data: "action" }
+        ],
         order: [], // no default column sort to maintain server ordering
         columnDefs: [
             { orderable: false, targets: [0, 2, 8, 10] } // Checkbox, Photo, Enrolled Courses, Action not orderable
@@ -656,8 +587,20 @@ $(document).ready(function() {
                 this.checked = selectedUsers.has(userId);
             });
             updateCheckAllStatus();
+            $('#users_enrolment_datatable [data-toggle="tooltip"]').tooltip();
         }
     });
+
+    $('#users_enrolment_datatable')
+        .on('preXhr.dt', function() {
+            // Drop tooltips left open by rows that are about to be replaced
+            $('.tooltip').remove();
+        })
+        .on('xhr.dt', function(e, settings, json) {
+            if (json && typeof json.recordsFiltered !== 'undefined') {
+                $('#users_total_badge').text(json.recordsFiltered);
+            }
+        });
 
     // Helper: update Check All checkbox based on currently visible checkboxes
     function updateCheckAllStatus() {

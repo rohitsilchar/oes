@@ -256,20 +256,62 @@
 
 
 <script type="text/javascript">
-    var lastAdminAlertedNotificationId = <?php
-        $latest_admin_init = $this->db->where('to_user', $logged_user_id)
+    // Message popups: the last announced notification is remembered per user in this browser,
+    // so messages received while away are still announced on the next page load
+    var messageAlertStorageKey = 'qes_message_alerted_<?php echo (int) $logged_user_id; ?>';
+    var latestUnreadMessageNotificationId = <?php
+        $latest_unread_message = $this->db->select_max('id')
+            ->where('to_user', $logged_user_id)
             ->where('type', 'message')
-            ->order_by('id', 'desc')
-            ->limit(1)
+            ->where('status', 0)
             ->get('notifications')
             ->row_array();
-        echo $latest_admin_init ? (int)$latest_admin_init['id'] : 0;
+        echo (int) ($latest_unread_message['id'] ?? 0);
     ?>;
+    var messageAlertPhrases = <?php echo json_encode([
+        'new_messages'  => get_phrase('new_messages'),
+        'view_message'  => get_phrase('view_message'),
+        'view_messages' => get_phrase('view_messages'),
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+    var lastAdminAlertedNotificationId = (function() {
+        try {
+            return parseInt(localStorage.getItem(messageAlertStorageKey), 10) || 0;
+        } catch (e) {
+            // No storage: only announce messages that arrive from now on
+            return latestUnreadMessageNotificationId;
+        }
+    })();
+
+    function escapeMessageAlertText(text) {
+        var decoded = $('<textarea>').html(text || '').text();
+        return $('<div>').text(decoded).html();
+    }
+
+    function showMessageAlert(alert) {
+        lastAdminAlertedNotificationId = alert.id;
+        try {
+            localStorage.setItem(messageAlertStorageKey, alert.id);
+        } catch (e) {}
+
+        var many = alert.new_count > 1;
+        var heading = many ? alert.new_count + ' ' + messageAlertPhrases.new_messages : escapeMessageAlertText(alert.title);
+        var body = (many ? escapeMessageAlertText(alert.title) + ': ' : '') + escapeMessageAlertText(alert.description) +
+            '<br><a href="' + escapeMessageAlertText(many ? alert.inbox_url : alert.url) + '" class="font-weight-bold" style="color: inherit; text-decoration: underline;">' +
+            (many ? messageAlertPhrases.view_messages : messageAlertPhrases.view_message) + ' &rarr;</a>';
+
+        if (typeof $.NotificationApp !== 'undefined') {
+            $.NotificationApp.send(heading, body, "top-right", "rgba(0,0,0,0.2)", "info", 10000);
+        } else if (typeof toastr !== 'undefined') {
+            toastr.info(body, heading, { timeOut: 10000, closeButton: true });
+        }
+    }
 
     function handleNotification(type) {
         var actionParam = (typeof type !== 'undefined' && type) ? type : '';
         $.ajax({
             url: '<?php echo site_url('admin/get_my_notification/'); ?>' + actionParam,
+            data: { since: lastAdminAlertedNotificationId },
             dataType: 'json',
             success: function(responseVal) {
                 if (typeof responseVal.rendered_view !== 'undefined') {
@@ -297,22 +339,18 @@
                     }
                 }
 
-                // If a new message arrived while admin is on any page, show notification popup
-                if (responseVal.latest_message_notification && responseVal.latest_message_notification.id > lastAdminAlertedNotificationId) {
-                    lastAdminAlertedNotificationId = responseVal.latest_message_notification.id;
-                    if (typeof $.NotificationApp !== 'undefined') {
-                        $.NotificationApp.send(
-                            responseVal.latest_message_notification.title,
-                            responseVal.latest_message_notification.description,
-                            "top-right",
-                            "rgba(0,0,0,0.2)",
-                            "info"
-                        );
-                    } else if (typeof toastr !== 'undefined') {
-                        toastr.info(responseVal.latest_message_notification.description, responseVal.latest_message_notification.title);
-                    }
+                // Announce message(s) received since the last popup
+                if (responseVal.message_alert && responseVal.message_alert.id > lastAdminAlertedNotificationId) {
+                    showMessageAlert(responseVal.message_alert);
                 }
             }
+        });
+    }
+
+    // Unannounced messages waiting from before this page load: announce them right away
+    if (latestUnreadMessageNotificationId > lastAdminAlertedNotificationId) {
+        $(function() {
+            handleNotification();
         });
     }
 

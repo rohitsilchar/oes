@@ -3280,6 +3280,47 @@ class Crud_model extends CI_Model
         $this->db->insert('notifications', $notification_data);
     }
 
+    // Newest unread message notification for the popup alert, plus how many arrived after $since
+    public function get_message_alert($user_id, $since = 0, $panel = 'user')
+    {
+        $latest = $this->db->where('to_user', $user_id)
+            ->where('status', 0)
+            ->where('type', 'message')
+            ->order_by('id', 'desc')
+            ->limit(1)
+            ->get('notifications')
+            ->row_array();
+
+        if (!$latest) {
+            return null;
+        }
+
+        $new_count = $this->db->where('to_user', $user_id)
+            ->where('status', 0)
+            ->where('type', 'message')
+            ->where('id >', intval($since))
+            ->count_all_results('notifications');
+
+        if ($panel == 'admin') {
+            $inbox_url = site_url('admin/message');
+            $thread_base = 'admin/message/message_read/';
+        } else {
+            $inbox_url = site_url('home/my_messages');
+            $thread_base = 'home/my_messages/read_message/';
+        }
+        $thread_code = $this->get_thread_code_between($latest['from_user'], $latest['to_user']);
+
+        return [
+            'id'          => (int) $latest['id'],
+            'title'       => $latest['title'],
+            'description' => $latest['description'],
+            'created_at'  => $latest['created_at'],
+            'new_count'   => $new_count,
+            'url'         => $thread_code ? site_url($thread_base . $thread_code) : $inbox_url,
+            'inbox_url'   => $inbox_url,
+        ];
+    }
+
     public function get_thread_code_between($user1, $user2)
     {
         if (empty($user1) || empty($user2)) {
