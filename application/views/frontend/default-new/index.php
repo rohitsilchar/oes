@@ -110,6 +110,7 @@
 
             include 'includes_bottom.php';
             include 'modal.php';
+            include 'licence_restriction_modal.php';
             include 'common_scripts.php';
             include 'init.php';
         ?>

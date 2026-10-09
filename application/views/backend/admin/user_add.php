@@ -29,18 +29,7 @@
                                     <span class="d-none d-sm-inline"><?php echo get_phrase('login_credentials'); ?></span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a href="#social_information" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
-                                    <i class="mdi mdi-wifi mr-1"></i>
-                                    <span class="d-none d-sm-inline"><?php echo get_phrase('social_information'); ?></span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="#payment_info" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
-                                    <i class="mdi mdi-currency-eur mr-1"></i>
-                                    <span class="d-none d-sm-inline"><?php echo get_phrase('payment_info'); ?></span>
-                                </a>
-                            </li>
+
                             <li class="nav-item">
                                 <a href="#finish" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
                                     <i class="mdi mdi-checkbox-marked-circle-outline mr-1"></i>
@@ -66,9 +55,9 @@
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="last_name"><?php echo get_phrase('last_name'); ?><span class="required">*</span></label>
+                                            <label class="col-md-3 col-form-label" for="last_name"><?php echo get_phrase('last_name'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" class="form-control" id="last_name" name="last_name" required>
+                                                <input type="text" class="form-control" id="last_name" name="last_name">
                                             </div>
                                         </div>
 
@@ -92,6 +81,21 @@
                                         </div>
 
                                         <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="designation"><?php echo get_phrase('designation'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control" id="designation" name="designation" list="designation_suggestions" placeholder="e.g. B. Pharm, M. Pharm, Pharmacist">
+                                                <datalist id="designation_suggestions">
+                                                    <option value="B. Pharm">
+                                                    <option value="M. Pharm">
+                                                    <option value="D. Pharm">
+                                                    <option value="Pharmacist">
+                                                    <option value="Senior Pharmacist">
+                                                    <option value="Dispenser">
+                                                </datalist>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="licence_no"><?php echo get_phrase('licence_no'); ?></label>
                                             <div class="col-md-9">
                                                 <input type="text" class="form-control" id="licence_no" name="licence_no" placeholder="e.g. LIC-123456">
@@ -102,6 +106,21 @@
                                             <label class="col-md-3 col-form-label" for="licence_start_date"><?php echo get_phrase('licence_start_date'); ?></label>
                                             <div class="col-md-9">
                                                 <input type="date" class="form-control" id="licence_start_date" name="licence_start_date">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="licence_end_date"><?php echo get_phrase('licence_end_date'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="date" class="form-control" id="licence_end_date" name="licence_end_date">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="mac_address"><?php echo get_phrase('mac_address'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control text-uppercase" id="mac_address" name="mac_address" placeholder="e.g. 9C:67:D6:81:7F:31 (Optional)">
+                                                <small class="text-muted"><?php echo get_phrase('leave_empty_to_automatically_bind_mac_address_on_first_login'); ?></small>
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
@@ -119,9 +138,9 @@
                                         </div>
 
                                         <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="address"><?php echo get_phrase('address'); ?></label>
+                                            <label class="col-md-3 col-form-label" for="pharmacy_name"><?php echo get_phrase('pharmacy_name'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" class="form-control" id="address" name="address">
+                                                <input type="text" class="form-control" id="pharmacy_name" name="pharmacy_name" placeholder="e.g. GAR NIGAM COLONY, Dava india tikrapara">
                                             </div>
                                         </div>
 
@@ -133,9 +152,59 @@
                                                     <?php 
                                                     $all_stores = $this->db->where('status', 1)->get('stores')->result_array();
                                                     foreach ($all_stores as $store): ?>
-                                                        <option value="<?php echo $store['id']; ?>"><?php echo htmlspecialchars($store['store_name']); ?> <?php echo !empty($store['store_code']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
+                                                        <option value="<?php echo $store['id']; ?>" data-name="<?php echo htmlspecialchars($store['store_name']); ?>" data-state="<?php echo htmlspecialchars($store['state'] ?? ''); ?>" data-zone="<?php echo htmlspecialchars($store['zone'] ?? ''); ?>"><?php echo htmlspecialchars($store['store_name']); ?> <?php echo !empty($store['store_code']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="state"><?php echo get_phrase('state'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control" id="state" name="state" list="state_suggestions" placeholder="e.g. Chhattisgarh, Assam, Maharashtra">
+                                                <datalist id="state_suggestions">
+                                                    <option value="Andhra Pradesh">
+                                                    <option value="Assam">
+                                                    <option value="Bihar">
+                                                    <option value="Chhattisgarh">
+                                                    <option value="Delhi">
+                                                    <option value="Gujarat">
+                                                    <option value="Haryana">
+                                                    <option value="Karnataka">
+                                                    <option value="Kerala">
+                                                    <option value="Madhya Pradesh">
+                                                    <option value="Maharashtra">
+                                                    <option value="Odisha">
+                                                    <option value="Punjab">
+                                                    <option value="Rajasthan">
+                                                    <option value="Tamil Nadu">
+                                                    <option value="Telangana">
+                                                    <option value="Uttar Pradesh">
+                                                    <option value="Uttarakhand">
+                                                    <option value="West Bengal">
+                                                </datalist>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="region"><?php echo get_phrase('region'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control" id="region" name="region" list="region_suggestions" placeholder="e.g. West, East, North, South, Central">
+                                                <datalist id="region_suggestions">
+                                                    <option value="West">
+                                                    <option value="East">
+                                                    <option value="North">
+                                                    <option value="South">
+                                                    <option value="Central">
+                                                    <option value="North East">
+                                                </datalist>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="address"><?php echo get_phrase('address'); ?></label>
+                                            <div class="col-md-9">
+                                                <input type="text" class="form-control" id="address" name="address">
                                             </div>
                                         </div>
                                         
@@ -158,9 +227,9 @@
                                 <div class="row">
                                     <div class="col-12">
                                         <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="email"><?php echo get_phrase('email'); ?><span class="required">*</span></label>
+                                            <label class="col-md-3 col-form-label" for="email"><?php echo get_phrase('email'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="email" id="email" name="email" class="form-control" required>
+                                                <input type="email" id="email" name="email" class="form-control">
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
@@ -173,54 +242,6 @@
                                 </div> <!-- end row -->
                             </div>
 
-                            <div class="tab-pane" id="social_information">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="facebook_link"> <?php echo get_phrase('facebook'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="facebook_link" name="facebook_link" class="form-control">
-                                            </div>
-                                        </div>
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="twitter_link"><?php echo get_phrase('twitter'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="twitter_link" name="twitter_link" class="form-control">
-                                            </div>
-                                        </div>
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="linkedin_link"><?php echo get_phrase('linkedin'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="linkedin_link" name="linkedin_link" class="form-control">
-                                            </div>
-                                        </div>
-                                    </div> <!-- end col -->
-                                </div> <!-- end row -->
-                            </div>
-                            <div class="tab-pane" id="payment_info">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <?php $payment_gateways = $this->db->get('payment_gateways')->result_array();
-                                            foreach($payment_gateways as $key => $payment_gateway):
-                                            $keys = json_decode($payment_gateway['keys'], true);
-                                            ?>
-                                            <div class="<?php if($payment_gateway['status'] != 1 || !addon_status($payment_gateway['identifier']) && $payment_gateway['is_addon'] == 1) echo 'd-none'; ?>">
-                                                <h4><?php echo get_phrase($payment_gateway['title']); ?></h4>
-                                                <?php foreach($keys as $index => $value): ?>
-                                                    <div class="form-group row mb-3">
-                                                        <label class="col-md-3 col-form-label" for="<?php echo $payment_gateway['identifier'].$index; ?>"> <?php echo get_phrase($index); ?></label>
-                                                        <div class="col-md-9">
-                                                            <input type="text" id="<?php echo $payment_gateway['identifier'].$index; ?>" name="gateways[<?php echo $payment_gateway['identifier']; ?>][<?php echo $index; ?>]" class="form-control">
-                                                            <small><?php echo get_phrase("required_for_instructor"); ?></small>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                                <hr>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div> <!-- end col -->
-                                </div> <!-- end row -->
-                            </div>
                             <div class="tab-pane" id="finish">
                                 <div class="row">
                                     <div class="col-12">
@@ -238,12 +259,12 @@
                                 </div> <!-- end row -->
                             </div>
 
-                            <ul class="list-inline mb-0 wizard text-center">
-                                <li class="previous list-inline-item">
-                                    <a href="javascript:;" class="btn btn-info"> <i class="mdi mdi-arrow-left-bold"></i> </a>
+                            <ul class="list-inline mb-0 wizard d-flex justify-content-between align-items-center">
+                                <li class="previous list-inline-item mr-auto">
+                                    <a href="javascript:;" class="btn btn-info"> <i class="mdi mdi-arrow-left-bold mr-1"></i> <?php echo get_phrase('previous'); ?> </a>
                                 </li>
-                                <li class="next list-inline-item">
-                                    <a href="javascript:;" class="btn btn-info"> <i class="mdi mdi-arrow-right-bold"></i> </a>
+                                <li class="next list-inline-item ml-auto">
+                                    <a href="javascript:;" class="btn btn-info"> <?php echo get_phrase('next'); ?> <i class="mdi mdi-arrow-right-bold ml-1"></i> </a>
                                 </li>
                             </ul>
 
@@ -255,3 +276,72 @@
         </div> <!-- end card-->
     </div>
 </div>
+
+<style>
+/* Wizard navigation buttons alignment */
+.wizard {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.wizard .previous {
+    margin-right: auto !important;
+    text-align: left !important;
+}
+
+.wizard .next {
+    margin-left: auto !important;
+    text-align: right !important;
+}
+
+/* Hide Next button on finish tab (last step) */
+#finish.active ~ .wizard .next,
+#finish.active + .wizard .next,
+#progressbarwizard .wizard li.next.disabled {
+    display: none !important;
+}
+</style>
+
+<script>
+$(document).ready(function() {
+    function toggleWizardNextBtn() {
+        if ($('#finish').hasClass('active')) {
+            $('#progressbarwizard .wizard .next').hide();
+        } else {
+            $('#progressbarwizard .wizard .next').show();
+        }
+    }
+
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+        if ($(e.target).attr('href') === '#finish') {
+            $('#progressbarwizard .wizard .next').hide();
+        } else {
+            $('#progressbarwizard .wizard .next').show();
+        }
+    });
+
+    $('#progressbarwizard .wizard li a').on('click', function() {
+        setTimeout(toggleWizardNextBtn, 50);
+    });
+
+    toggleWizardNextBtn();
+
+    $('#store_id').on('change', function() {
+        var selected = $(this).find('option:selected');
+        var sName = selected.data('name');
+        var sState = selected.data('state');
+        var sZone = selected.data('zone');
+        if (sName && !$('#pharmacy_name').val()) {
+            $('#pharmacy_name').val(sName);
+        }
+        if (sState && !$('#state').val()) {
+            $('#state').val(sState);
+        }
+        if (sZone && !$('#region').val()) {
+            $('#region').val(sZone);
+        }
+    });
+});
+</script>

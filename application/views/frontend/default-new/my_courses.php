@@ -13,8 +13,13 @@
                 <div class="my-course-1-full-body">
                     <h1><?php echo get_phrase('Courses'); ?></h1>
                     <div class="row">
-                        <?php foreach($enrolments as $enrolment):
+                        <?php 
+                        $displayed_courses = array();
+                        foreach($enrolments as $enrolment):
+                            if (in_array($enrolment['course_id'], $displayed_courses)) continue;
+                            $displayed_courses[] = $enrolment['course_id'];
                             $course_details = $this->crud_model->get_course_by_id($enrolment['course_id'])->row_array();
+                            if (empty($course_details)) continue;
                             $instructor_details = $this->user_model->get_all_user($course_details['creator'])->row_array();
                             $course_duration = $this->crud_model->get_total_duration_of_lesson_by_course_id($course_details['id']);
                             $lectures = $this->db->get_where('lesson', ['course_id' => $course_details['id'], 'lesson_type !=' => 'quiz']);

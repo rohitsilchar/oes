@@ -1,8 +1,17 @@
 <?php foreach($notifications->result_array() as $notification): ?>
-    <div class="dropdown-item notify-item cursor-pointer <?php if($notification['status'] == 0) echo 'unread' ?>">
-        <?php if($notification['type'] == 'signup'): ?>
+    <?php
+        $target_url = 'javascript:void(0);';
+        if ($notification['type'] == 'message') {
+            $thread_code = $this->crud_model->get_thread_code_between($notification['from_user'], $notification['to_user']);
+            $target_url = $thread_code ? site_url('admin/message/message_read/' . $thread_code) : site_url('admin/message');
+        } elseif ($notification['type'] == 'signup') {
+            $target_url = site_url('admin/users');
+        }
+    ?>
+    <a href="<?php echo $target_url; ?>" class="dropdown-item notify-item cursor-pointer <?php if($notification['status'] == 0) echo 'unread' ?>" style="text-decoration: none; color: inherit;">
+        <?php if($notification['type'] == 'signup' || $notification['type'] == 'message'): ?>
             <div class="notify-icon">
-                <img src="<?php echo $this->user_model->get_user_image_url($notification['from_user']); ?>" class="img-fluid rounded-circle" alt="User image" />
+                <img src="<?php echo $this->user_model->get_user_image_url($notification['from_user']); ?>" class="img-fluid rounded-circle" alt="User image" style="width: 36px; height: 36px; object-fit: cover;" />
             </div>
         <?php else: ?>
             <div class="notify-icon bg-info">
@@ -11,12 +20,12 @@
         <?php endif; ?>
         <p class="notify-details">
             <?php echo $notification['title']; ?>
-            <small class="text-muted"><?php echo get_past_time($notification['created_at']); ?></small>
+            <small class="text-muted float-right"><?php echo get_past_time($notification['created_at']); ?></small>
         </p>
         <div class="text-muted mb-0 user-msg text-13">
             <?php echo ($notification['description']); ?>
         </div>
-    </div>
+    </a>
 <?php endforeach; ?>
 
 <?php if($notifications->num_rows() == 0): ?>

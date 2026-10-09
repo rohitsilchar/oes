@@ -40,8 +40,25 @@ class Admin extends CI_Controller
         $licensed_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->where("licence_no IS NOT NULL AND licence_no != ''", null, false)->count_all_results('users');
         $total_instructors = $this->db->where('is_instructor', 1)->count_all_results('users');
 
-        // Stores count
+        // Stores count & staffing overview
         $total_stores = $this->db->table_exists('stores') ? $this->db->count_all_results('stores') : 0;
+        $stores_list = [];
+        $unstaffed_stores = [];
+        $store_distribution = [];
+        if ($this->db->table_exists('stores')) {
+            // Unstaffed stores calculated via efficient join
+            $unstaffed_query = $this->db->query("SELECT stores.id, stores.store_name, stores.store_code, stores.state, stores.city FROM stores LEFT JOIN users ON users.store_id = stores.id AND users.role_id = 2 WHERE users.id IS NULL GROUP BY stores.id ORDER BY stores.id DESC");
+            $unstaffed_stores = $unstaffed_query ? $unstaffed_query->result_array() : [];
+
+            // 10 Recent stores for Operational Command Hub
+            $this->db->select('stores.*, (SELECT COUNT(*) FROM users WHERE users.store_id = stores.id AND users.role_id = 2) as pharmacist_count');
+            $this->db->from('stores');
+            $this->db->order_by('stores.id', 'DESC');
+            $this->db->limit(10);
+            $stores_list = $this->db->get()->result_array();
+
+            $store_distribution = $stores_list;
+        }
 
         // Course counts
         $status_wise_courses = $this->crud_model->get_status_wise_courses();
@@ -51,39 +68,66 @@ class Admin extends CI_Controller
 
         // Enrollments
         $total_enrollments = $this->db->count_all_results('enrol');
+        $month_start_ts = strtotime(date('Y-m-01 00:00:00'));
+        $month_enrollments = $this->db->where('date_added >=', $month_start_ts)->count_all_results('enrol');
 
-        // Recent enrollments with user, course, and store details
+        // Recent enrollments with user, course, and store details (10 recent)
         $this->db->select('enrol.id as enrol_id, enrol.date_added as enrol_date, enrol.expiry_date, users.id as user_id, users.first_name, users.last_name, users.email, users.employee_id, users.licence_no, users.image, course.id as course_id, course.title as course_title, course.thumbnail as course_thumbnail, stores.store_name, stores.store_code');
         $this->db->from('enrol');
         $this->db->join('users', 'users.id = enrol.user_id', 'left');
         $this->db->join('course', 'course.id = enrol.course_id', 'left');
         $this->db->join('stores', 'stores.id = users.store_id', 'left');
         $this->db->order_by('enrol.id', 'DESC');
-        $this->db->limit(6);
+        $this->db->limit(10);
         $recent_enrollments = $this->db->get()->result_array();
 
-        // Stores overview with pharmacist counts
-        $stores_list = [];
-        if ($this->db->table_exists('stores')) {
-            $this->db->select('stores.*, (SELECT COUNT(*) FROM users WHERE users.store_id = stores.id AND users.role_id = 2) as pharmacist_count');
-            $this->db->from('stores');
-            $this->db->order_by('stores.id', 'DESC');
-            $this->db->limit(5);
-            $stores_list = $this->db->get()->result_array();
-        }
+        // Non-compliant / Unlicensed Pharmacists needing immediate action (10 recent)
+        $this->db->select('users.id, users.first_name, users.last_name, users.email, users.employee_id, users.phone, users.image, stores.store_name, stores.store_code');
+        $this->db->from('users');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+        $this->db->where('users.is_instructor', 0);
+        $this->db->where("(users.licence_no IS NULL OR users.licence_no = '')", null, false);
+        $this->db->order_by('users.id', 'DESC');
+        $this->db->limit(10);
+        $unlicensed_pharmacists = $this->db->get()->result_array();
 
-        $page_data['page_name']            = 'dashboard';
-        $page_data['page_title']           = get_phrase('dashboard');
-        $page_data['total_pharmacists']    = $total_pharmacists;
-        $page_data['licensed_pharmacists'] = $licensed_pharmacists;
-        $page_data['total_instructors']    = $total_instructors;
-        $page_data['total_stores']         = $total_stores;
-        $page_data['active_courses_count'] = $active_courses_count;
-        $page_data['pending_courses_count']= $pending_courses_count;
-        $page_data['total_courses']        = $total_courses;
-        $page_data['total_enrollments']    = $total_enrollments;
-        $page_data['recent_enrollments']   = $recent_enrollments;
-        $page_data['stores_list']          = $stores_list;
+        // Top popular courses (top 10)
+        $this->db->select('course.id, course.title, course.thumbnail, course.status, (SELECT COUNT(*) FROM enrol WHERE enrol.course_id = course.id) as enrol_count');
+        $this->db->from('course');
+        $this->db->order_by('enrol_count', 'DESC');
+        $this->db->limit(10);
+        $top_courses = $this->db->get()->result_array();
+
+        // Assigned vs Unassigned Pharmacists
+        $assigned_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->where('store_id >', 0)->count_all_results('users');
+        $unassigned_pharmacists = max(0, $total_pharmacists - $assigned_pharmacists);
+
+        // Active vs Inactive Pharmacists
+        $active_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->where('status', 1)->count_all_results('users');
+        $inactive_pharmacists = max(0, $total_pharmacists - $active_pharmacists);
+
+        $page_data['page_name']              = 'dashboard';
+        $page_data['page_title']             = get_phrase('dashboard');
+        $page_data['total_pharmacists']      = $total_pharmacists;
+        $page_data['licensed_pharmacists']   = $licensed_pharmacists;
+        $page_data['total_instructors']      = $total_instructors;
+        $page_data['total_stores']           = $total_stores;
+        $page_data['active_courses_count']   = $active_courses_count;
+        $page_data['pending_courses_count']  = $pending_courses_count;
+        $page_data['total_courses']          = $total_courses;
+        $page_data['total_enrollments']      = $total_enrollments;
+        $page_data['month_enrollments']      = $month_enrollments;
+        $page_data['recent_enrollments']     = $recent_enrollments;
+        $page_data['stores_list']            = $stores_list;
+        $page_data['unstaffed_stores']       = $unstaffed_stores;
+        $page_data['unlicensed_pharmacists'] = $unlicensed_pharmacists;
+        $page_data['top_courses']            = $top_courses;
+        $page_data['assigned_pharmacists']   = $assigned_pharmacists;
+        $page_data['unassigned_pharmacists'] = $unassigned_pharmacists;
+        $page_data['active_pharmacists']     = $active_pharmacists;
+        $page_data['inactive_pharmacists']   = $inactive_pharmacists;
+        $page_data['store_distribution']     = $store_distribution;
 
         $this->load->view('backend/index.php', $page_data);
     }
@@ -255,6 +299,10 @@ class Admin extends CI_Controller
         } elseif ($param1 == "delete") {
             $this->user_model->delete_user($param2);
             redirect(site_url('admin/users'), 'refresh');
+        } elseif ($param1 == "reset_mac") {
+            $this->user_model->reset_user_mac($param2);
+            $this->session->set_flashdata('flash_message', get_phrase('mac_address_reset_successfully'));
+            redirect(site_url('admin/users'), 'refresh');
         }
 
         $page_data['page_name']  = 'users';
@@ -262,180 +310,1575 @@ class Admin extends CI_Controller
         $this->load->view('backend/index', $page_data);
     }
 
-    public function extract_licence_ocr()
+    public function pharmacists($param1 = "", $param2 = "")
+    {
+        $this->users($param1, $param2);
+    }
+
+    public function pharmacist_form($param1 = "", $param2 = "")
+    {
+        if ($param1 == 'add_pharmacist' || $param1 == 'add') {
+            $this->user_form('add_user_form', $param2);
+        } elseif ($param1 == 'edit_pharmacist' || $param1 == 'edit') {
+            $this->user_form('edit_user_form', $param2);
+        } else {
+            $this->user_form($param1, $param2);
+        }
+    }
+
+    public function report($param1 = "")
     {
         if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+        redirect(site_url('admin/licence_report'), 'refresh');
+    }
+
+    public function reports($param1 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+        redirect(site_url('admin/licence_report'), 'refresh');
+    }
+
+    public function licence_report()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        // CHECK ACCESS PERMISSION
+        if (!has_permission('user') && !has_permission('student') && !has_permission('report') && !has_permission('revenue')) {
+            check_permission('user');
+        }
+
+        $this->user_model->check_licence_end_date_column();
+
+        $selected_store_id = $this->input->get('store_id') ?: 'all';
+
+        // Calculate summary statistics
+        $where_store = "";
+        if ($selected_store_id != 'all' && !empty($selected_store_id)) {
+            if ($selected_store_id == 'no_store') {
+                $where_store = " AND (users.store_id IS NULL OR users.store_id = 0)";
+            } else {
+                $where_store = " AND users.store_id = " . intval($selected_store_id);
+            }
+        }
+
+        $stats_query = $this->db->query("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) > DATE_ADD(CURDATE(), INTERVAL 90 DAY)) THEN 1 ELSE 0 END) as valid_count,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) >= CURDATE() AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)) THEN 1 ELSE 0 END) as expiring_soon_count,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) < CURDATE()) THEN 1 ELSE 0 END) as expired_count,
+                SUM(CASE WHEN (licence_end_date IS NULL OR licence_end_date = '' OR COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) IS NULL) THEN 1 ELSE 0 END) as pending_count
+            FROM users 
+            WHERE role_id = 2 {$where_store}
+        ");
+        $stats = $stats_query ? $stats_query->row_array() : [
+            'total' => 0, 'valid_count' => 0, 'expiring_soon_count' => 0, 'expired_count' => 0, 'pending_count' => 0
+        ];
+
+        $stores = $this->db->where('status', 1)->order_by('store_name', 'asc')->get('stores')->result_array();
+
+        $page_data['page_name']         = 'licence_report';
+        $page_data['page_title']        = get_phrase('licence_report');
+        $page_data['stats']             = $stats;
+        $page_data['stores']            = $stores;
+        $page_data['selected_store_id'] = $selected_store_id;
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function licence_validity()
+    {
+        redirect(site_url('admin/licence_report'), 'refresh');
+    }
+
+    public function server_side_licence_report_data()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo json_encode(["draw" => 1, "recordsTotal" => 0, "recordsFiltered" => 0, "data" => []]);
+            return;
+        }
+
+        $this->user_model->check_licence_end_date_column();
+
+        $columns = ['users.id', 'users.first_name', 'stores.store_name', 'users.licence_no', 'users.licence_start_date', 'users.licence_end_date', 'users.licence_end_date', 'users.licence_end_date', 'users.id'];
+
+        $limit = (int)$this->input->post('length');
+        $start = (int)$this->input->post('start');
+        if ($limit <= 0) $limit = 10;
+        if ($start < 0) $start = 0;
+
+        $order_col_idx = isset($this->input->post('order')[0]['column']) ? (int)$this->input->post('order')[0]['column'] : 1;
+        $column_index = isset($columns[$order_col_idx]) ? $columns[$order_col_idx] : 'users.first_name';
+        $dir = (isset($this->input->post('order')[0]['dir']) && strtolower($this->input->post('order')[0]['dir']) == 'desc') ? 'desc' : 'asc';
+
+        $filter_status = $this->input->post('filter_status') ? trim($this->input->post('filter_status')) : 'all';
+        $filter_store_id = $this->input->post('filter_store_id') ? trim($this->input->post('filter_store_id')) : 'all';
+        $filter_date_from = $this->input->post('filter_date_from') ? trim($this->input->post('filter_date_from')) : '';
+        $filter_date_to = $this->input->post('filter_date_to') ? trim($this->input->post('filter_date_to')) : '';
+        $search = isset($this->input->post('search')['value']) ? trim($this->input->post('search')['value']) : '';
+
+        $date_sql = "COALESCE(STR_TO_DATE(users.licence_end_date, '%Y-%m-%d'), STR_TO_DATE(users.licence_end_date, '%d-%m-%Y'), STR_TO_DATE(users.licence_end_date, '%d/%m/%Y'))";
+
+        $apply_common_filters = function($db_instance) use ($filter_status, $filter_store_id, $filter_date_from, $filter_date_to, $search, $date_sql) {
+            if ($filter_store_id === 'no_store') {
+                $db_instance->where('(users.store_id IS NULL OR users.store_id = 0)');
+            } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+                $db_instance->where('users.store_id', (int)$filter_store_id);
+            }
+
+            if ($filter_status === 'valid') {
+                $db_instance->where("users.licence_end_date IS NOT NULL AND users.licence_end_date != '' AND {$date_sql} > DATE_ADD(CURDATE(), INTERVAL 90 DAY)", NULL, FALSE);
+            } elseif ($filter_status === 'expiring_soon') {
+                $db_instance->where("users.licence_end_date IS NOT NULL AND users.licence_end_date != '' AND {$date_sql} >= CURDATE() AND {$date_sql} <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)", NULL, FALSE);
+            } elseif ($filter_status === 'expired') {
+                $db_instance->where("users.licence_end_date IS NOT NULL AND users.licence_end_date != '' AND {$date_sql} < CURDATE()", NULL, FALSE);
+            } elseif ($filter_status === 'pending') {
+                $db_instance->where("(users.licence_end_date IS NULL OR users.licence_end_date = '' OR {$date_sql} IS NULL)", NULL, FALSE);
+            }
+
+            if (!empty($filter_date_from)) {
+                $db_instance->where("{$date_sql} >= " . $this->db->escape($filter_date_from), NULL, FALSE);
+            }
+            if (!empty($filter_date_to)) {
+                $db_instance->where("{$date_sql} <= " . $this->db->escape($filter_date_to), NULL, FALSE);
+            }
+
+            if (!empty($search)) {
+                $db_instance->group_start();
+                $db_instance->like('users.first_name', $search);
+                $db_instance->or_like('users.last_name', $search);
+                $db_instance->or_like('users.email', $search);
+                $db_instance->or_like('users.phone', $search);
+                $db_instance->or_like('users.licence_no', $search);
+                $db_instance->or_like('stores.store_name', $search);
+                $db_instance->or_like('stores.store_code', $search);
+                $db_instance->group_end();
+            }
+        };
+
+        // Total count of pharmacists (with store filter applied if set)
+        $this->db->from('users');
+        $this->db->where('users.role_id', 2);
+        if ($filter_store_id === 'no_store') {
+            $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+        } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+            $this->db->where('users.store_id', (int)$filter_store_id);
+        }
+        $total_number_of_row = $this->db->count_all_results();
+
+        // Filtered count
+        $this->db->from('users');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+        $apply_common_filters($this->db);
+        $filtered_number_of_row = $this->db->count_all_results();
+
+        // Stats counters for current store filter (cached in Fast_cache)
+        $this->load->library('fast_cache');
+        $stats_cache_key = 'licence_stats_' . md5($filter_store_id);
+        $stats = $this->fast_cache->get($stats_cache_key);
+
+        if (!$stats) {
+            $store_cond = "";
+            if ($filter_store_id === 'no_store') {
+                $store_cond = "AND (store_id IS NULL OR store_id = 0)";
+            } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+                $store_cond = "AND store_id = " . (int)$filter_store_id;
+            }
+
+            $stats_row = $this->db->query("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN parsed_date > DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN 1 ELSE 0 END) as valid_count,
+                    SUM(CASE WHEN parsed_date >= CURDATE() AND parsed_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN 1 ELSE 0 END) as expiring_soon_count,
+                    SUM(CASE WHEN parsed_date < CURDATE() THEN 1 ELSE 0 END) as expired_count,
+                    SUM(CASE WHEN parsed_date IS NULL THEN 1 ELSE 0 END) as pending_count
+                FROM (
+                    SELECT store_id, {$date_sql} as parsed_date
+                    FROM users 
+                    WHERE role_id = 2 {$store_cond}
+                ) u
+            ")->row_array();
+
+            $stats = [
+                'total'               => (int)($stats_row['total'] ?? 0),
+                'valid_count'         => (int)($stats_row['valid_count'] ?? 0),
+                'expiring_soon_count' => (int)($stats_row['expiring_soon_count'] ?? 0),
+                'expired_count'       => (int)($stats_row['expired_count'] ?? 0),
+                'pending_count'       => (int)($stats_row['pending_count'] ?? 0)
+            ];
+            $this->fast_cache->set($stats_cache_key, $stats, 120);
+        }
+
+        // Fetch data
+        $this->db->select("users.*, stores.store_name, stores.store_code, {$date_sql} as parsed_end_date", FALSE);
+        $this->db->from('users');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+        $apply_common_filters($this->db);
+
+        if ($column_index === 'users.licence_end_date') {
+            $this->db->order_by('parsed_end_date', $dir);
+        } else {
+            $this->db->order_by($column_index, $dir);
+        }
+
+        $this->db->limit($limit, $start);
+        $users = $this->db->get()->result_array();
+
+        $data = [];
+        $today = new DateTime('today');
+
+        foreach ($users as $k => $user) {
+            $key = $start + $k + 1;
+            $user_image = $this->user_model->get_user_image_url($user['id'], $user['image'] ?? null);
+
+            $name_html = '
+                <div class="d-flex align-items-center">
+                    <img src="' . $user_image . '" alt="" height="38" width="38" class="rounded-circle mr-2 shadow-sm">
+                    <div>
+                        <a href="' . site_url('admin/user_form/edit_user_form/' . $user['id']) . '" class="text-body font-weight-bold font-13">' . html_escape(trim($user['first_name'] . ' ' . $user['last_name'])) . '</a>
+                        <br>
+                        ' . (!empty($user['email']) ? '<small class="text-muted"><i class="mdi mdi-email-outline mr-1"></i>' . html_escape($user['email']) . '</small>' : '<small class="text-muted font-italic font-11"><i class="mdi mdi-email-off-outline mr-1"></i>' . get_phrase('no_email') . '</small>') . '
+                        ' . (!empty($user['phone']) ? '<br><small class="text-muted"><i class="mdi mdi-phone mr-1"></i>' . html_escape($user['phone']) . '</small>' : '') . '
+                    </div>
+                </div>';
+
+            $store_html = !empty($user['store_name'])
+                ? '<span class="badge badge-outline-primary font-12"><i class="mdi mdi-store mr-1"></i>' . html_escape($user['store_name']) . '</span>' . (!empty($user['store_code']) ? '<br><small class="text-muted font-11">' . html_escape($user['store_code']) . '</small>' : '')
+                : '<span class="badge badge-light border text-muted font-11">' . get_phrase('no_store_assigned') . '</span>';
+
+            $licence_no_html = !empty($user['licence_no'])
+                ? '<span class="badge badge-dark-lighten font-12 px-2 py-1"><i class="mdi mdi-card-account-details-outline mr-1"></i>' . html_escape($user['licence_no']) . '</span>'
+                : '<span class="text-muted font-italic font-12">' . get_phrase('not_provided') . '</span>';
+
+            $start_date_html = !empty($user['licence_start_date'])
+                ? '<span class="font-12 font-weight-semibold text-dark"><i class="mdi mdi-calendar mr-1"></i>' . html_escape($user['licence_start_date']) . '</span>'
+                : '<span class="text-muted font-italic font-12">' . get_phrase('not_set') . '</span>';
+
+            $end_date_str = trim($user['licence_end_date'] ?? '');
+            $end_date_obj = null;
+            if (!empty($end_date_str)) {
+                $end_date_obj = DateTime::createFromFormat('Y-m-d', $end_date_str)
+                    ?: DateTime::createFromFormat('d-m-Y', $end_date_str)
+                    ?: DateTime::createFromFormat('d/m/Y', $end_date_str);
+            }
+
+            if ($end_date_obj) {
+                $formatted_end_date = $end_date_obj->format('d M Y');
+                $end_date_html = '<span class="font-12 font-weight-semibold text-dark"><i class="mdi mdi-calendar-clock mr-1"></i>' . $formatted_end_date . '</span>';
+
+                $diff = $today->diff($end_date_obj);
+                $days_diff = (int)$diff->format("%r%a");
+
+                if ($days_diff < 0) {
+                    $abs_days = abs($days_diff);
+                    $validity_html = '<span class="badge badge-danger font-12 py-1 px-2"><i class="mdi mdi-alert-circle mr-1"></i>' . get_phrase('expired') . ' (' . $abs_days . ' ' . get_phrase('days_ago') . ')</span>';
+                    $status_html = '<span class="badge badge-danger-lighten font-12 py-1 px-2">' . get_phrase('expired') . '</span>';
+                } elseif ($days_diff <= 90) {
+                    $validity_html = '<span class="badge badge-warning font-12 py-1 px-2 text-dark font-weight-bold"><i class="mdi mdi-clock-alert-outline mr-1"></i>' . $days_diff . ' ' . get_phrase('days_left') . '</span>';
+                    $status_html = '<span class="badge badge-warning-lighten font-12 py-1 px-2 text-warning font-weight-bold">' . get_phrase('expiring_soon') . '</span>';
+                } else {
+                    $validity_html = '<span class="badge badge-success font-12 py-1 px-2"><i class="mdi mdi-check-circle mr-1"></i>' . $days_diff . ' ' . get_phrase('days_left') . '</span>';
+                    $status_html = '<span class="badge badge-success-lighten font-12 py-1 px-2 text-success font-weight-bold">' . get_phrase('active_valid') . '</span>';
+                }
+            } else {
+                $end_date_html = '<span class="text-danger font-italic font-12"><i class="mdi mdi-calendar-question mr-1"></i>' . get_phrase('missing_date') . '</span>';
+                $validity_html = '<span class="badge badge-secondary-lighten text-secondary font-12 py-1 px-2">' . get_phrase('unknown') . '</span>';
+                $status_html = '<span class="badge badge-secondary font-12 py-1 px-2"><i class="mdi mdi-calendar-question mr-1"></i>' . get_phrase('missing_date') . '</span>';
+            }
+
+            $action_html = '
+                <div class="dropright dropright">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-icon" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="mdi mdi-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="' . site_url('admin/user_form/edit_user_form/' . $user['id']) . '"><i class="mdi mdi-pencil mr-1 text-primary"></i> ' . get_phrase('edit_pharmacist') . '</a></li>
+                        <li><a class="dropdown-item" href="' . site_url('admin/users') . '"><i class="mdi mdi-account mr-1 text-info"></i> ' . get_phrase('view_in_pharmacists') . '</a></li>
+                    </ul>
+                </div>';
+
+            $data[] = [
+                0 => $key,
+                1 => $name_html,
+                2 => $store_html,
+                3 => $licence_no_html,
+                4 => $start_date_html,
+                5 => $end_date_html,
+                6 => $validity_html,
+                7 => $status_html,
+                8 => $action_html
+            ];
+        }
+
+        echo json_encode([
+            "draw"            => (int)$this->input->post('draw'),
+            "recordsTotal"    => (int)$total_number_of_row,
+            "recordsFiltered" => (int)$filtered_number_of_row,
+            "data"            => $data,
+            "stats"           => $stats
+        ]);
+    }
+
+    public function server_side_licence_validity_data()
+    {
+        $this->server_side_licence_report_data();
+    }
+
+    public function export_licence_report_csv()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $filter_status = $this->input->get('status') ? trim($this->input->get('status')) : 'all';
+        $filter_store_id = $this->input->get('store_id') ? trim($this->input->get('store_id')) : 'all';
+        $filter_date_from = $this->input->get('date_from') ? trim($this->input->get('date_from')) : '';
+        $filter_date_to = $this->input->get('date_to') ? trim($this->input->get('date_to')) : '';
+        $search = $this->input->get('search') ? trim($this->input->get('search')) : '';
+
+        $date_sql = "COALESCE(STR_TO_DATE(users.licence_end_date, '%Y-%m-%d'), STR_TO_DATE(users.licence_end_date, '%d-%m-%Y'), STR_TO_DATE(users.licence_end_date, '%d/%m/%Y'))";
+
+        $this->db->select("users.*, stores.store_name, stores.store_code, {$date_sql} as parsed_end_date", FALSE);
+        $this->db->from('users');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+
+        if ($filter_store_id === 'no_store') {
+            $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+        } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+            $this->db->where('users.store_id', (int)$filter_store_id);
+        }
+
+        if ($filter_status === 'valid') {
+            $this->db->where("users.licence_end_date IS NOT NULL AND users.licence_end_date != '' AND {$date_sql} > DATE_ADD(CURDATE(), INTERVAL 90 DAY)", NULL, FALSE);
+        } elseif ($filter_status === 'expiring_soon') {
+            $this->db->where("users.licence_end_date IS NOT NULL AND users.licence_end_date != '' AND {$date_sql} >= CURDATE() AND {$date_sql} <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)", NULL, FALSE);
+        } elseif ($filter_status === 'expired') {
+            $this->db->where("users.licence_end_date IS NOT NULL AND users.licence_end_date != '' AND {$date_sql} < CURDATE()", NULL, FALSE);
+        } elseif ($filter_status === 'pending') {
+            $this->db->where("(users.licence_end_date IS NULL OR users.licence_end_date = '' OR {$date_sql} IS NULL)", NULL, FALSE);
+        }
+
+        if (!empty($filter_date_from)) {
+            $this->db->where("{$date_sql} >= " . $this->db->escape($filter_date_from), NULL, FALSE);
+        }
+        if (!empty($filter_date_to)) {
+            $this->db->where("{$date_sql} <= " . $this->db->escape($filter_date_to), NULL, FALSE);
+        }
+
+        if (!empty($search)) {
+            $this->db->group_start();
+            $this->db->like('users.first_name', $search);
+            $this->db->or_like('users.last_name', $search);
+            $this->db->or_like('users.email', $search);
+            $this->db->or_like('users.phone', $search);
+            $this->db->or_like('users.licence_no', $search);
+            $this->db->or_like('stores.store_name', $search);
+            $this->db->or_like('stores.store_code', $search);
+            $this->db->group_end();
+        }
+
+        $this->db->order_by('users.first_name', 'asc');
+        $rows = $this->db->get()->result_array();
+
+        $filename = "licence_report_" . date('Y-m-d_H-i-s') . ".csv";
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        fputs($out, "\xEF\xBB\xBF");
+
+        fputcsv($out, [
+            '#',
+            'Pharmacist Name',
+            'Email',
+            'Phone',
+            'Assigned Store',
+            'Store Code',
+            'Licence Number',
+            'Issue Date',
+            'Expiry Date',
+            'Validity Days Left',
+            'Status'
+        ]);
+
+        $today = new DateTime('today');
+        foreach ($rows as $idx => $r) {
+            $end_date_str = trim($r['licence_end_date'] ?? '');
+            $end_date_obj = null;
+            if (!empty($end_date_str)) {
+                $end_date_obj = DateTime::createFromFormat('Y-m-d', $end_date_str)
+                    ?: DateTime::createFromFormat('d-m-Y', $end_date_str)
+                    ?: DateTime::createFromFormat('d/m/Y', $end_date_str);
+            }
+
+            $status_text = 'Missing Date';
+            $days_text = 'N/A';
+            $exp_text = 'Not Set';
+
+            if ($end_date_obj) {
+                $exp_text = $end_date_obj->format('d-m-Y');
+                $diff = $today->diff($end_date_obj);
+                $days_diff = (int)$diff->format("%r%a");
+                $days_text = $days_diff;
+                if ($days_diff < 0) {
+                    $status_text = 'Expired';
+                } elseif ($days_diff <= 90) {
+                    $status_text = 'Expiring Soon';
+                } else {
+                    $status_text = 'Active / Valid';
+                }
+            }
+
+            fputcsv($out, [
+                $idx + 1,
+                $r['first_name'] . ' ' . $r['last_name'],
+                $r['email'],
+                $r['phone'],
+                $r['store_name'] ?: 'No Store Assigned',
+                $r['store_code'] ?: '-',
+                $r['licence_no'] ?: 'Not Provided',
+                $r['licence_start_date'] ?: 'Not Set',
+                $exp_text,
+                $days_text,
+                $status_text
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    public function pharmacist_evaluation_report()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $page_data['page_name']  = 'pharmacist_evaluation_report';
+        $page_data['page_title'] = get_phrase('pharmacist_evaluation_report');
+
+        $page_data['stores'] = $this->db->order_by('store_name', 'asc')->get('stores')->result_array();
+        $page_data['courses'] = $this->db->where('status', 'active')->order_by('title', 'asc')->get('course')->result_array();
+
+        $page_data['quizzes'] = $this->db->select('lesson.id, lesson.title, lesson.course_id')
+            ->join('course', 'course.id = lesson.course_id')
+            ->where('lesson.lesson_type', 'quiz')
+            ->order_by('lesson.title', 'asc')
+            ->get('lesson')->result_array();
+
+        $eval_rows = $this->db->select('quiz_results.*, lesson.attachment')
+            ->from('quiz_results')
+            ->join('users', 'users.id = quiz_results.user_id')
+            ->join('lesson', 'lesson.id = quiz_results.quiz_id')
+            ->where('users.role_id', 2)
+            ->get()->result_array();
+
+        $total_evals = count($eval_rows);
+        $passed_count = 0;
+        $failed_count = 0;
+        $total_percentage = 0;
+
+        foreach ($eval_rows as $er) {
+            $att = json_decode($er['attachment'] ?? '{}', true) ?: [];
+            $total_m = !empty($att['total_marks']) ? floatval($att['total_marks']) : 0;
+            $pass_m  = isset($att['pass_mark']) && $att['pass_mark'] !== '' ? floatval($att['pass_mark']) : 0;
+            if ($total_m <= 0) {
+                $total_m = $this->db->where('quiz_id', $er['quiz_id'])->count_all_results('question') ?: 1;
+            }
+            $obt = floatval($er['total_obtained_marks']);
+            $pct = round(($obt / $total_m) * 100);
+            $is_p = ($pass_m > 0) ? ($obt >= $pass_m) : ($pct >= 50);
+
+            if ($is_p) {
+                $passed_count++;
+            } else {
+                $failed_count++;
+            }
+            $total_percentage += min(100, $pct);
+        }
+
+        $pass_rate = $total_evals > 0 ? round(($passed_count / $total_evals) * 100, 1) : 0;
+        $avg_score = $total_evals > 0 ? round($total_percentage / $total_evals, 1) : 0;
+
+        $page_data['stats'] = [
+            'total'        => $total_evals,
+            'passed_count' => $passed_count,
+            'failed_count' => $failed_count,
+            'pass_rate'    => $pass_rate,
+            'avg_score'    => $avg_score
+        ];
+
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function server_side_evaluation_report_data()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo json_encode(["draw" => 1, "recordsTotal" => 0, "recordsFiltered" => 0, "data" => []]);
+            return;
+        }
+
+        $limit = (int)$this->input->post('length');
+        $start = (int)$this->input->post('start');
+        if ($limit <= 0) $limit = 10;
+        if ($start < 0) $start = 0;
+
+        $filter_result = $this->input->post('filter_result') ? trim($this->input->post('filter_result')) : 'all';
+        $filter_store_id = $this->input->post('filter_store_id') ? trim($this->input->post('filter_store_id')) : 'all';
+        $filter_course_id = $this->input->post('filter_course_id') ? trim($this->input->post('filter_course_id')) : 'all';
+        $filter_quiz_id = $this->input->post('filter_quiz_id') ? trim($this->input->post('filter_quiz_id')) : 'all';
+        $filter_date_from = $this->input->post('filter_date_from') ? trim($this->input->post('filter_date_from')) : '';
+        $filter_date_to = $this->input->post('filter_date_to') ? trim($this->input->post('filter_date_to')) : '';
+        $search = isset($this->input->post('search')['value']) ? trim($this->input->post('search')['value']) : '';
+
+        $apply_eval_filters = function($db_instance) use ($filter_store_id, $filter_course_id, $filter_quiz_id, $filter_date_from, $filter_date_to, $search) {
+            if ($filter_store_id === 'no_store') {
+                $db_instance->where('(users.store_id IS NULL OR users.store_id = 0)');
+            } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+                $db_instance->where('users.store_id', (int)$filter_store_id);
+            }
+
+            if (is_numeric($filter_course_id) && $filter_course_id > 0) {
+                $db_instance->where('lesson.course_id', (int)$filter_course_id);
+            }
+
+            if (is_numeric($filter_quiz_id) && $filter_quiz_id > 0) {
+                $db_instance->where('quiz_results.quiz_id', (int)$filter_quiz_id);
+            }
+
+            if (!empty($filter_date_from)) {
+                $from_ts = strtotime($filter_date_from . ' 00:00:00');
+                if ($from_ts) $db_instance->where('quiz_results.date_added >=', $from_ts);
+            }
+            if (!empty($filter_date_to)) {
+                $to_ts = strtotime($filter_date_to . ' 23:59:59');
+                if ($to_ts) $db_instance->where('quiz_results.date_added <=', $to_ts);
+            }
+
+            if (!empty($search)) {
+                $db_instance->group_start();
+                $db_instance->like('users.first_name', $search);
+                $db_instance->or_like('users.last_name', $search);
+                $db_instance->or_like('users.email', $search);
+                $db_instance->or_like('course.title', $search);
+                $db_instance->or_like('lesson.title', $search);
+                $db_instance->or_like('stores.store_name', $search);
+                $db_instance->or_like('stores.store_code', $search);
+                $db_instance->group_end();
+            }
+        };
+
+        $this->db->select('quiz_results.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, users.image, stores.store_name, stores.store_code, course.title as course_title, lesson.title as quiz_title, lesson.attachment');
+        $this->db->from('quiz_results');
+        $this->db->join('users', 'users.id = quiz_results.user_id');
+        $this->db->join('lesson', 'lesson.id = quiz_results.quiz_id');
+        $this->db->join('course', 'course.id = lesson.course_id');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+        $apply_eval_filters($this->db);
+        $this->db->order_by('quiz_results.date_added', 'desc');
+
+        $all_results = $this->db->get()->result_array();
+
+        $processed_rows = [];
+        $passed_count = 0;
+        $failed_count = 0;
+        $total_score_sum = 0;
+        $quiz_q_count_map = [];
+
+        foreach ($all_results as $row) {
+            $att = json_decode($row['attachment'] ?? '{}', true) ?: [];
+            $total_m = !empty($att['total_marks']) ? floatval($att['total_marks']) : 0;
+            $pass_m  = isset($att['pass_mark']) && $att['pass_mark'] !== '' ? floatval($att['pass_mark']) : 0;
+            if ($total_m <= 0) {
+                if (!isset($quiz_q_count_map[$row['quiz_id']])) {
+                    $quiz_q_count_map[$row['quiz_id']] = $this->db->where('quiz_id', $row['quiz_id'])->count_all_results('question') ?: 1;
+                }
+                $total_m = $quiz_q_count_map[$row['quiz_id']];
+            }
+            $obt = floatval($row['total_obtained_marks']);
+            $pct = round(($obt / $total_m) * 100);
+            $is_passed = ($pass_m > 0) ? ($obt >= $pass_m) : ($pct >= 50);
+
+            if ($is_passed) {
+                $passed_count++;
+            } else {
+                $failed_count++;
+            }
+            $total_score_sum += min(100, $pct);
+
+            $row['total_marks'] = $total_m;
+            $row['pass_mark']   = $pass_m;
+            $row['percentage']  = $pct;
+            $row['is_passed']   = $is_passed;
+
+            if ($filter_result === 'passed' && !$is_passed) continue;
+            if ($filter_result === 'failed' && $is_passed) continue;
+
+            $processed_rows[] = $row;
+        }
+
+        $total_matching = count($all_results);
+        $filtered_total = count($processed_rows);
+
+        $stats = [
+            'total'        => $total_matching,
+            'passed_count' => $passed_count,
+            'failed_count' => $failed_count,
+            'pass_rate'    => $total_matching > 0 ? round(($passed_count / $total_matching) * 100, 1) : 0,
+            'avg_score'    => $total_matching > 0 ? round($total_score_sum / $total_matching, 1) : 0
+        ];
+
+        $paginated_rows = array_slice($processed_rows, $start, $limit);
+
+        $data = [];
+        foreach ($paginated_rows as $idx => $r) {
+            $row_idx = $start + $idx + 1;
+            $user_image = $this->user_model->get_user_image_url($r['user_id'], $r['image'] ?? null);
+
+            $pharmacist_html = '
+                <div class="d-flex align-items-center">
+                    <img src="' . $user_image . '" alt="" height="36" width="36" class="rounded-circle mr-2 shadow-sm">
+                    <div>
+                        <a href="' . site_url('admin/user_form/edit_user_form/' . $r['user_id']) . '" class="text-body font-weight-bold font-13">' . html_escape($r['first_name'] . ' ' . $r['last_name']) . '</a>
+                        ' . (!empty($r['employee_id']) ? '<br><small class="text-muted"><i class="mdi mdi-badge-account-horizontal-outline mr-1"></i>' . html_escape($r['employee_id']) . '</small>' : '') . '
+                        <br><small class="text-muted"><i class="mdi mdi-email-outline mr-1"></i>' . html_escape($r['email']) . '</small>
+                    </div>
+                </div>';
+
+            $store_html = !empty($r['store_name'])
+                ? '<span class="badge badge-outline-primary font-12"><i class="mdi mdi-store mr-1"></i>' . html_escape($r['store_name']) . '</span>' . (!empty($r['store_code']) ? '<br><small class="text-muted font-11">' . html_escape($r['store_code']) . '</small>' : '')
+                : '<span class="badge badge-light border text-muted font-11">' . get_phrase('no_store_assigned') . '</span>';
+
+            $course_html = '<span class="font-weight-bold text-dark font-12"><i class="mdi mdi-book-open-page-variant text-info mr-1"></i>' . html_escape($r['course_title']) . '</span>';
+
+            $quiz_html = '<span class="text-dark font-12 font-weight-semibold">' . html_escape($r['quiz_title']) . '</span>';
+
+            $marks_html = '<span class="font-weight-bold font-13 text-dark">' . $r['total_obtained_marks'] . '</span> / ' . $r['total_marks'];
+
+            $bar_class = $r['is_passed'] ? 'bg-success' : 'bg-danger';
+            $score_html = '
+                <div class="d-flex align-items-center">
+                    <span class="font-weight-bold font-13 mr-2 ' . ($r['is_passed'] ? 'text-success' : 'text-danger') . '">' . $r['percentage'] . '%</span>
+                    <div class="progress flex-grow-1" style="height: 6px; min-width: 50px;">
+                        <div class="progress-bar ' . $bar_class . '" style="width: ' . min(100, $r['percentage']) . '%;"></div>
+                    </div>
+                </div>';
+
+            $result_html = $r['is_passed']
+                ? '<span class="badge badge-success font-12 py-1 px-2"><i class="mdi mdi-check-circle mr-1"></i>' . get_phrase('passed') . '</span>'
+                : '<span class="badge badge-danger font-12 py-1 px-2"><i class="mdi mdi-close-circle mr-1"></i>' . get_phrase('failed') . '</span>';
+
+            $attempt_date_html = '<span class="font-12 text-muted"><i class="mdi mdi-clock-outline mr-1"></i>' . date('d M Y, h:i A', $r['date_added']) . '</span>';
+
+            $action_html = '
+                <div class="dropright dropright">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-icon" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="mdi mdi-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="javascript:void(0);" onclick="showAjaxModal(\'' . site_url('modal/popup/quiz_submission_detail_modal/' . $r['quiz_result_id']) . '\', \'' . get_phrase('quiz_evaluation_details') . '\')"><i class="mdi mdi-eye mr-1 text-info"></i> ' . get_phrase('view_details') . '</a></li>
+                        <li><a class="dropdown-item" href="' . site_url('admin/user_form/edit_user_form/' . $r['user_id']) . '"><i class="mdi mdi-account mr-1 text-primary"></i> ' . get_phrase('pharmacist_profile') . '</a></li>
+                    </ul>
+                </div>';
+
+            $data[] = [
+                0 => $row_idx,
+                1 => $pharmacist_html,
+                2 => $store_html,
+                3 => $course_html,
+                4 => $quiz_html,
+                5 => $marks_html,
+                6 => $score_html,
+                7 => $result_html,
+                8 => $attempt_date_html,
+                9 => $action_html
+            ];
+        }
+
+        echo json_encode([
+            "draw"            => (int)$this->input->post('draw'),
+            "recordsTotal"    => (int)$total_matching,
+            "recordsFiltered" => (int)$filtered_total,
+            "data"            => $data,
+            "stats"           => $stats
+        ]);
+    }
+
+    public function quiz_submission_detail($quiz_result_id = 0)
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo '<div class="alert alert-danger font-14">' . get_phrase('unauthorized_access') . '</div>';
+            return;
+        }
+
+        $result = $this->db->get_where('quiz_results', ['quiz_result_id' => $quiz_result_id])->row_array();
+        if (empty($result)) {
+            echo '<div class="alert alert-danger font-14">' . get_phrase('quiz_result_not_found') . '</div>';
+            return;
+        }
+
+        $page_data['result']    = $result;
+        $page_data['user']      = $this->db->get_where('users', ['id' => $result['user_id']])->row_array();
+        $page_data['quiz']      = $this->db->get_where('lesson', ['id' => $result['quiz_id']])->row_array();
+        $page_data['course']    = !empty($page_data['quiz']['course_id']) ? $this->db->get_where('course', ['id' => $page_data['quiz']['course_id']])->row_array() : [];
+        $page_data['store']     = !empty($page_data['user']['store_id']) ? $this->db->get_where('stores', ['id' => $page_data['user']['store_id']])->row_array() : null;
+        $page_data['questions'] = !empty($page_data['quiz']['id']) ? $this->db->get_where('question', ['quiz_id' => $page_data['quiz']['id']])->result_array() : [];
+
+        $this->load->view('backend/admin/quiz_submission_detail_modal', $page_data);
+    }
+
+    public function export_pharmacist_evaluation_csv()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $filter_result = $this->input->get('result') ? trim($this->input->get('result')) : 'all';
+        $filter_store_id = $this->input->get('store_id') ? trim($this->input->get('store_id')) : 'all';
+        $filter_course_id = $this->input->get('course_id') ? trim($this->input->get('course_id')) : 'all';
+        $filter_quiz_id = $this->input->get('quiz_id') ? trim($this->input->get('quiz_id')) : 'all';
+        $filter_date_from = $this->input->get('date_from') ? trim($this->input->get('date_from')) : '';
+        $filter_date_to = $this->input->get('date_to') ? trim($this->input->get('date_to')) : '';
+        $search = $this->input->get('search') ? trim($this->input->get('search')) : '';
+
+        $this->db->select('quiz_results.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, stores.store_name, stores.store_code, course.title as course_title, lesson.title as quiz_title, lesson.attachment');
+        $this->db->from('quiz_results');
+        $this->db->join('users', 'users.id = quiz_results.user_id');
+        $this->db->join('lesson', 'lesson.id = quiz_results.quiz_id');
+        $this->db->join('course', 'course.id = lesson.course_id');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+
+        if ($filter_store_id === 'no_store') {
+            $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+        } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+            $this->db->where('users.store_id', (int)$filter_store_id);
+        }
+
+        if (is_numeric($filter_course_id) && $filter_course_id > 0) {
+            $this->db->where('lesson.course_id', (int)$filter_course_id);
+        }
+
+        if (is_numeric($filter_quiz_id) && $filter_quiz_id > 0) {
+            $this->db->where('quiz_results.quiz_id', (int)$filter_quiz_id);
+        }
+
+        if (!empty($filter_date_from)) {
+            $from_ts = strtotime($filter_date_from . ' 00:00:00');
+            if ($from_ts) $this->db->where('quiz_results.date_added >=', $from_ts);
+        }
+        if (!empty($filter_date_to)) {
+            $to_ts = strtotime($filter_date_to . ' 23:59:59');
+            if ($to_ts) $this->db->where('quiz_results.date_added <=', $to_ts);
+        }
+
+        if (!empty($search)) {
+            $this->db->group_start();
+            $this->db->like('users.first_name', $search);
+            $this->db->or_like('users.last_name', $search);
+            $this->db->or_like('users.email', $search);
+            $this->db->or_like('course.title', $search);
+            $this->db->or_like('lesson.title', $search);
+            $this->db->or_like('stores.store_name', $search);
+            $this->db->or_like('stores.store_code', $search);
+            $this->db->group_end();
+        }
+
+        $this->db->order_by('quiz_results.date_added', 'desc');
+        $rows = $this->db->get()->result_array();
+
+        $filename = "pharmacist_evaluation_report_" . date('Y-m-d_H-i-s') . ".csv";
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        fputs($out, "\xEF\xBB\xBF");
+
+        fputcsv($out, [
+            '#',
+            'Pharmacist Name',
+            'Employee ID',
+            'Email',
+            'Assigned Store',
+            'Store Code',
+            'Course Title',
+            'Quiz Title',
+            'Obtained Marks',
+            'Total Marks',
+            'Score Percentage',
+            'Result',
+            'Attempt Date'
+        ]);
+
+        $idx = 0;
+        foreach ($rows as $r) {
+            $att = json_decode($r['attachment'] ?? '{}', true) ?: [];
+            $total_m = !empty($att['total_marks']) ? floatval($att['total_marks']) : 0;
+            $pass_m  = isset($att['pass_mark']) && $att['pass_mark'] !== '' ? floatval($att['pass_mark']) : 0;
+            if ($total_m <= 0) {
+                $total_m = $this->db->where('quiz_id', $r['quiz_id'])->count_all_results('question') ?: 1;
+            }
+            $obt = floatval($r['total_obtained_marks']);
+            $pct = round(($obt / $total_m) * 100);
+            $is_passed = ($pass_m > 0) ? ($obt >= $pass_m) : ($pct >= 50);
+
+            if ($filter_result === 'passed' && !$is_passed) continue;
+            if ($filter_result === 'failed' && $is_passed) continue;
+
+            $idx++;
+            fputcsv($out, [
+                $idx,
+                $r['first_name'] . ' ' . $r['last_name'],
+                $r['employee_id'] ?: '-',
+                $r['email'],
+                $r['store_name'] ?: 'No Store Assigned',
+                $r['store_code'] ?: '-',
+                $r['course_title'],
+                strip_tags($r['quiz_title']),
+                $obt,
+                $total_m,
+                $pct . '%',
+                $is_passed ? 'PASSED' : 'FAILED',
+                date('Y-m-d H:i:s', $r['date_added'])
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    public function pharmacist_progress_report()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $page_data['page_name']  = 'pharmacist_progress_report';
+        $page_data['page_title'] = get_phrase('course_completion_report');
+
+        $page_data['stores']  = $this->db->order_by('store_name', 'asc')->get('stores')->result_array();
+        $page_data['courses'] = $this->db->where('status', 'active')->order_by('title', 'asc')->get('course')->result_array();
+
+        $enrolments = $this->db->select('enrol.*, users.id as u_id')
+            ->from('enrol')
+            ->join('users', 'users.id = enrol.user_id')
+            ->where('users.role_id', 2)
+            ->get()->result_array();
+
+        $total_enrol = count($enrolments);
+        $completed_count = 0;
+        $in_prog_count = 0;
+        $total_progress_sum = 0;
+
+        foreach ($enrolments as $e) {
+            $prog = round(course_progress($e['course_id'], $e['user_id']));
+            $total_progress_sum += $prog;
+            if ($prog >= 100) {
+                $completed_count++;
+            } elseif ($prog > 0) {
+                $in_prog_count++;
+            }
+        }
+
+        $avg_prog = $total_enrol > 0 ? round($total_progress_sum / $total_enrol, 1) : 0;
+
+        $page_data['stats'] = [
+            'total'             => $total_enrol,
+            'completed_count'   => $completed_count,
+            'in_progress_count' => $in_prog_count,
+            'avg_progress'      => $avg_prog
+        ];
+
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function server_side_progress_report_data()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo json_encode(["draw" => 1, "recordsTotal" => 0, "recordsFiltered" => 0, "data" => []]);
+            return;
+        }
+
+        $limit = (int)$this->input->post('length');
+        $start = (int)$this->input->post('start');
+        if ($limit <= 0) $limit = 10;
+        if ($start < 0) $start = 0;
+
+        $filter_status = $this->input->post('filter_status') ? trim($this->input->post('filter_status')) : 'all';
+        $filter_store_id = $this->input->post('filter_store_id') ? trim($this->input->post('filter_store_id')) : 'all';
+        $filter_course_id = $this->input->post('filter_course_id') ? trim($this->input->post('filter_course_id')) : 'all';
+        $filter_date_from = $this->input->post('filter_date_from') ? trim($this->input->post('filter_date_from')) : '';
+        $filter_date_to = $this->input->post('filter_date_to') ? trim($this->input->post('filter_date_to')) : '';
+        $search = isset($this->input->post('search')['value']) ? trim($this->input->post('search')['value']) : '';
+
+        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, users.image, stores.store_name, stores.store_code, course.title as course_title');
+        $this->db->from('enrol');
+        $this->db->join('users', 'users.id = enrol.user_id');
+        $this->db->join('course', 'course.id = enrol.course_id');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+
+        if ($filter_store_id === 'no_store') {
+            $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+        } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+            $this->db->where('users.store_id', (int)$filter_store_id);
+        }
+
+        if (is_numeric($filter_course_id) && $filter_course_id > 0) {
+            $this->db->where('enrol.course_id', (int)$filter_course_id);
+        }
+
+        if (!empty($filter_date_from)) {
+            $from_ts = strtotime($filter_date_from . ' 00:00:00');
+            if ($from_ts) $this->db->where('enrol.date_added >=', $from_ts);
+        }
+        if (!empty($filter_date_to)) {
+            $to_ts = strtotime($filter_date_to . ' 23:59:59');
+            if ($to_ts) $this->db->where('enrol.date_added <=', $to_ts);
+        }
+
+        if (!empty($search)) {
+            $this->db->group_start();
+            $this->db->like('users.first_name', $search);
+            $this->db->or_like('users.last_name', $search);
+            $this->db->or_like('users.email', $search);
+            $this->db->or_like('course.title', $search);
+            $this->db->or_like('stores.store_name', $search);
+            $this->db->or_like('stores.store_code', $search);
+            $this->db->group_end();
+        }
+
+        $this->db->order_by('enrol.date_added', 'desc');
+        $all_enrols = $this->db->get()->result_array();
+
+        $processed_rows = [];
+        $completed_count = 0;
+        $in_prog_count = 0;
+        $total_prog_sum = 0;
+
+        foreach ($all_enrols as $e) {
+            $prog = round(course_progress($e['course_id'], $e['user_id']));
+            $total_prog_sum += $prog;
+
+            if ($prog >= 100) {
+                $status_code = 'completed';
+                $completed_count++;
+            } elseif ($prog > 0) {
+                $status_code = 'in_progress';
+                $in_prog_count++;
+            } else {
+                $status_code = 'not_started';
+            }
+
+            if ($filter_status !== 'all' && $filter_status !== $status_code) {
+                continue;
+            }
+
+            $e['calculated_progress'] = $prog;
+            $e['status_code'] = $status_code;
+
+            // Note: detailed lessons are calculated only for the paginated slice below
+            $processed_rows[] = $e;
+        }
+
+        $total_matching = count($all_enrols);
+        $filtered_total = count($processed_rows);
+
+        $stats = [
+            'total'             => $total_matching,
+            'completed_count'   => $completed_count,
+            'in_progress_count' => $in_prog_count,
+            'avg_progress'      => $total_matching > 0 ? round($total_prog_sum / $total_matching, 1) : 0
+        ];
+
+        $paginated_rows = array_slice($processed_rows, $start, $limit);
+
+        // Pre-fetch course lesson counts into a map (1 query instead of 5,000!)
+        $course_lesson_map = [];
+        if (!empty($paginated_rows)) {
+            $p_cids = array_unique(array_column($paginated_rows, 'course_id'));
+            if (!empty($p_cids)) {
+                $cl_rows = $this->db->select('course_id, COUNT(id) as total_lessons')
+                    ->where_in('course_id', $p_cids)
+                    ->group_by('course_id')
+                    ->get('lesson')->result_array();
+                foreach ($cl_rows as $cl) {
+                    $course_lesson_map[$cl['course_id']] = (int)$cl['total_lessons'];
+                }
+            }
+        }
+
+        $data = [];
+        foreach ($paginated_rows as $idx => $r) {
+            $row_idx = $start + $idx + 1;
+            $user_image = $this->user_model->get_user_image_url($r['user_id'], $r['image'] ?? null);
+
+            $r['total_lessons'] = $course_lesson_map[$r['course_id']] ?? $this->crud_model->get_lessons('course', $r['course_id'])->num_rows();
+            $r['completed_lessons'] = count(course_progress($r['course_id'], $r['user_id'], 'completed_lesson_ids'));
+
+            $pharmacist_html = '
+                <div class="d-flex align-items-center">
+                    <img src="' . $user_image . '" alt="" height="36" width="36" class="rounded-circle mr-2 shadow-sm">
+                    <div>
+                        <a href="' . site_url('admin/user_form/edit_user_form/' . $r['user_id']) . '" class="text-body font-weight-bold font-13">' . html_escape($r['first_name'] . ' ' . $r['last_name']) . '</a>
+                        ' . (!empty($r['employee_id']) ? '<br><small class="text-muted"><i class="mdi mdi-badge-account-horizontal-outline mr-1"></i>' . html_escape($r['employee_id']) . '</small>' : '') . '
+                        <br><small class="text-muted"><i class="mdi mdi-email-outline mr-1"></i>' . html_escape($r['email']) . '</small>
+                    </div>
+                </div>';
+
+            $store_html = !empty($r['store_name'])
+                ? '<span class="badge badge-outline-primary font-12"><i class="mdi mdi-store mr-1"></i>' . html_escape($r['store_name']) . '</span>' . (!empty($r['store_code']) ? '<br><small class="text-muted font-11">' . html_escape($r['store_code']) . '</small>' : '')
+                : '<span class="badge badge-light border text-muted font-11">' . get_phrase('no_store_assigned') . '</span>';
+
+            $course_html = '<span class="font-weight-bold text-dark font-12"><i class="mdi mdi-book-open-page-variant text-info mr-1"></i>' . html_escape($r['course_title']) . '</span>';
+
+            $enrol_date_html = '<span class="font-12 text-muted"><i class="mdi mdi-calendar mr-1"></i>' . date('d M Y', $r['date_added']) . '</span>';
+
+            $lessons_html = '<span class="badge badge-light border font-12 py-1 px-2">' . $r['completed_lessons'] . ' / ' . $r['total_lessons'] . '</span>';
+
+            $bar_color = ($r['calculated_progress'] >= 100) ? 'bg-success' : (($r['calculated_progress'] > 0) ? 'bg-info' : 'bg-secondary');
+            $progress_html = '
+                <div class="d-flex align-items-center">
+                    <span class="font-weight-bold font-13 mr-2">' . $r['calculated_progress'] . '%</span>
+                    <div class="progress flex-grow-1" style="height: 6px; min-width: 50px;">
+                        <div class="progress-bar ' . $bar_color . '" style="width: ' . $r['calculated_progress'] . '%;"></div>
+                    </div>
+                </div>';
+
+            if ($r['status_code'] === 'completed') {
+                $status_html = '<span class="badge badge-success font-12 py-1 px-2"><i class="mdi mdi-check-circle mr-1"></i>' . get_phrase('completed') . '</span>';
+            } elseif ($r['status_code'] === 'in_progress') {
+                $status_html = '<span class="badge badge-warning font-12 py-1 px-2 text-dark"><i class="mdi mdi-clock-outline mr-1"></i>' . get_phrase('in_progress') . '</span>';
+            } else {
+                $status_html = '<span class="badge badge-secondary font-12 py-1 px-2">' . get_phrase('not_started') . '</span>';
+            }
+
+            $last_active = !empty($r['date_updated']) ? date('d M Y', $r['date_updated']) : date('d M Y', $r['date_added']);
+            $date_html = '<span class="font-12 text-muted">' . $last_active . '</span>';
+
+            $action_html = '
+                <div class="dropright dropright">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-icon" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="mdi mdi-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="' . site_url('admin/course_form/course_edit/' . $r['course_id']) . '"><i class="mdi mdi-pencil mr-1 text-primary"></i> ' . get_phrase('edit_course') . '</a></li>
+                        <li><a class="dropdown-item" href="' . site_url('admin/user_form/edit_user_form/' . $r['user_id']) . '"><i class="mdi mdi-account mr-1 text-info"></i> ' . get_phrase('pharmacist_profile') . '</a></li>
+                    </ul>
+                </div>';
+
+            $data[] = [
+                0 => $row_idx,
+                1 => $pharmacist_html,
+                2 => $store_html,
+                3 => $course_html,
+                4 => $enrol_date_html,
+                5 => $lessons_html,
+                6 => $progress_html,
+                7 => $status_html,
+                8 => $date_html,
+                9 => $action_html
+            ];
+        }
+
+        echo json_encode([
+            "draw"            => (int)$this->input->post('draw'),
+            "recordsTotal"    => (int)$total_matching,
+            "recordsFiltered" => (int)$filtered_total,
+            "data"            => $data,
+            "stats"           => $stats
+        ]);
+    }
+
+    public function export_pharmacist_progress_csv()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $filter_status = $this->input->get('status') ? trim($this->input->get('status')) : 'all';
+        $filter_store_id = $this->input->get('store_id') ? trim($this->input->get('store_id')) : 'all';
+        $filter_course_id = $this->input->get('course_id') ? trim($this->input->get('course_id')) : 'all';
+        $filter_date_from = $this->input->get('date_from') ? trim($this->input->get('date_from')) : '';
+        $filter_date_to = $this->input->get('date_to') ? trim($this->input->get('date_to')) : '';
+        $search = $this->input->get('search') ? trim($this->input->get('search')) : '';
+
+        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, stores.store_name, stores.store_code, course.title as course_title');
+        $this->db->from('enrol');
+        $this->db->join('users', 'users.id = enrol.user_id');
+        $this->db->join('course', 'course.id = enrol.course_id');
+        $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->where('users.role_id', 2);
+
+        if ($filter_store_id === 'no_store') {
+            $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+        } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
+            $this->db->where('users.store_id', (int)$filter_store_id);
+        }
+
+        if (is_numeric($filter_course_id) && $filter_course_id > 0) {
+            $this->db->where('enrol.course_id', (int)$filter_course_id);
+        }
+
+        if (!empty($filter_date_from)) {
+            $from_ts = strtotime($filter_date_from . ' 00:00:00');
+            if ($from_ts) $this->db->where('enrol.date_added >=', $from_ts);
+        }
+        if (!empty($filter_date_to)) {
+            $to_ts = strtotime($filter_date_to . ' 23:59:59');
+            if ($to_ts) $this->db->where('enrol.date_added <=', $to_ts);
+        }
+
+        if (!empty($search)) {
+            $this->db->group_start();
+            $this->db->like('users.first_name', $search);
+            $this->db->or_like('users.last_name', $search);
+            $this->db->or_like('users.email', $search);
+            $this->db->or_like('course.title', $search);
+            $this->db->or_like('stores.store_name', $search);
+            $this->db->or_like('stores.store_code', $search);
+            $this->db->group_end();
+        }
+
+        $this->db->order_by('enrol.date_added', 'desc');
+        $rows = $this->db->get()->result_array();
+
+        $filename = "course_completion_report_" . date('Y-m-d_H-i-s') . ".csv";
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        fputs($out, "\xEF\xBB\xBF");
+
+        fputcsv($out, [
+            '#',
+            'Pharmacist Name',
+            'Employee ID',
+            'Email',
+            'Assigned Store',
+            'Store Code',
+            'Course Title',
+            'Enrolment Date',
+            'Completed Lessons',
+            'Total Lessons',
+            'Progress Percentage',
+            'Status'
+        ]);
+
+        $idx = 0;
+        foreach ($rows as $r) {
+            $prog = round(course_progress($r['course_id'], $r['user_id']));
+            if ($prog >= 100) {
+                $status_code = 'completed';
+                $status_label = 'Completed';
+            } elseif ($prog > 0) {
+                $status_code = 'in_progress';
+                $status_label = 'In Progress';
+            } else {
+                $status_code = 'not_started';
+                $status_label = 'Not Started';
+            }
+
+            if ($filter_status !== 'all' && $filter_status !== $status_code) {
+                continue;
+            }
+
+            $total_lessons = $this->crud_model->get_lessons('course', $r['course_id'])->num_rows();
+            $completed_lessons = count(course_progress($r['course_id'], $r['user_id'], 'completed_lesson_ids'));
+
+            $idx++;
+            fputcsv($out, [
+                $idx,
+                $r['first_name'] . ' ' . $r['last_name'],
+                $r['employee_id'] ?: '-',
+                $r['email'],
+                $r['store_name'] ?: 'No Store Assigned',
+                $r['store_code'] ?: '-',
+                $r['course_title'],
+                date('Y-m-d', $r['date_added']),
+                $completed_lessons,
+                $total_lessons,
+                $prog . '%',
+                $status_label
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    private function get_fast_store_performance_data()
+    {
+        $this->load->library('fast_cache');
+        $cache_key = 'store_performance_report_dataset';
+        $cached = $this->fast_cache->get($cache_key);
+        if ($cached) {
+            return $cached;
+        }
+
+        $stores = $this->db->order_by('store_name', 'asc')->get('stores')->result_array();
+        $date_sql = "COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y'))";
+
+        // 1. Grouped licence stats by store_id in 1 single fast query (instead of 1940 * 5 = 9700 queries!)
+        $user_stats_grouped = [];
+        $gu_rows = $this->db->query("
+            SELECT 
+                u.store_id,
+                COUNT(*) as total_pharmacists,
+                SUM(CASE WHEN parsed_date > DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN 1 ELSE 0 END) as valid_licences,
+                SUM(CASE WHEN parsed_date >= CURDATE() AND parsed_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN 1 ELSE 0 END) as expiring_soon,
+                SUM(CASE WHEN parsed_date < CURDATE() THEN 1 ELSE 0 END) as expired,
+                SUM(CASE WHEN parsed_date IS NULL THEN 1 ELSE 0 END) as missing_date
+            FROM (
+                SELECT store_id, {$date_sql} as parsed_date
+                FROM users 
+                WHERE role_id = 2
+            ) u
+            GROUP BY u.store_id
+        ")->result_array();
+
+        $unassigned_stats = [
+            'total_pharmacists' => 0, 'valid_licences' => 0, 'expiring_soon' => 0, 'expired' => 0, 'missing_date' => 0
+        ];
+
+        foreach ($gu_rows as $gu) {
+            $sid = (int)($gu['store_id'] ?? 0);
+            if ($sid > 0) {
+                $user_stats_grouped[$sid] = $gu;
+            } else {
+                $unassigned_stats = $gu;
+            }
+        }
+
+        // 2. Grouped quiz evaluation stats by store_id in 1 query
+        $eval_stats_grouped = [];
+        $eq_rows = $this->db->query("
+            SELECT 
+                users.store_id,
+                quiz_results.total_obtained_marks,
+                lesson.attachment
+            FROM quiz_results
+            JOIN users ON users.id = quiz_results.user_id
+            JOIN lesson ON lesson.id = quiz_results.quiz_id
+            WHERE users.role_id = 2 AND users.store_id IS NOT NULL AND users.store_id > 0
+        ")->result_array();
+
+        foreach ($eq_rows as $er) {
+            $sid = (int)$er['store_id'];
+            if (!isset($eval_stats_grouped[$sid])) {
+                $eval_stats_grouped[$sid] = ['total' => 0, 'passed' => 0];
+            }
+            $eval_stats_grouped[$sid]['total']++;
+
+            $att = json_decode($er['attachment'] ?? '{}', true) ?: [];
+            $total_m = !empty($att['total_marks']) ? floatval($att['total_marks']) : 0;
+            $pass_m  = isset($att['pass_mark']) && $att['pass_mark'] !== '' ? floatval($att['pass_mark']) : 0;
+            if ($total_m <= 0) $total_m = 100;
+            $obt = floatval($er['total_obtained_marks']);
+            $pct = round(($obt / $total_m) * 100);
+            $is_p = ($pass_m > 0) ? ($obt >= $pass_m) : ($pct >= 50);
+            if ($is_p) {
+                $eval_stats_grouped[$sid]['passed']++;
+            }
+        }
+
+        $store_rows = [];
+        $total_pharmacists_all = 0;
+        $total_valid_all = 0;
+        $total_evals_all = 0;
+        $total_passed_all = 0;
+
+        foreach ($stores as $st) {
+            $sid = (int)$st['id'];
+            $st_stat = $user_stats_grouped[$sid] ?? [
+                'total_pharmacists' => 0, 'valid_licences' => 0, 'expiring_soon' => 0, 'expired' => 0, 'missing_date' => 0
+            ];
+            $ev_stat = $eval_stats_grouped[$sid] ?? ['total' => 0, 'passed' => 0];
+
+            $total_p        = (int)$st_stat['total_pharmacists'];
+            $valid_licences = (int)$st_stat['valid_licences'];
+            $expiring_soon  = (int)$st_stat['expiring_soon'];
+            $expired        = (int)$st_stat['expired'];
+            $missing        = (int)$st_stat['missing_date'];
+            $total_evals    = (int)$ev_stat['total'];
+            $passed_evals   = (int)$ev_stat['passed'];
+
+            $licence_compliance_rate = $total_p > 0 ? round(($valid_licences / $total_p) * 100, 1) : 0;
+            $eval_pass_rate = $total_evals > 0 ? round(($passed_evals / $total_evals) * 100, 1) : 0;
+
+            $store_rows[] = [
+                'id'                       => $st['id'],
+                'store_name'               => $st['store_name'],
+                'store_code'               => $st['store_code'] ?? '',
+                'store_category'           => $st['store_category'] ?? '',
+                'city'                     => $st['city'] ?? '',
+                'state'                    => $st['state'] ?? '',
+                'zone'                     => $st['zone'] ?? '',
+                'address'                  => $st['address'] ?? '',
+                'total_pharmacists'        => $total_p,
+                'pharmacist_count'         => $total_p,
+                'valid_licences'           => $valid_licences,
+                'valid_licence_count'      => $valid_licences,
+                'expiring_soon'            => $expiring_soon,
+                'expiring_soon_count'      => $expiring_soon,
+                'expired'                  => $expired,
+                'expired_licence_count'    => $expired,
+                'missing_date'             => $missing,
+                'licence_compliance_rate'  => $licence_compliance_rate,
+                'licence_compliance_pct'   => $licence_compliance_rate,
+                'total_evaluations'        => $total_evals,
+                'quiz_attempts'            => $total_evals,
+                'passed_evaluations'       => $passed_evals,
+                'quiz_passed'              => $passed_evals,
+                'evaluation_pass_rate'     => $eval_pass_rate,
+                'quiz_pass_rate'           => $eval_pass_rate
+            ];
+
+            $total_pharmacists_all += $total_p;
+            $total_valid_all += $valid_licences;
+            $total_evals_all += $total_evals;
+            $total_passed_all += $passed_evals;
+        }
+
+        // Add Unassigned Pharmacists row if any exist
+        $un_total = (int)$unassigned_stats['total_pharmacists'];
+        if ($un_total > 0) {
+            $un_valid = (int)$unassigned_stats['valid_licences'];
+            $un_exp_soon = (int)$unassigned_stats['expiring_soon'];
+            $un_exp = (int)$unassigned_stats['expired'];
+            $un_missing = (int)$unassigned_stats['missing_date'];
+            $un_comp_rate = $un_total > 0 ? round(($un_valid / $un_total) * 100, 1) : 0;
+
+            $store_rows[] = [
+                'id'                       => 'no_store',
+                'store_name'               => get_phrase('no_store_assigned'),
+                'store_code'               => 'N/A',
+                'store_category'           => '-',
+                'city'                     => '',
+                'state'                    => '',
+                'zone'                     => '',
+                'address'                  => get_phrase('unassigned_pharmacists'),
+                'total_pharmacists'        => $un_total,
+                'pharmacist_count'         => $un_total,
+                'valid_licences'           => $un_valid,
+                'valid_licence_count'      => $un_valid,
+                'expiring_soon'            => $un_exp_soon,
+                'expiring_soon_count'      => $un_exp_soon,
+                'expired'                  => $un_exp,
+                'expired_licence_count'    => $un_exp,
+                'missing_date'             => $un_missing,
+                'licence_compliance_rate'  => $un_comp_rate,
+                'licence_compliance_pct'   => $un_comp_rate,
+                'total_evaluations'        => 0,
+                'quiz_attempts'            => 0,
+                'passed_evaluations'       => 0,
+                'quiz_passed'              => 0,
+                'evaluation_pass_rate'     => 0,
+                'quiz_pass_rate'           => 0
+            ];
+
+            $total_pharmacists_all += $un_total;
+            $total_valid_all += $un_valid;
+        }
+
+        $overview = [
+            'total_stores'             => count($stores),
+            'total_pharmacists'        => $total_pharmacists_all,
+            'assigned_pharmacists'     => $total_pharmacists_all,
+            'licence_compliance_rate'  => $total_pharmacists_all > 0 ? round(($total_valid_all / $total_pharmacists_all) * 100, 1) : 0,
+            'evaluation_pass_rate'     => $total_evals_all > 0 ? round(($total_passed_all / $total_evals_all) * 100, 1) : 0
+        ];
+
+        $payload = [
+            'store_rows' => $store_rows,
+            'overview'   => $overview
+        ];
+
+        $this->fast_cache->set($cache_key, $payload, 300);
+        return $payload;
+    }
+
+    public function store_performance_report()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $page_data['page_name']  = 'store_performance_report';
+        $page_data['page_title'] = get_phrase('store_performance_report');
+
+        $dataset = $this->get_fast_store_performance_data();
+        $page_data['store_rows'] = $dataset['store_rows'];
+        $page_data['overview']   = $dataset['overview'];
+
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function export_store_performance_csv()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $dataset = $this->get_fast_store_performance_data();
+        $store_rows = $dataset['store_rows'];
+
+        $filename = "store_performance_report_" . date('Y-m-d_H-i-s') . ".csv";
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        fputs($out, "\xEF\xBB\xBF");
+
+        fputcsv($out, [
+            '#',
+            'Store Name',
+            'Store Code',
+            'Category',
+            'Zone',
+            'State',
+            'City',
+            'Total Pharmacists',
+            'Valid Licences',
+            'Expiring Soon',
+            'Expired',
+            'Missing Expiry Date',
+            'Licence Compliance Rate',
+            'Quiz Evaluations Taken',
+            'Evaluations Passed',
+            'Evaluation Pass Rate'
+        ]);
+
+        foreach ($store_rows as $idx => $st) {
+            fputcsv($out, [
+                $idx + 1,
+                $st['store_name'],
+                $st['store_code'] ?: '-',
+                $st['store_category'] ?: '-',
+                $st['zone'] ?: '-',
+                $st['state'] ?: '-',
+                $st['city'] ?: '-',
+                $st['total_pharmacists'],
+                $st['valid_licences'],
+                $st['expiring_soon'],
+                $st['expired'],
+                $st['missing_date'],
+                $st['licence_compliance_rate'] . '%',
+                $st['total_evaluations'],
+                $st['passed_evaluations'],
+                $st['evaluation_pass_rate'] . '%'
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    public function extract_licence_ocr()
+    {
+        if ($this->session->userdata('admin_login') != true && $this->session->userdata('user_login') != 1) {
             echo json_encode(['status' => false, 'message' => get_phrase('unauthorized_access')]);
             return;
         }
 
-        $raw_text = '';
-        if (!empty($this->input->post('client_extracted_text'))) {
-            $raw_text = $this->input->post('client_extracted_text');
-        } elseif (!empty($this->input->post('extracted_text'))) {
-            $raw_text = $this->input->post('extracted_text');
+        $this->user_model->process_licence_ocr_request();
+    }
+
+    private function parse_date_parts_to_ymd($d, $m, $y)
+    {
+        $months = [
+            'jan' => '01', 'january' => '01', 'feb' => '02', 'february' => '02',
+            'mar' => '03', 'march' => '03', 'apr' => '04', 'april' => '04',
+            'may' => '05', 'jun' => '06', 'june' => '06', 'jul' => '07', 'july' => '07',
+            'aug' => '08', 'august' => '08', 'sep' => '09', 'september' => '09',
+            'oct' => '10', 'october' => '10', 'nov' => '11', 'november' => '11',
+            'dec' => '12', 'december' => '12'
+        ];
+
+        $d = str_pad(trim($d), 2, '0', STR_PAD_LEFT);
+        $y = trim($y);
+        if (strlen($y) == 2) {
+            $y = ((int)$y > 50 ? '19' : '20') . $y;
         }
 
-        $file_key = isset($_FILES['licence_doc']) ? 'licence_doc' : (isset($_FILES['document']) ? 'document' : null);
-        if (empty($raw_text) && $file_key && !empty($_FILES[$file_key]['name'])) {
-            $file = $_FILES[$file_key];
-            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            $tmp_path = $file['tmp_name'];
-
-            if ($ext === 'pdf' && file_exists($tmp_path)) {
-                $content = @file_get_contents($tmp_path);
-                if ($content) {
-                    preg_match_all('/\((.*?)\)\s*Tj/s', $content, $tj_matches);
-                    if (!empty($tj_matches[1])) {
-                        $raw_text .= implode(' ', $tj_matches[1]) . "\n";
-                    }
-                    preg_match_all('/\[(.*?)\]\s*TJ/s', $content, $tJ_matches);
-                    if (!empty($tJ_matches[1])) {
-                        foreach ($tJ_matches[1] as $chunk) {
-                            preg_match_all('/\((.*?)\)/', $chunk, $strings);
-                            if (!empty($strings[1])) {
-                                $raw_text .= implode('', $strings[1]) . " ";
-                            }
-                        }
-                        $raw_text .= "\n";
-                    }
-                    if (function_exists('gzuncompress')) {
-                        preg_match_all('/stream[\r\n]+(.*?)[\r\n]+endstream/s', $content, $streams);
-                        if (!empty($streams[1])) {
-                            foreach ($streams[1] as $stream) {
-                                $uncompressed = @gzuncompress($stream);
-                                if ($uncompressed) {
-                                    preg_match_all('/\((.*?)\)\s*Tj/s', $uncompressed, $decomp_tj);
-                                    if (!empty($decomp_tj[1])) {
-                                        $raw_text .= implode(' ', $decomp_tj[1]) . "\n";
-                                    }
-                                    preg_match_all('/\[(.*?)\]\s*TJ/s', $uncompressed, $decomp_tJ);
-                                    if (!empty($decomp_tJ[1])) {
-                                        foreach ($decomp_tJ[1] as $chunk) {
-                                            preg_match_all('/\((.*?)\)/', $chunk, $strings);
-                                            if (!empty($strings[1])) {
-                                                $raw_text .= implode('', $strings[1]) . " ";
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+        $m = trim($m);
+        if (is_numeric($m)) {
+            $month = str_pad($m, 2, '0', STR_PAD_LEFT);
+        } else {
+            $m_lower = strtolower($m);
+            if (isset($months[$m_lower])) {
+                $month = $months[$m_lower];
+            } else {
+                $month = '';
+                foreach ($months as $k => $v) {
+                    if (strpos($m_lower, $k) === 0) {
+                        $month = $v;
+                        break;
                     }
                 }
             }
         }
 
-        $results = $this->parse_licence_data_from_text($raw_text);
-        $candidates = $results['licence_nos'];
-        $primary = $results['primary_licence'];
-        $extracted = $results['extracted_data'];
+        if (is_numeric($month) && (int)$month >= 1 && (int)$month <= 12 && (int)$d >= 1 && (int)$d <= 31) {
+            return "$y-$month-$d";
+        }
+        return '';
+    }
 
-        $name_parts = isset($extracted['member_name']) ? explode(' ', trim($extracted['member_name']), 2) : ['', ''];
-        $first_name = $name_parts[0];
-        $last_name = isset($name_parts[1]) ? $name_parts[1] : '';
+    private function parse_date_to_ymd($date_str)
+    {
+        if (empty($date_str)) return '';
+        $date_str = trim($date_str);
+        $date_str = str_replace(
+            ['–', '—', '−', "\xe2\x80\x93", "\xe2\x80\x94", "\xe2\x88\x92", "\xc2\xa0", "\t"],
+            ['-', '-', '-', '-', '-', '-', ' ', ' '],
+            $date_str
+        );
+        $date_str = preg_replace('/\s*([\-\/\._])\s*/', '$1', $date_str);
+        $date_str = trim($date_str);
 
-        echo json_encode([
-            'status'             => !empty($candidates),
-            'licence_no'         => $primary,
-            'primary_licence'    => $primary,
-            'licence_nos'        => $candidates,
-            'all_candidates'     => $candidates,
-            'candidate_count'    => count($candidates),
-            'member_name'        => isset($extracted['member_name']) ? $extracted['member_name'] : '',
-            'first_name'         => $first_name,
-            'last_name'          => $last_name,
-            'licence_start_date' => isset($extracted['start_date']) ? $extracted['start_date'] : '',
-            'extracted_data'     => $extracted,
-            'raw_text_snippet'   => mb_substr($raw_text, 0, 1000),
-            'message'            => !empty($candidates)
-                ? sprintf(get_phrase('extracted_%s_licence_number(s)_successfully'), count($candidates))
-                : get_phrase('no_drug_licence_numbers_found_in_document')
-        ]);
+        // DD-MM-YYYY or DD-Month-YYYY
+        if (preg_match('/^([0-9]{1,2})[\-\/\._]([0-9]{1,2}|[A-Za-z]{3,9})[\-\/\._]([0-9]{2,4})$/', $date_str, $m)) {
+            return $this->parse_date_parts_to_ymd($m[1], $m[2], $m[3]);
+        }
+
+        // YYYY-MM-DD
+        if (preg_match('/^([0-9]{4})[\-\/\._]([0-9]{1,2})[\-\/\._]([0-9]{1,2})$/', $date_str, $m)) {
+            $year = $m[1];
+            $month = str_pad($m[2], 2, '0', STR_PAD_LEFT);
+            $day = str_pad($m[3], 2, '0', STR_PAD_LEFT);
+            if ((int)$day >= 1 && (int)$day <= 31 && (int)$month >= 1 && (int)$month <= 12) {
+                return "$year-$month-$day";
+            }
+        }
+
+        $ts = strtotime(str_replace('/', '-', $date_str));
+        if ($ts) {
+            return date('Y-m-d', $ts);
+        }
+        return '';
     }
 
     private function parse_licence_data_from_text($text)
     {
-        $licence_nos = [];
-
-        // Pattern 1: RLF format (RLF + 2 digits + 2 letters + 10 digits) - e.g. RLF21DL2024002287, RLF20DL2024002284
-        if (preg_match_all('/\b(RLF\d{2}[A-Z]{2}\d{10})\b/i', $text, $m1)) {
-            foreach ($m1[1] as $lic) {
-                $lic = strtoupper(trim($lic));
-                if (!in_array($lic, $licence_nos)) $licence_nos[] = $lic;
-            }
-        }
-
-        // Pattern 2: Standard Indian drug license patterns
-        if (preg_match_all('/\b([A-Z]{2,4}\d{2}[A-Z]{2,4}\d{6,12})\b/i', $text, $m2)) {
-            foreach ($m2[1] as $lic) {
-                $lic = strtoupper(trim($lic));
-                if (!in_array($lic, $licence_nos)) $licence_nos[] = $lic;
-            }
-        }
-
-        // Pattern 3: Look for numbers specifically under/after "Licence No" or "License No"
-        if (preg_match_all('/(?:Licence|License|Drug\s*Licence|Form\s*2[01][A-Z]?)\s*(?:No|Number|\#)?[:\s\-\.]*([A-Z0-9\/\-]{8,25})/i', $text, $m3)) {
-            foreach ($m3[1] as $lic) {
-                $lic = strtoupper(trim($lic));
-                if (strlen($lic) >= 8 && !in_array($lic, $licence_nos) && !preg_match('/^(POST|APPROVAL|LETTER|CHANGE|MEMBER|GOVERNMENT|SUBJECT|DEPARTMENT)/i', $lic) && !preg_match('/^\//', $lic)) {
-                    $is_sub = false;
-                    foreach ($licence_nos as $existing) {
-                        if (strpos($existing, $lic) !== false) {
-                            $is_sub = true;
-                            break;
-                        }
-                    }
-                    if (!$is_sub) $licence_nos[] = $lic;
-                }
-            }
-        }
-
-        // Filter out invalid substrings or numeric fragments
-        $filtered = [];
-        foreach ($licence_nos as $lic) {
-            $is_sub = false;
-            foreach ($licence_nos as $other) {
-                if ($other !== $lic && strpos($other, $lic) !== false) {
-                    $is_sub = true;
-                    break;
-                }
-            }
-            if (!$is_sub && !preg_match('/^\//', $lic) && !preg_match('/^\d{4,8}$/', $lic)) {
-                $filtered[] = $lic;
-            }
-        }
-        $licence_nos = array_values($filtered);
-
-        // Extracted auxiliary data
-        $extracted = [];
-
-        // Detect Replacement Member Name
-        if (preg_match('/Replacement\s*(?:Member)?\s*Name[\s:\.\-]*\n*\s*(?:Mr\.|Ms\.|Mrs\.|Dr\.)?\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)/i', $text, $nm)) {
-            $name = trim($nm[1]);
-            $name = preg_replace('/\s+(?:Mr|Ms|Mrs|Dr)$/i', '', $name);
-            $extracted['member_name'] = $name;
-        } elseif (preg_match('/(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/', $text, $nm2)) {
-            $name = trim($nm2[1]);
-            $extracted['member_name'] = $name;
-        }
-
-        // Detect Effective / Start Date
-        if (preg_match('/(?:effective\s*date|dated)[\s:\.]*([0-9]{1,2}[\-\/][A-Za-z]{3,9}[\-\/][0-9]{2,4})/i', $text, $dm)) {
-            $d = strtotime($dm[1]);
-            if ($d) $extracted['start_date'] = date('Y-m-d', $d);
-        }
-
-        // Detect Firm / Store Name
-        if (preg_match('/To\s*\n\s*([A-Za-z0-9\s,\-\.]{4,60}?)\s*(?:Shop|Limited|Ltd|Store|Pvt)/i', $text, $fm)) {
-            $extracted['firm_name'] = trim($fm[1]);
-        }
-
-        return [
-            'licence_nos' => $licence_nos,
-            'primary_licence' => !empty($licence_nos) ? $licence_nos[0] : '',
-            'extracted_data' => $extracted
-        ];
+        return $this->user_model->parse_licence_data_from_text($text);
     }
 
     public function server_side_users_data()
@@ -443,15 +1886,27 @@ class Admin extends CI_Controller
 
         $data = [];
         //mentioned all with colum of database table that related with html table
-        $columns = ['id', 'id', 'first_name', 'employee_id', 'gender', 'email', 'phone', 'licence_no', 'licence_start_date', 'id', 'id'];
+        $columns = ['id', 'id', 'id', 'first_name', 'designation', 'pharmacy_name', 'state', 'employee_id', 'gender', 'email', 'phone', 'licence_no', 'licence_start_date', 'licence_end_date', 'id', 'email_sent', 'id'];
+
+        $store_id = $this->input->post('store_id') ?: $this->input->get('store_id');
+        $apply_store_filter = function($db) use ($store_id) {
+            if ($store_id === 'no_store') {
+                $db->where('(store_id IS NULL OR store_id = 0)');
+            } elseif (is_numeric($store_id) && $store_id > 0) {
+                $db->where('store_id', (int)$store_id);
+            }
+        };
 
         $limit = htmlspecialchars_($this->input->post('length'));
         $start = htmlspecialchars_($this->input->post('start'));
 
-        $column_index = $columns[$this->input->post('order')[0]['column']];
+        $order_col = isset($this->input->post('order')[0]['column']) ? intval($this->input->post('order')[0]['column']) : 1;
+        $column_index = isset($columns[$order_col]) ? $columns[$order_col] : 'id';
 
         $dir                 = $this->input->post('order')[0]['dir'];
-        $total_number_of_row = $this->db->where('role_id !=', 1)->get('users')->num_rows();
+        $this->db->where('role_id !=', 1);
+        $apply_store_filter($this->db);
+        $total_number_of_row = $this->db->get('users')->num_rows();
 
         $filtered_number_of_row = $total_number_of_row;
         $search                 = $this->input->post('search')['value'];
@@ -461,20 +1916,27 @@ class Admin extends CI_Controller
             $this->db->limit($limit, $start);
             $this->db->order_by($column_index, $dir);
             $this->db->where('role_id', 2);
+            $apply_store_filter($this->db);
             $students = $this->db->get('users')->result_array();
         } else {
             $this->db->select('*');
             $this->db->group_start();
             $this->db->like('first_name', $search);
             $this->db->or_like('last_name', $search);
+            $this->db->or_like('designation', $search);
+            $this->db->or_like('pharmacy_name', $search);
+            $this->db->or_like('state', $search);
+            $this->db->or_like('region', $search);
             $this->db->or_like('email', $search);
             $this->db->or_like('phone', $search);
             $this->db->or_like('employee_id', $search);
             $this->db->or_like('gender', $search);
             $this->db->or_like('licence_no', $search);
             $this->db->or_like('licence_start_date', $search);
+            $this->db->or_like('licence_end_date', $search);
             $this->db->group_end();
             $this->db->where('role_id', 2);
+            $apply_store_filter($this->db);
             $this->db->limit($limit, $start);
             $this->db->order_by($column_index, $dir);
             $students = $this->db->get('users')->result_array();
@@ -483,14 +1945,20 @@ class Admin extends CI_Controller
             $this->db->group_start();
             $this->db->like('first_name', $search);
             $this->db->or_like('last_name', $search);
+            $this->db->or_like('designation', $search);
+            $this->db->or_like('pharmacy_name', $search);
+            $this->db->or_like('state', $search);
+            $this->db->or_like('region', $search);
             $this->db->or_like('email', $search);
             $this->db->or_like('phone', $search);
             $this->db->or_like('employee_id', $search);
             $this->db->or_like('gender', $search);
             $this->db->or_like('licence_no', $search);
             $this->db->or_like('licence_start_date', $search);
+            $this->db->or_like('licence_end_date', $search);
             $this->db->group_end();
             $this->db->where('role_id', 2);
+            $apply_store_filter($this->db);
             $filtered_number_of_row = $this->db->get('users')->num_rows();
         }
 
@@ -509,6 +1977,11 @@ class Admin extends CI_Controller
 
             //user email
             $email = $student['email'];
+            if (!empty($student['mac_address'])) {
+                $email .= '<br><span class="badge font-11 mt-1" style="background-color: #fff3ed; color: #f05a28; border: 1px solid rgba(240, 90, 40, 0.4); font-weight: 600; padding: 3px 8px; border-radius: 4px;" title="' . get_phrase('registered_mac_address') . '"><i class="mdi mdi-lan-connect mr-1" style="color: #f05a28;"></i>' . htmlspecialchars($student['mac_address']) . '</span>';
+            } else {
+                $email .= '<br><span class="badge badge-light text-muted font-11 mt-1" style="border: 1px solid #e2e8f0; padding: 3px 7px; border-radius: 4px;"><i class="mdi mdi-lan-disconnect mr-1"></i>' . get_phrase('no_mac_registered') . '</span>';
+            }
 
             //enrolled courses
             $enrolled_courses       = $this->crud_model->enrol_history_by_user_id($student['id']);
@@ -519,26 +1992,46 @@ class Admin extends CI_Controller
             endforeach;
             $enrolled_courses_title .= '</ul>';
 
+            $email_sent_badge = (!empty($student['email_sent']) && $student['email_sent'] == 1)
+                ? '<span class="badge badge-success-lighten"><i class="mdi mdi-check mr-1"></i>' . get_phrase('yes') . '</span>'
+                : '<span class="badge badge-secondary-lighten">' . get_phrase('no') . '</span>';
+
             $action = '<div class="dropright dropright">
 		                            <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-icon" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
 		                                <i class="mdi mdi-dots-vertical"></i>
 		                            </button>
 		                            <ul class="dropdown-menu">
+		                                <li><a class="dropdown-item" href="javascript:void(0)" onclick="sendRegistrationMailSingle(' . $student['id'] . ', \'user\')"><i class="mdi mdi-email-fast-outline mr-1"></i>' . get_phrase('send_registration_mail') . '</a></li>
 		                                <li><a class="dropdown-item" href="' . site_url('admin/user_form/edit_user_form/' . $student['id']) . '">' . get_phrase('edit') . '</a></li>
+		                                <li><a class="dropdown-item" href="' . site_url('admin/users/reset_mac/' . $student['id']) . '" onclick="return confirm(\'' . get_phrase('are_you_sure_you_want_to_reset_mac_address') . '?\');"><i class="mdi mdi-refresh text-warning mr-1"></i>' . get_phrase('reset_mac_address') . '</a></li>
 		                                <li><a class="dropdown-item" href="#" onclick="confirm_modal(&#39;' . site_url('admin/users/delete/' . $student['id']) . '&#39;);">' . get_phrase('delete') . '</a></li>
 		                            </ul>
 		                        </div>';
 
+            $state_region = '';
+            if (!empty($student['state'])) {
+                $state_region .= htmlspecialchars($student['state']);
+            }
+            if (!empty($student['region'])) {
+                $state_region .= ($state_region ? ' / ' : '') . '<span class="badge badge-primary-lighten">' . htmlspecialchars($student['region']) . '</span>';
+            }
+
+            $nestedData['checkbox']           = '<input type="checkbox" class="user-checkbox" value="' . $student['id'] . '" data-row-id="' . $student['id'] . '">';
             $nestedData['key']                = ++$key;
             $nestedData['photo']              = $photo;
             $nestedData['name']               = $name;
+            $nestedData['designation']        = !empty($student['designation']) ? '<span class="badge badge-info-lighten px-2 py-1 font-12"><i class="mdi mdi-certificate mr-1"></i>' . htmlspecialchars($student['designation']) . '</span>' : '-';
+            $nestedData['pharmacy_name']      = !empty($student['pharmacy_name']) ? '<strong>' . htmlspecialchars($student['pharmacy_name']) . '</strong>' : '-';
+            $nestedData['state_region']       = !empty($state_region) ? $state_region : '-';
             $nestedData['employee_id']        = !empty($student['employee_id']) ? html_escape($student['employee_id']) : '-';
             $nestedData['gender']             = !empty($student['gender']) ? ucfirst(html_escape($student['gender'])) : '-';
             $nestedData['email']              = $email;
             $nestedData['phone']              = !empty($student['phone']) ? html_escape($student['phone']) : '-';
             $nestedData['licence_no']         = !empty($student['licence_no']) ? html_escape($student['licence_no']) : '-';
             $nestedData['licence_start_date'] = !empty($student['licence_start_date']) ? html_escape($student['licence_start_date']) : '-';
+            $nestedData['licence_end_date']   = !empty($student['licence_end_date']) ? html_escape($student['licence_end_date']) : '-';
             $nestedData['enrolled_courses']   = $enrolled_courses_title;
+            $nestedData['email_sent']         = $email_sent_badge;
             $nestedData['action']             = $action . '<script>$("a, i").tooltip();</script>';
             $data[]                           = $nestedData;
         endforeach;
@@ -557,12 +2050,13 @@ class Admin extends CI_Controller
 
         $data = [];
         //mentioned all with colum of database table that related with html table
-        $columns = ['id', 'id', 'first_name', 'email', 'phone', 'id', 'id'];
+        $columns = ['id', 'id', 'id', 'first_name', 'email', 'phone', 'id', 'email_sent', 'id'];
 
         $limit = htmlspecialchars_($this->input->post('length'));
         $start = htmlspecialchars_($this->input->post('start'));
 
-        $column_index = $columns[$this->input->post('order')[0]['column']];
+        $order_col = isset($this->input->post('order')[0]['column']) ? intval($this->input->post('order')[0]['column']) : 1;
+        $column_index = isset($columns[$order_col]) ? $columns[$order_col] : 'id';
 
         $dir                 = $this->input->post('order')[0]['dir'];
         $total_number_of_row = $this->db->where('is_instructor', 1)->where('role_id !=', 1)->get('users')->num_rows();
@@ -634,23 +2128,30 @@ class Admin extends CI_Controller
             endforeach;
             $enrolled_courses_title .= '</ul>';
 
+            $email_sent_badge = (!empty($instructor['email_sent']) && $instructor['email_sent'] == 1)
+                ? '<span class="badge badge-success-lighten"><i class="mdi mdi-check mr-1"></i>' . get_phrase('yes') . '</span>'
+                : '<span class="badge badge-secondary-lighten">' . get_phrase('no') . '</span>';
+
             $action = '<div class="dropright dropright">
 		                            <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-icon" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
 		                                <i class="mdi mdi-dots-vertical"></i>
 		                            </button>
 		                            <ul class="dropdown-menu">
+		                                <li><a class="dropdown-item" href="javascript:void(0)" onclick="sendRegistrationMailSingle(' . $instructor['id'] . ', \'user\')"><i class="mdi mdi-email-fast-outline mr-1"></i>' . get_phrase('send_registration_mail') . '</a></li>
 		                                <li><a class="dropdown-item" href="' . site_url('admin/courses?category_id=all&status=all&instructor_id=' . $instructor['id'] . '&price=all') . '">' . get_phrase('view_courses') . '</a></li>
 		                                <li><a class="dropdown-item" href="' . site_url('admin/instructor_form/edit_instructor_form/' . $instructor['id']) . '">' . get_phrase('edit') . '</a></li>
 		                                <li><a class="dropdown-item" href="#" onclick="confirm_modal(&#39;' . site_url('admin/instructors/delete/' . $instructor['id']) . '&#39;);">' . get_phrase('delete') . '</a></li>
 		                            </ul>
 		                        </div>';
 
+            $nestedData['checkbox']         = '<input type="checkbox" class="user-checkbox" value="' . $instructor['id'] . '" data-row-id="' . $instructor['id'] . '">';
             $nestedData['key']              = ++$key;
             $nestedData['photo']            = $photo;
             $nestedData['name']             = $name;
             $nestedData['email']            = $email;
             $nestedData['phone']            = $instructor['phone'];
             $nestedData['enrolled_courses'] = $enrolled_courses_title;
+            $nestedData['email_sent']       = $email_sent_badge;
             $nestedData['action']           = $action . '<script>$("a, i").tooltip();</script>';
             $data[]                         = $nestedData;
         endforeach;
@@ -662,6 +2163,91 @@ class Admin extends CI_Controller
             "data"            => $data,
         ];
         echo json_encode($json_data);
+    }
+
+    public function send_registration_mail()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            echo json_encode(['status' => 'error', 'message' => get_phrase('session_expired_please_login_again')]);
+            return;
+        }
+
+        $type = $this->input->post('type') ?: 'user'; // 'user' or 'store_user'
+        $ids = $this->input->post('ids');
+
+        if (is_string($ids)) {
+            $ids = explode(',', $ids);
+        }
+
+        if (empty($ids) || !is_array($ids)) {
+            echo json_encode(['status' => 'error', 'message' => get_phrase('no_records_selected')]);
+            return;
+        }
+
+        $clean_ids = [];
+        foreach ($ids as $id) {
+            $id = intval(trim($id));
+            if ($id > 0) {
+                $clean_ids[] = $id;
+            }
+        }
+
+        if (empty($clean_ids)) {
+            echo json_encode(['status' => 'error', 'message' => get_phrase('invalid_records_selected')]);
+            return;
+        }
+
+        // Fetch template settings for 'signup' (New user registration template in settings)
+        $notification = $this->db->where('type', 'signup')->get('notification_settings')->row_array();
+        $template_name = $notification ? ($notification['setting_title'] ?: 'New user registration') : 'New user registration';
+
+        $updated_count = 0;
+
+        if ($type == 'store_user') {
+            foreach ($clean_ids as $su_id) {
+                $store_user = $this->db->get_where('store_users', ['id' => $su_id])->row_array();
+                if ($store_user) {
+                    $this->db->where('id', $su_id)->update('store_users', ['email_sent' => 1]);
+                    if (!empty($store_user['pharmacist_id'])) {
+                        $this->db->where('id', $store_user['pharmacist_id'])->update('users', ['email_sent' => 1]);
+                        
+                        // In-system notification using new user registration template
+                        if ($notification && method_exists($this->email_model, 'notify')) {
+                            $subjects = json_decode($notification['subject'], true);
+                            $subject = isset($subjects['user']) ? $subjects['user'] : 'Registered successfully';
+                            $this->email_model->notify('signup', $store_user['pharmacist_id'], $subject, 'You have been registered with access to store portal.');
+                        }
+                    }
+                    $updated_count++;
+                }
+            }
+        } else {
+            // Type is 'user' (pharmacist or instructor)
+            foreach ($clean_ids as $user_id) {
+                $user = $this->db->get_where('users', ['id' => $user_id])->row_array();
+                if ($user) {
+                    $this->db->where('id', $user_id)->update('users', ['email_sent' => 1]);
+                    
+                    // Also update linked store_users if any
+                    $this->db->where('pharmacist_id', $user_id)->update('store_users', ['email_sent' => 1]);
+
+                    // In-system notification using new user registration template
+                    if ($notification && method_exists($this->email_model, 'notify')) {
+                        $subjects = json_decode($notification['subject'], true);
+                        $subject = isset($subjects['user']) ? $subjects['user'] : 'Registered successfully';
+                        $this->email_model->notify('signup', $user_id, $subject, 'You have successfully registered with us at ' . get_settings('system_name'));
+                    }
+                    $updated_count++;
+                }
+            }
+        }
+
+        echo json_encode([
+            'status' => 'success',
+            'message' => get_phrase('registration_mail_sent_successfully') . ' (' . $updated_count . ' ' . get_phrase('users') . ')',
+            'template_used' => $template_name,
+            'updated_count' => $updated_count
+        ]);
     }
 
     public function add_shortcut_student()
@@ -709,19 +2295,27 @@ class Admin extends CI_Controller
         // CHECK ACCESS PERMISSION
         check_permission('enrolment');
 
-        if ($param1 != "") {
-            $date_range                   = $this->input->get('date_range');
-            $date_range                   = explode(" - ", $date_range);
-            $page_data['timestamp_start'] = strtotime($date_range[0] . ' 00:00:00');
-            $page_data['timestamp_end']   = strtotime($date_range[1] . ' 23:59:59');
+        $date_range = $this->input->get('date_range');
+        if (!empty($date_range) && strpos($date_range, ' - ') !== false) {
+            $date_range_parts             = explode(" - ", $date_range);
+            $page_data['timestamp_start'] = strtotime(trim($date_range_parts[0]) . ' 00:00:00');
+            $page_data['timestamp_end']   = strtotime(trim($date_range_parts[1] ?? $date_range_parts[0]) . ' 23:59:59');
         } else {
             $first_day_of_month           = "1 " . date("M") . " " . date("Y") . ' 00:00:00';
             $last_day_of_month            = date("t") . " " . date("M") . " " . date("Y") . ' 23:59:59';
             $page_data['timestamp_start'] = strtotime($first_day_of_month);
             $page_data['timestamp_end']   = strtotime($last_day_of_month);
         }
+
+        $selected_course_id = $this->input->get('course_id');
+        if (empty($selected_course_id)) {
+            $selected_course_id = 'all';
+        }
+        $page_data['selected_course_id'] = $selected_course_id;
+
+        $page_data['courses']       = $this->db->order_by('title', 'asc')->get('course')->result_array();
         $page_data['page_name']     = 'enrol_history';
-        $page_data['enrol_history'] = $this->crud_model->enrol_history_by_date_range($page_data['timestamp_start'], $page_data['timestamp_end']);
+        $page_data['enrol_history'] = $this->crud_model->enrol_history_by_date_range($page_data['timestamp_start'], $page_data['timestamp_end'], $selected_course_id);
         $page_data['page_title']    = get_phrase('enrol_history');
         $this->load->view('backend/index', $page_data);
     }
@@ -737,6 +2331,12 @@ class Admin extends CI_Controller
 
         if ($param1 == 'enrol') {
             $this->crud_model->enrol_a_student_manually();
+            $redirect_url = $this->input->post('redirect_to') ?: 'admin/enrol_student';
+            redirect(site_url($redirect_url), 'refresh');
+        }
+
+        if ($param1 == 'update' || $param1 == 'edit') {
+            $this->crud_model->update_student_enrolment();
             $redirect_url = $this->input->post('redirect_to') ?: 'admin/enrol_student';
             redirect(site_url($redirect_url), 'refresh');
         }
@@ -797,7 +2397,7 @@ class Admin extends CI_Controller
         $page_data['users'] = $this->db->get()->result_array();
 
         // Preload enrollments with course titles
-        $enrolments = $this->db->select('enrol.user_id, enrol.course_id, enrol.expiry_date, enrol.date_added, course.title as course_title, course.status as course_status')
+        $enrolments = $this->db->select('enrol.id as enrol_id, enrol.user_id, enrol.course_id, enrol.expiry_date, enrol.date_added, course.title as course_title, course.status as course_status')
             ->from('enrol')
             ->join('course', 'course.id = enrol.course_id', 'left')
             ->get()->result_array();
@@ -880,6 +2480,19 @@ class Admin extends CI_Controller
         $page_data['payout_id']  = $payout_id;
         $page_data['page_title'] = get_phrase('invoice');
         $this->load->view('backend/index', $page_data);
+    }
+
+    public function enrol_history_edit($param1 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        // CHECK ACCESS PERMISSION
+        check_permission('enrolment');
+
+        $this->crud_model->update_single_enrol_history($param1);
+        redirect(site_url('admin/enrol_history'), 'refresh');
     }
 
     public function enrol_history_delete($param1 = "")
@@ -2664,7 +4277,7 @@ class Admin extends CI_Controller
 
         if ($type == 'mark_all_as_read') {
             $this->db->where('to_user', $user_id);
-            $this->db->update('notifications', ['status' => 1]);
+            $this->db->update('notifications', ['status' => 1, 'updated_at' => time()]);
         }
 
         if ($type == 'remove_all') {
@@ -2674,14 +4287,43 @@ class Admin extends CI_Controller
 
         $this->db->where('to_user', $user_id);
         $this->db->limit(50);
-        $query                      = $this->db->order_by('status ASC, id desc');
-        $page_data['notifications'] = $query->get('notifications');
+        $this->db->order_by('status ASC, id desc');
+        $page_data['notifications'] = $this->db->get('notifications');
 
-        if ($query->where('status', 0)->get('notifications')->num_rows() > 0):
+        $unread_count = $this->db->where('to_user', $user_id)->where('status', 0)->get('notifications')->num_rows();
+
+        if ($unread_count > 0):
             $response['notification_icon_class'] = 'noti-icon-badge';
         else:
             $response['notification_icon_class'] = '';
         endif;
+        $response['unread_count'] = $unread_count;
+
+        // Count unread messages for sidebar badge
+        $this->db->where('receiver', $user_id);
+        $this->db->where('read_status !=', 1);
+        $response['unread_message_count'] = $this->db->get('message')->num_rows();
+
+        // Check if there is an unread message notification
+        $latest_msg = $this->db->where('to_user', $user_id)
+            ->where('status', 0)
+            ->where('type', 'message')
+            ->order_by('id', 'desc')
+            ->limit(1)
+            ->get('notifications')
+            ->row_array();
+
+        if ($latest_msg) {
+            $response['latest_message_notification'] = [
+                'id'          => (int)$latest_msg['id'],
+                'title'       => $latest_msg['title'],
+                'description' => $latest_msg['description'],
+                'created_at'  => $latest_msg['created_at'],
+            ];
+        } else {
+            $response['latest_message_notification'] = null;
+        }
+
         $response['rendered_view'] = $this->load->view('backend/header_notification', $page_data, true);
 
         echo json_encode($response);
@@ -3054,7 +4696,7 @@ class Admin extends CI_Controller
         $course_details    = $this->crud_model->get_course_by_id($course_id)->row_array();
         $multi_instructors = explode(',', $course_details['user_id']);
 
-        if (! in_array($this->session->userdata('user_id'), $multi_instructors)) {
+        if ($this->session->userdata('admin_login') != 1 && ! in_array($this->session->userdata('user_id'), $multi_instructors)) {
             return false;
         }
 
@@ -3678,62 +5320,102 @@ class Admin extends CI_Controller
         $this->load->view('backend/admin/course_enrol_list', $page_data);
     }
 
-    public function export_student_progress_csv($course_id)
+    public function export_student_progress_excel($course_id)
     {
-        // Get the enrolments for the given course
-        $enrolments = $this->db->where('course_id', $course_id)->get('enrol')->result_array();
-
-        // Initialize an array to hold the CSV data
-        $csv_data = '"ID","Enrolment ID","Student","Date Enrolled","Last Seen","Completed On","Progress","Completed Lessons","Watched Duration"' . "\n";
-
-        // Initialize incremental ID
-        $incremental_id = 1;
-
-        // Loop through each enrolment and fetch the relevant data
-        foreach ($enrolments as $enrolment) {
-            // Fetch student data
-            $student = $this->user_model->get_all_user($enrolment['user_id'])->row_array();
-
-            // Fetch watch history for the student
-            $watch_history = $this->db->where('course_id', $course_id)->where('student_id', $enrolment['user_id'])->get('watch_histories')->row_array();
-
-            // Handle completed lessons and course progress
-            $completed_lesson_arr = isset($watch_history['completed_lesson']) ? json_decode($watch_history['completed_lesson'], true) : [];
-            $completed_lesson     = is_array($completed_lesson_arr) ? count($completed_lesson_arr) : 0;
-            $course_progress      = isset($watch_history['course_progress']) ? $watch_history['course_progress'] : 0;
-
-            // Format dates in d-m-Y format
-            $enrollment_date = date('d-m-Y', $enrolment['date_added']);
-            $last_seen       = isset($watch_history['date_updated']) ? date('d-m-Y, H:i a', $watch_history['date_updated']) : 'Not started yet';
-            $completed_date  = isset($watch_history['completed_date']) ? date('d-m-Y', $watch_history['completed_date']) : 'Not completed yet';
-
-                                         // Get watched duration
-            $total_watched_duration = 0; // seconds
-            $watched_durations      = $this->db->get_where('watched_duration', ['watched_student_id' => $enrolment['user_id'], 'watched_course_id' => $course_id]);
-            foreach ($watched_durations->result_array() as $watched_duration) {
-                $total_watched_duration += count(json_decode($watched_duration['watched_counter'], true)) * 5;
-            }
-            $watched_duration = seconds_to_time_format($total_watched_duration);
-
-            // Prepare the data for the CSV row with Incremental ID
-            $csv_data .= '"' . $incremental_id . '",';
-            $csv_data .= '"' . $enrolment['id'] . '",';
-            $csv_data .= '"' . $student['first_name'] . ' ' . $student['last_name'] . '",';
-            $csv_data .= '"' . $enrollment_date . '",';
-            $csv_data .= '"' . $last_seen . '",';
-            $csv_data .= '"' . $completed_date . '",';
-            $csv_data .= '"' . $course_progress . '%",';
-            $csv_data .= '"' . $completed_lesson . ' out of 10",';
-            $csv_data .= '"' . $watched_duration . '"' . "\n";
-
-            // Increment the ID for the next row
-            $incremental_id++;
+        if ($this->session->userdata('admin_login') != 1) {
+            redirect(site_url('login'), 'refresh');
         }
 
-        // Set the headers to trigger a file download
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="pharmacist_progress.csv"');
-        echo $csv_data;
+        $progress_data = $this->crud_model->get_course_pharmacist_academic_progress_data($course_id);
+        if (!$progress_data) {
+            $this->session->set_flashdata('error_message', get_phrase('course_not_found'));
+            redirect(site_url('admin/courses'), 'refresh');
+        }
+
+        require_once APPPATH . 'libraries/SimpleXLSXGen.php';
+
+        $excel_data = [];
+        // Header with bold tags
+        $header_row = [];
+        foreach ($progress_data['headers'] as $header) {
+            $header_row[] = '<b>' . $header . '</b>';
+        }
+        $excel_data[] = $header_row;
+
+        // Data rows
+        foreach ($progress_data['rows'] as $row) {
+            $excel_data[] = [
+                $row['id'],
+                $row['name'],
+                $row['email'],
+                $row['enrollment_date'],
+                $row['last_seen'],
+                $row['completed_date'],
+                $row['course_progress'],
+                $row['completed_lessons'],
+                $row['watched_duration'],
+                $row['quiz_result'],
+                $row['score'],
+                $row['percentage'],
+                $row['pass_mark'],
+                $row['attempts'],
+                $row['quiz_details']
+            ];
+        }
+
+        $course_title = slugify($progress_data['course']['title']);
+        $filename = 'pharmacist_progress_' . $course_title . '_' . date('Y_m_d_His') . '.xlsx';
+
+        $xlsx = \Shuchkin\SimpleXLSXGen::fromArray($excel_data, 'Pharmacist Progress');
+        $xlsx->downloadAs($filename);
+        exit;
+    }
+
+    public function export_student_progress_csv($course_id)
+    {
+        if ($this->session->userdata('admin_login') != 1) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $progress_data = $this->crud_model->get_course_pharmacist_academic_progress_data($course_id);
+        if (!$progress_data) {
+            $this->session->set_flashdata('error_message', get_phrase('course_not_found'));
+            redirect(site_url('admin/courses'), 'refresh');
+        }
+
+        $course_title = slugify($progress_data['course']['title']);
+        $filename = 'pharmacist_progress_' . $course_title . '_' . date('Y_m_d_His') . '.csv';
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $output = fopen('php://output', 'w');
+        // UTF-8 BOM for proper Excel display of Unicode characters
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        fputcsv($output, $progress_data['headers']);
+
+        foreach ($progress_data['rows'] as $row) {
+            fputcsv($output, [
+                $row['id'],
+                $row['name'],
+                $row['email'],
+                $row['enrollment_date'],
+                $row['last_seen'],
+                $row['completed_date'],
+                $row['course_progress'],
+                $row['completed_lessons'],
+                $row['watched_duration'],
+                $row['quiz_result'],
+                $row['score'],
+                $row['percentage'],
+                $row['pass_mark'],
+                $row['attempts'],
+                $row['quiz_details']
+            ]);
+        }
+
+        fclose($output);
         exit;
     }
 
@@ -4697,24 +6379,24 @@ $developer_html
             $data['role_name']   = html_escape($this->input->post('role_name'));
             $data['description'] = html_escape($this->input->post('description'));
             $data['status']      = html_escape($this->input->post('status'));
-            $data['created_at']  = date('Y-m-d H:i:s');
-            $data['updated_at']  = date('Y-m-d H:i:s');
+            $data['created_at']  = time();
+            $data['updated_at']  = time();
             $this->db->insert('store_roles', $data);
-            $this->session->set_flashdata('flash_message', get_phrase('role_added_successfully'));
+            $this->session->set_flashdata('flash_message', get_phrase('store_role_added_successfully'));
             redirect(site_url('admin/store_roles'), 'refresh');
         } elseif ($param1 == "edit") {
             $data['role_name']   = html_escape($this->input->post('role_name'));
             $data['description'] = html_escape($this->input->post('description'));
             $data['status']      = html_escape($this->input->post('status'));
-            $data['updated_at']  = date('Y-m-d H:i:s');
+            $data['updated_at']  = time();
             $this->db->where('id', $param2);
             $this->db->update('store_roles', $data);
-            $this->session->set_flashdata('flash_message', get_phrase('role_updated_successfully'));
+            $this->session->set_flashdata('flash_message', get_phrase('store_role_updated_successfully'));
             redirect(site_url('admin/store_roles'), 'refresh');
         } elseif ($param1 == "delete") {
             $this->db->where('id', $param2);
             $this->db->delete('store_roles');
-            $this->session->set_flashdata('flash_message', get_phrase('role_deleted_successfully'));
+            $this->session->set_flashdata('flash_message', get_phrase('store_role_deleted_successfully'));
             redirect(site_url('admin/store_roles'), 'refresh');
         }
 
@@ -4743,6 +6425,66 @@ $developer_html
     }
 
     // ==========================================
+    // STORE CATEGORIES CRUD
+    // ==========================================
+    public function store_categories($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == "add") {
+            $data['category_name'] = html_escape($this->input->post('category_name'));
+            $data['code']          = html_escape(strtoupper($this->input->post('code')));
+            $data['description']   = html_escape($this->input->post('description'));
+            $data['status']        = html_escape($this->input->post('status'));
+            $data['created_at']    = time();
+            $data['updated_at']    = time();
+            $this->db->insert('store_categories', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('store_category_added_successfully'));
+            redirect(site_url('admin/store_categories'), 'refresh');
+        } elseif ($param1 == "edit") {
+            $data['category_name'] = html_escape($this->input->post('category_name'));
+            $data['code']          = html_escape(strtoupper($this->input->post('code')));
+            $data['description']   = html_escape($this->input->post('description'));
+            $data['status']        = html_escape($this->input->post('status'));
+            $data['updated_at']    = time();
+            $this->db->where('id', $param2);
+            $this->db->update('store_categories', $data);
+            $this->session->set_flashdata('flash_message', get_phrase('store_category_updated_successfully'));
+            redirect(site_url('admin/store_categories'), 'refresh');
+        } elseif ($param1 == "delete") {
+            $this->db->where('id', $param2);
+            $this->db->delete('store_categories');
+            $this->session->set_flashdata('flash_message', get_phrase('store_category_deleted_successfully'));
+            redirect(site_url('admin/store_categories'), 'refresh');
+        }
+
+        $page_data['categories'] = $this->db->order_by('id', 'desc')->get('store_categories')->result_array();
+        $page_data['page_name']  = 'store_categories';
+        $page_data['page_title'] = get_phrase('store_categories');
+        $this->load->view('backend/index', $page_data);
+    }
+
+    public function store_category_form($param1 = "", $param2 = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        if ($param1 == 'add_category_form' || $param1 == 'add') {
+            $page_data['page_name']  = 'store_category_add';
+            $page_data['page_title'] = get_phrase('add_store_category');
+            $this->load->view('backend/index', $page_data);
+        } elseif ($param1 == 'edit_category_form' || $param1 == 'edit') {
+            $page_data['page_name']     = 'store_category_edit';
+            $page_data['category_data'] = $this->db->get_where('store_categories', array('id' => $param2))->row_array();
+            $page_data['page_title']    = get_phrase('edit_store_category');
+            $this->load->view('backend/index', $page_data);
+        }
+    }
+
+    // ==========================================
     // STORES CRUD
     // ==========================================
     public function stores($param1 = "", $param2 = "")
@@ -4754,7 +6496,20 @@ $developer_html
         if ($param1 == "add") {
             $data['store_name']         = html_escape($this->input->post('store_name'));
             $data['store_code']         = html_escape($this->input->post('store_code'));
-            $data['phone']              = html_escape($this->input->post('phone'));
+            $data['category_id']        = $this->input->post('category_id') ? (int)$this->input->post('category_id') : null;
+            if (!empty($data['category_id'])) {
+                $cat = $this->db->get_where('store_categories', ['id' => $data['category_id']])->row_array();
+                $data['store_category'] = $cat ? $cat['category_name'] : '';
+            } else {
+                $data['store_category'] = html_escape($this->input->post('store_category'));
+            }
+            $data['zone']               = html_escape(strtoupper($this->input->post('zone')));
+            $data['contact_person']     = html_escape($this->input->post('contact_person'));
+            $data['live_date']          = html_escape($this->input->post('live_date'));
+            $phone                      = html_escape($this->input->post('phone'));
+            $mobile                     = html_escape($this->input->post('mobile'));
+            $data['phone']              = !empty($phone) ? $phone : $mobile;
+            $data['mobile']             = !empty($mobile) ? $mobile : $phone;
             $data['email']              = html_escape($this->input->post('email'));
             $data['portal_url']         = html_escape($this->input->post('portal_url'));
             $roles                      = $this->input->post('assigned_role_ids');
@@ -4764,15 +6519,28 @@ $developer_html
             $data['state']              = html_escape($this->input->post('state'));
             $data['pin_code']           = html_escape($this->input->post('pin_code'));
             $data['status']             = html_escape($this->input->post('status'));
-            $data['created_at']         = date('Y-m-d H:i:s');
-            $data['updated_at']         = date('Y-m-d H:i:s');
+            $data['created_at']         = time();
+            $data['updated_at']         = time();
             $this->db->insert('stores', $data);
             $this->session->set_flashdata('flash_message', get_phrase('store_added_successfully'));
             redirect(site_url('admin/stores'), 'refresh');
         } elseif ($param1 == "edit") {
             $data['store_name']         = html_escape($this->input->post('store_name'));
             $data['store_code']         = html_escape($this->input->post('store_code'));
-            $data['phone']              = html_escape($this->input->post('phone'));
+            $data['category_id']        = $this->input->post('category_id') ? (int)$this->input->post('category_id') : null;
+            if (!empty($data['category_id'])) {
+                $cat = $this->db->get_where('store_categories', ['id' => $data['category_id']])->row_array();
+                $data['store_category'] = $cat ? $cat['category_name'] : '';
+            } else {
+                $data['store_category'] = html_escape($this->input->post('store_category'));
+            }
+            $data['zone']               = html_escape(strtoupper($this->input->post('zone')));
+            $data['contact_person']     = html_escape($this->input->post('contact_person'));
+            $data['live_date']          = html_escape($this->input->post('live_date'));
+            $phone                      = html_escape($this->input->post('phone'));
+            $mobile                     = html_escape($this->input->post('mobile'));
+            $data['phone']              = !empty($phone) ? $phone : $mobile;
+            $data['mobile']             = !empty($mobile) ? $mobile : $phone;
             $data['email']              = html_escape($this->input->post('email'));
             $data['portal_url']         = html_escape($this->input->post('portal_url'));
             $roles                      = $this->input->post('assigned_role_ids');
@@ -4782,7 +6550,7 @@ $developer_html
             $data['state']              = html_escape($this->input->post('state'));
             $data['pin_code']           = html_escape($this->input->post('pin_code'));
             $data['status']             = html_escape($this->input->post('status'));
-            $data['updated_at']         = date('Y-m-d H:i:s');
+            $data['updated_at']         = time();
             $this->db->where('id', $param2);
             $this->db->update('stores', $data);
             $this->session->set_flashdata('flash_message', get_phrase('store_updated_successfully'));
@@ -4794,15 +6562,23 @@ $developer_html
             redirect(site_url('admin/stores'), 'refresh');
         }
 
-        $page_data['stores']    = $this->db->order_by('id', 'desc')->get('stores')->result_array();
-        $roles                  = $this->db->get('store_roles')->result_array();
-        $roles_map              = [];
+        $page_data['stores']        = $this->db->order_by('id', 'desc')->get('stores')->result_array();
+        $roles                      = $this->db->get('store_roles')->result_array();
+        $roles_map                  = [];
         foreach ($roles as $r) {
             $roles_map[$r['id']] = $r['role_name'];
         }
-        $page_data['roles_map']  = $roles_map;
-        $page_data['page_name']  = 'stores';
-        $page_data['page_title'] = get_phrase('stores');
+        $page_data['roles_map']     = $roles_map;
+
+        $categories                 = $this->db->get('store_categories')->result_array();
+        $categories_map             = [];
+        foreach ($categories as $c) {
+            $categories_map[$c['id']] = $c['category_name'];
+        }
+        $page_data['categories_map'] = $categories_map;
+
+        $page_data['page_name']      = 'stores';
+        $page_data['page_title']     = get_phrase('stores');
         $this->load->view('backend/index', $page_data);
     }
 
@@ -4812,16 +6588,18 @@ $developer_html
             redirect(site_url('login'), 'refresh');
         }
 
-        if ($param1 == 'add_store_form') {
-            $page_data['page_name']   = 'store_add';
-            $page_data['store_roles'] = $this->db->where('status', 1)->get('store_roles')->result_array();
-            $page_data['page_title']  = get_phrase('add_new_store');
+        if ($param1 == 'add_store_form' || $param1 == 'add') {
+            $page_data['page_name']        = 'store_add';
+            $page_data['store_roles']      = $this->db->where('status', 1)->get('store_roles')->result_array();
+            $page_data['store_categories'] = $this->db->where('status', 1)->get('store_categories')->result_array();
+            $page_data['page_title']       = get_phrase('add_new_store');
             $this->load->view('backend/index', $page_data);
-        } elseif ($param1 == 'edit_store_form') {
-            $page_data['page_name']   = 'store_edit';
-            $page_data['store_data']  = $this->db->get_where('stores', array('id' => $param2))->row_array();
-            $page_data['store_roles'] = $this->db->where('status', 1)->get('store_roles')->result_array();
-            $page_data['page_title']  = get_phrase('edit_store');
+        } elseif ($param1 == 'edit_store_form' || $param1 == 'edit') {
+            $page_data['page_name']        = 'store_edit';
+            $page_data['store_data']       = $this->db->get_where('stores', array('id' => $param2))->row_array();
+            $page_data['store_roles']      = $this->db->where('status', 1)->get('store_roles')->result_array();
+            $page_data['store_categories'] = $this->db->where('status', 1)->get('store_categories')->result_array();
+            $page_data['page_title']       = get_phrase('edit_store');
             $this->load->view('backend/index', $page_data);
         }
     }
@@ -4836,33 +6614,112 @@ $developer_html
         }
 
         if ($param1 == "add") {
-            $data['store_id']      = html_escape($this->input->post('store_id'));
+            $store_id = html_escape($this->input->post('store_id'));
+            $role_id  = html_escape($this->input->post('role_id'));
+            $username = trim($this->input->post('username'));
+            $password = trim($this->input->post('password'));
+
+            if (empty($store_id)) {
+                $this->session->set_flashdata('error_message', get_phrase('store_is_mandatory'));
+                redirect(site_url('admin/store_user_form/add_store_user_form'), 'refresh');
+            }
+
+            if (empty($role_id)) {
+                $this->session->set_flashdata('error_message', get_phrase('role_is_mandatory_please_select_a_role'));
+                redirect(site_url('admin/store_user_form/add_store_user_form'), 'refresh');
+            }
+
+            if (empty($username) || empty($password)) {
+                $this->session->set_flashdata('error_message', get_phrase('username_and_password_are_required'));
+                redirect(site_url('admin/store_user_form/add_store_user_form'), 'refresh');
+            }
+
+            // Ensure role_title is properly populated
+            $role_row = $this->db->get_where('store_roles', array('id' => $role_id))->row_array();
+            $role_title = $role_row ? $role_row['role_name'] : html_escape($this->input->post('role_title'));
+
+            $data['store_id']      = $store_id;
             $data['pharmacist_id'] = $this->input->post('pharmacist_id') ? html_escape($this->input->post('pharmacist_id')) : null;
-            $data['role_id']       = html_escape($this->input->post('role_id'));
-            $data['role_title']    = html_escape($this->input->post('role_title'));
-            $data['username']      = html_escape($this->input->post('username'));
-            $data['password']      = html_escape($this->input->post('password'));
-            $data['portal_link']   = html_escape($this->input->post('portal_link'));
+            $data['role_id']       = $role_id;
+            $data['role_title']    = $role_title;
+            $data['designation']   = html_escape($this->input->post('designation'));
+            $data['username']      = html_escape($username);
+            $data['password']      = html_escape($password);
+
+            $portal_link           = trim($this->input->post('portal_link'));
+            if (empty($portal_link) && !empty($data['store_id'])) {
+                $store = $this->db->get_where('stores', array('id' => $data['store_id']))->row_array();
+                if (!empty($store['portal_url'])) {
+                    $portal_link = $store['portal_url'];
+                }
+            }
+            $data['portal_link']   = html_escape($portal_link);
+
             $data['notes']         = html_escape($this->input->post('notes'));
             $data['status']        = html_escape($this->input->post('status'));
-            $data['created_at']    = date('Y-m-d H:i:s');
-            $data['updated_at']    = date('Y-m-d H:i:s');
+            $data['created_at']    = time();
+            $data['updated_at']    = time();
             $this->db->insert('store_users', $data);
+            if (!empty($data['pharmacist_id']) && !empty($data['password'])) {
+                $this->db->where('id', $data['pharmacist_id'])->update('users', [
+                    'password'       => sha1($data['password']),
+                    'plain_password' => $data['password']
+                ]);
+            }
             $this->session->set_flashdata('flash_message', get_phrase('store_user_added_successfully'));
             redirect(site_url('admin/store_users'), 'refresh');
         } elseif ($param1 == "edit") {
-            $data['store_id']      = html_escape($this->input->post('store_id'));
+            $store_id = html_escape($this->input->post('store_id'));
+            $role_id  = html_escape($this->input->post('role_id'));
+            $username = trim($this->input->post('username'));
+            $password = trim($this->input->post('password'));
+
+            if (empty($store_id)) {
+                $this->session->set_flashdata('error_message', get_phrase('store_is_mandatory'));
+                redirect(site_url('admin/store_user_form/edit_store_user_form/' . $param2), 'refresh');
+            }
+
+            if (empty($role_id)) {
+                $this->session->set_flashdata('error_message', get_phrase('role_is_mandatory_please_select_a_role'));
+                redirect(site_url('admin/store_user_form/edit_store_user_form/' . $param2), 'refresh');
+            }
+
+            if (empty($username) || empty($password)) {
+                $this->session->set_flashdata('error_message', get_phrase('username_and_password_are_required'));
+                redirect(site_url('admin/store_user_form/edit_store_user_form/' . $param2), 'refresh');
+            }
+
+            $role_row = $this->db->get_where('store_roles', array('id' => $role_id))->row_array();
+            $role_title = $role_row ? $role_row['role_name'] : html_escape($this->input->post('role_title'));
+
+            $data['store_id']      = $store_id;
             $data['pharmacist_id'] = $this->input->post('pharmacist_id') ? html_escape($this->input->post('pharmacist_id')) : null;
-            $data['role_id']       = html_escape($this->input->post('role_id'));
-            $data['role_title']    = html_escape($this->input->post('role_title'));
-            $data['username']      = html_escape($this->input->post('username'));
-            $data['password']      = html_escape($this->input->post('password'));
-            $data['portal_link']   = html_escape($this->input->post('portal_link'));
+            $data['role_id']       = $role_id;
+            $data['role_title']    = $role_title;
+            $data['designation']   = html_escape($this->input->post('designation'));
+            $data['username']      = html_escape($username);
+            $data['password']      = html_escape($password);
+
+            $portal_link           = trim($this->input->post('portal_link'));
+            if (empty($portal_link) && !empty($data['store_id'])) {
+                $store = $this->db->get_where('stores', array('id' => $data['store_id']))->row_array();
+                if (!empty($store['portal_url'])) {
+                    $portal_link = $store['portal_url'];
+                }
+            }
+            $data['portal_link']   = html_escape($portal_link);
+
             $data['notes']         = html_escape($this->input->post('notes'));
             $data['status']        = html_escape($this->input->post('status'));
-            $data['updated_at']    = date('Y-m-d H:i:s');
+            $data['updated_at']    = time();
             $this->db->where('id', $param2);
             $this->db->update('store_users', $data);
+            if (!empty($data['pharmacist_id']) && !empty($data['password'])) {
+                $this->db->where('id', $data['pharmacist_id'])->update('users', [
+                    'password'       => sha1($data['password']),
+                    'plain_password' => $data['password']
+                ]);
+            }
             $this->session->set_flashdata('flash_message', get_phrase('store_user_updated_successfully'));
             redirect(site_url('admin/store_users'), 'refresh');
         } elseif ($param1 == "delete") {
@@ -4872,13 +6729,16 @@ $developer_html
             redirect(site_url('admin/store_users'), 'refresh');
         }
 
-        $this->db->select('store_users.*, stores.store_name, stores.store_code, users.first_name, users.last_name, users.email as pharmacist_email');
+        $this->db->select('store_users.*, stores.store_name, stores.store_code, stores.portal_url as store_portal_url, users.first_name, users.last_name, users.email as pharmacist_email');
         $this->db->from('store_users');
         $this->db->join('stores', 'stores.id = store_users.store_id', 'left');
         $this->db->join('users', 'users.id = store_users.pharmacist_id', 'left');
         $this->db->order_by('store_users.id', 'desc');
         $store_users = $this->db->get()->result_array();
         foreach ($store_users as &$su) {
+            if (empty($su['portal_link']) && !empty($su['store_portal_url'])) {
+                $su['portal_link'] = $su['store_portal_url'];
+            }
             if (!empty($su['first_name'])) {
                 $su['pharmacist_name'] = $su['first_name'] . ' ' . $su['last_name'];
             }
@@ -4904,7 +6764,6 @@ $developer_html
         } elseif ($param1 == 'edit_store_user_form') {
             $page_data['page_name']   = 'store_user_edit';
             $store_user               = $this->db->get_where('store_users', array('id' => $param2))->row_array();
-            $page_data['store_user']  = $store_user;
             $page_data['stores']      = $this->db->where('status', 1)->get('stores')->result_array();
             $page_data['pharmacists'] = $this->db->where('role_id', 2)->where('status', 1)->get('users')->result_array();
 
@@ -4912,15 +6771,21 @@ $developer_html
             $assigned_roles = [];
             if (!empty($store_user['store_id'])) {
                 $store = $this->db->get_where('stores', array('id' => $store_user['store_id']))->row_array();
-                if ($store && !empty($store['assigned_role_ids'])) {
-                    $role_ids = json_decode($store['assigned_role_ids'], true);
-                    if (!empty($role_ids)) {
-                        $this->db->where_in('id', $role_ids);
-                        $this->db->where('status', 1);
-                        $assigned_roles = $this->db->get('store_roles')->result_array();
+                if ($store) {
+                    if (empty($store_user['portal_link']) && !empty($store['portal_url'])) {
+                        $store_user['portal_link'] = $store['portal_url'];
+                    }
+                    if (!empty($store['assigned_role_ids'])) {
+                        $role_ids = json_decode($store['assigned_role_ids'], true);
+                        if (!empty($role_ids)) {
+                            $this->db->where_in('id', $role_ids);
+                            $this->db->where('status', 1);
+                            $assigned_roles = $this->db->get('store_roles')->result_array();
+                        }
                     }
                 }
             }
+            $page_data['store_user']  = $store_user;
             $page_data['store_roles'] = $assigned_roles;
             $page_data['page_title']  = get_phrase('edit_store_user');
             $this->load->view('backend/index', $page_data);
@@ -4963,17 +6828,25 @@ $developer_html
 
         if ($type == 'pharmacists') {
             $filename = "pharmacists_sample_template.csv";
-            $headers = ['first_name', 'last_name', 'email', 'password', 'employee_id', 'gender', 'phone', 'licence_no', 'licence_start_date', 'address', 'store_code', 'status'];
+            $headers = ['First Name', 'Last Name', 'Email', 'Password', 'EMP ID', 'Gender', 'State', 'Pharmacy Name', 'Phone No.', 'Licence No.', 'Licence Start Date', 'Licence End Date', 'Address', 'Store Code', 'Designation', 'Region', 'Status'];
             $sample_rows = [
-                ['John', 'Doe', 'john.doe@example.com', 'Pass@1234', 'EMP-001', 'Male', '9876543210', 'LIC-100234', '2024-01-15', '123 Main St, New York', 'STR-001', '1'],
-                ['Jane', 'Smith', 'jane.smith@example.com', '', 'EMP-002', 'Female', '9876543211', 'LIC-100235', '2024-03-01', '456 High St, Boston', 'STR-002', '1']
+                ['shakuntala', 'pal', 'shakuntala.pal@davaindia.co.in', 'sIf2PmA3', 'DHL04112', 'Female', 'Chhattisgarh', 'GAR NIGAM COLONY', '9691564424', 'LIC-100234', '2024-01-15', '2027-01-15', 'Near Market, Raipur', 'CCGRAI10', 'M. Pharm', 'West', '1'],
+                ['Janki', 'verma', 'janki.verma@davaindia.co.in', 'A7mWkNc8', 'DHL09281', 'Female', 'Chhattisgarh', 'Dava india tikrapara', '9131672749', '', '', '', '', 'CCGRAI11', 'B. Pharm', 'West', '1']
             ];
         } elseif ($type == 'stores') {
             $filename = "stores_sample_template.csv";
-            $headers = ['store_name', 'store_code', 'phone', 'email', 'portal_url', 'assigned_roles', 'address', 'city', 'state', 'pin_code', 'status'];
+            $headers = ['Store Code', 'Email', 'State', 'Zone', 'Store Category', 'Mobile', 'Store Name', 'Store Contact Person', 'Store Live Date', 'Address', 'City', 'Pin Code', 'Portal URL', 'Status'];
             $sample_rows = [
-                ['Apollo Pharmacy - Downtown', 'STR-001', '9876543210', 'apollo.downtown@example.com', 'https://store1.domain.com/login', 'Senior Pharmacist, Cashier, Dispenser', '123 Downtown Ave', 'New York', 'NY', '10001', '1'],
-                ['HealthPlus Pharmacy - Uptown', 'STR-002', '9876543211', 'healthplus.uptown@example.com', 'https://store2.domain.com/login', 'Pharmacist, Store Manager', '789 Uptown Blvd', 'Boston', 'MA', '02108', '1']
+                ['CASBAK1750', 'howlyroad1750@davaindia.co.in', 'ASSAM', 'EAST', 'DAVAINDIA COCO', '6358818453', 'PATHSALA', 'SHAHINUR ISLAM', '19-02-2025', 'LY ROAD, PO- PATHSALA, PS- PATHSALA, Dist. BAJALI', 'Barpeta', '781325', 'https://store1.domain.com/login', '1'],
+                ['STR-002', 'healthplus.uptown@example.com', 'MA', 'NORTH', 'DAVAINDIA FOFO', '9876543211', 'HealthPlus Pharmacy', 'John Doe', '01-01-2025', '789 Uptown Blvd', 'Boston', '02108', 'https://store2.domain.com/login', '1']
+            ];
+        } elseif ($type == 'store_categories' || $type == 'categories') {
+            $filename = "store_categories_sample_template.csv";
+            $headers = ['category_name', 'code', 'description', 'status'];
+            $sample_rows = [
+                ['DAVAINDIA COCO', 'COCO', 'Company Owned Company Operated', '1'],
+                ['DAVAINDIA FOFO', 'FOFO', 'Franchise Owned Franchise Operated', '1'],
+                ['RETAIL PHARMACY', 'RETAIL', 'Retail pharmacy store', '1']
             ];
         } elseif ($type == 'roles') {
             $filename = "roles_sample_template.csv";
@@ -4985,10 +6858,10 @@ $developer_html
             ];
         } elseif ($type == 'store_users') {
             $filename = "store_users_sample_template.csv";
-            $headers = ['store_code', 'role_name', 'pharmacist_email', 'username', 'password', 'portal_link', 'notes', 'status'];
+            $headers = ['store_code', 'role_name', 'designation', 'pharmacist_email', 'username', 'password', 'portal_link', 'notes', 'status'];
             $sample_rows = [
-                ['STR-001', 'Senior Pharmacist', 'john.doe@example.com', 'john.apollo', 'Pass123!', '', 'Assigned to Apollo downtown', '1'],
-                ['STR-002', 'Cashier', 'jane.smith@example.com', 'jane.healthplus', '', '', 'Assigned to HealthPlus', '1']
+                ['STR-001', 'Senior Pharmacist', 'M. Pharm', 'john.doe@example.com', 'john.apollo', 'Pass123!', '', 'Assigned to Apollo downtown', '1'],
+                ['STR-002', 'Cashier', 'B. Pharm', 'jane.smith@example.com', 'jane.healthplus', '', '', 'Assigned to HealthPlus', '1']
             ];
         } elseif ($type == 'instructors' || $type == 'instructor') {
             $filename = "instructors_sample_template.csv";
@@ -5053,26 +6926,67 @@ $developer_html
                 }
 
                 $sheetXml = $zip->getFromName("xl/worksheets/sheet1.xml");
+                if (!$sheetXml) {
+                    $sheetXml = $zip->getFromName("xl/worksheets/Sheet1.xml");
+                }
+                if (!$sheetXml) {
+                    for ($zi = 0; $zi < $zip->numFiles; $zi++) {
+                        $stat = $zip->statIndex($zi);
+                        if (preg_match('#^xl/worksheets/sheet[0-9]+\.xml$#i', $stat['name'])) {
+                            $sheetXml = $zip->getFromIndex($zi);
+                            break;
+                        }
+                    }
+                }
                 if ($sheetXml) {
                     $xml = simplexml_load_string($sheetXml);
                     if ($xml && isset($xml->sheetData->row)) {
                         foreach ($xml->sheetData->row as $row) {
                             $rowData = [];
+                            $maxCol = 0;
+                            $seqIdx = 0;
                             foreach ($row->c as $c) {
+                                $cellRef = isset($c['r']) ? (string)$c['r'] : '';
+                                if (!empty($cellRef)) {
+                                    $colLetters = preg_replace('/[0-9]/', '', $cellRef);
+                                    $colIdx = 0;
+                                    for ($ci = 0; $ci < strlen($colLetters); $ci++) {
+                                        $colIdx = $colIdx * 26 + (ord($colLetters[$ci]) - 64);
+                                    }
+                                    $colIdx = $colIdx - 1;
+                                } else {
+                                    $colIdx = $seqIdx;
+                                }
+                                $seqIdx = $colIdx + 1;
+
                                 $val = "";
                                 $type = (string)$c["t"];
                                 if ($type === "s") {
                                     $idx = (int)$c->v;
                                     $val = isset($sharedStrings[$idx]) ? $sharedStrings[$idx] : "";
                                 } elseif ($type === "inlineStr") {
-                                    $val = (string)$c->is->t;
+                                    $val = "";
+                                    if (isset($c->is->t)) {
+                                        $val = (string)$c->is->t;
+                                    } elseif (isset($c->is->r)) {
+                                        foreach ($c->is->r as $r) {
+                                            $val .= (string)$r->t;
+                                        }
+                                    }
                                 } else {
                                     $val = isset($c->v) ? (string)$c->v : "";
                                 }
-                                $rowData[] = trim($val);
+                                $rowData[$colIdx] = trim($val);
+                                if ($colIdx > $maxCol) {
+                                    $maxCol = $colIdx;
+                                }
                             }
-                            if (!empty(array_filter($rowData, 'strlen'))) {
-                                $rows[] = $rowData;
+                            $completeRow = [];
+                            for ($col = 0; $col <= $maxCol; $col++) {
+                                $completeRow[$col] = isset($rowData[$col]) ? $rowData[$col] : "";
+                            }
+                            if (!empty(array_filter($completeRow, 'strlen'))) {
+                                $rows[] = $completeRow;
                             }
                         }
                     }
@@ -5113,6 +7027,11 @@ $developer_html
             }
         }
 
+        // Skip leading rows that have fewer than 2 non-empty values (e.g. single-cell title/banner rows)
+        while (!empty($rows) && count(array_filter($rows[0], 'strlen')) < 2) {
+            array_shift($rows);
+        }
+
         if (empty($rows) || count($rows) < 2) {
             return [];
         }
@@ -5121,7 +7040,7 @@ $developer_html
         $rawHeaders = array_shift($rows);
         $headers = [];
         foreach ($rawHeaders as $h) {
-            $clean = strtolower(trim($h));
+            $clean = strtolower(trim((string)$h));
             $clean = preg_replace('/[^a-z0-9_]/', '_', $clean);
             $clean = preg_replace('/_+/', '_', $clean);
             $clean = trim($clean, '_');
@@ -5132,7 +7051,7 @@ $developer_html
         foreach ($rows as $row) {
             $item = [];
             foreach ($headers as $idx => $header) {
-                $item[$header] = isset($row[$idx]) ? trim($row[$idx]) : "";
+                $item[$header] = isset($row[$idx]) ? trim((string)$row[$idx]) : "";
             }
             $assocRows[] = $item;
         }
@@ -5142,72 +7061,400 @@ $developer_html
 
     private function import_pharmacists($rows)
     {
+        $this->user_model->ensure_pharmacist_columns();
         $success = 0;
         $skipped = 0;
         $errors = [];
 
         foreach ($rows as $index => $row) {
             $line = $index + 2;
-            $email = isset($row['email']) ? trim($row['email']) : '';
-            $first_name = isset($row['first_name']) ? trim($row['first_name']) : '';
-            $last_name = isset($row['last_name']) ? trim($row['last_name']) : '';
 
-            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $skipped++;
-                $errors[] = "Row {$line}: Invalid or missing email ('{$email}')";
-                continue;
+            // First name & Last name (Last Name is optional)
+            $first_name = !empty($row['first_name']) ? trim($row['first_name']) : (!empty($row['firstname']) ? trim($row['firstname']) : '');
+            $last_name  = !empty($row['last_name']) ? trim($row['last_name']) : (!empty($row['lastname']) ? trim($row['lastname']) : '');
+            $raw_email  = isset($row['email']) ? trim($row['email']) : '';
+
+            // Clean & sanitize email (Email is optional)
+            $email = '';
+            if (!empty($raw_email) && $raw_email !== '-' && $raw_email !== '0') {
+                $clean_email = preg_replace('/[^\x20-\x7E]/', '', $raw_email);
+                if (strpos($clean_email, '/') !== false) {
+                    $parts = explode('/', $clean_email);
+                    $clean_email = trim($parts[0]);
+                }
+                if (strpos($clean_email, ',') !== false) {
+                    $parts = explode(',', $clean_email);
+                    $clean_email = trim($parts[0]);
+                }
+                $clean_email = rtrim($clean_email, ',');
+                $clean_email = preg_replace('/\s+com$/i', '.com', $clean_email);
+                $clean_email = preg_replace('/@gmal\./i', '@gmail.', $clean_email);
+                $clean_email = trim($clean_email);
+                if (filter_var($clean_email, FILTER_VALIDATE_EMAIL)) {
+                    $email = $clean_email;
+                } else {
+                    $email = (strpos($clean_email, '@') !== false) ? $clean_email : '';
+                }
             }
 
+            // Fallback for first name if empty
             if (empty($first_name)) {
-                $skipped++;
-                $errors[] = "Row {$line}: Missing first name";
-                continue;
+                $first_name = 'Pharmacist';
             }
 
-            // Check duplicate email
-            $exists = $this->db->get_where('users', ['email' => $email])->num_rows();
-            if ($exists > 0) {
-                $skipped++;
-                $errors[] = "Row {$line}: Email '{$email}' already exists";
-                continue;
+            $raw_password = isset($row['password']) ? trim($row['password']) : '';
+            $password     = !empty($raw_password) ? $raw_password : '12345678';
+
+            // Employee ID (supports EMP ID, employee_id, empid)
+            $employee_id = '';
+            if (!empty($row['emp_id'])) {
+                $employee_id = trim($row['emp_id']);
+            } elseif (!empty($row['employee_id'])) {
+                $employee_id = trim($row['employee_id']);
+            } elseif (!empty($row['empid'])) {
+                $employee_id = trim($row['empid']);
             }
 
-            $password = !empty($row['password']) ? trim($row['password']) : '12345678';
+            // Gender
+            $gender = isset($row['gender']) ? trim($row['gender']) : '';
 
-            $store_id = null;
+            // State
+            $state = isset($row['state']) ? trim($row['state']) : '';
+
+            // Pharmacy Name
+            $pharmacy_name = '';
+            if (!empty($row['pharmacy_name'])) {
+                $pharmacy_name = trim($row['pharmacy_name']);
+            } elseif (!empty($row['pharmacy'])) {
+                $pharmacy_name = trim($row['pharmacy']);
+            }
+
+            // Phone No. (supports Phone No., phone, mobile, contact)
+            $phone = '';
+            if (!empty($row['phone_no'])) {
+                $phone = trim($row['phone_no']);
+            } elseif (!empty($row['phone'])) {
+                $phone = trim($row['phone']);
+            } elseif (!empty($row['mobile'])) {
+                $phone = trim($row['mobile']);
+            } elseif (!empty($row['contact'])) {
+                $phone = trim($row['contact']);
+            }
+
+            // Licence No.
+            $licence_no = '';
+            if (!empty($row['licence_no'])) {
+                $licence_no = trim($row['licence_no']);
+            } elseif (!empty($row['license_no'])) {
+                $licence_no = trim($row['license_no']);
+            } elseif (!empty($row['licence'])) {
+                $licence_no = trim($row['licence']);
+            }
+
+            // Date normalizer helper
+            $normalize_date = function($d_val) {
+                $d_val = trim((string)$d_val);
+                if (empty($d_val)) return '';
+                if (is_numeric($d_val) && (int)$d_val > 30000 && (int)$d_val < 60000) {
+                    $unix_time = ($d_val - 25569) * 86400;
+                    return date('Y-m-d', $unix_time);
+                }
+                foreach (['d-m-Y', 'd/m/Y', 'Y-m-d', 'm/d/Y', 'd.m.Y'] as $fmt) {
+                    $d = DateTime::createFromFormat($fmt, $d_val);
+                    if ($d && $d->format($fmt) === $d_val) {
+                        return $d->format('Y-m-d');
+                    }
+                }
+                return $d_val;
+            };
+
+            // Licence Start Date & End Date
+            $licence_start_date = '';
+            if (!empty($row['licence_start_date'])) {
+                $licence_start_date = $normalize_date($row['licence_start_date']);
+            } elseif (!empty($row['license_start_date'])) {
+                $licence_start_date = $normalize_date($row['license_start_date']);
+            }
+
+            $licence_end_date = '';
+            if (!empty($row['licence_end_date'])) {
+                $licence_end_date = $normalize_date($row['licence_end_date']);
+            } elseif (!empty($row['license_end_date'])) {
+                $licence_end_date = $normalize_date($row['license_end_date']);
+            }
+
+            // Address
+            $address = isset($row['address']) ? trim($row['address']) : '';
+
+            // Store Code
+            $store_code = '';
             if (!empty($row['store_code'])) {
+                $store_code = trim($row['store_code']);
+            } elseif (!empty($row['store'])) {
+                $store_code = trim($row['store']);
+            }
+
+            // Designation
+            $designation = '';
+            if (!empty($row['designation'])) {
+                $designation = trim($row['designation']);
+            } elseif (!empty($row['title'])) {
+                $designation = trim($row['title']);
+            }
+
+            // Region
+            $region = '';
+            if (!empty($row['region'])) {
+                $region = trim($row['region']);
+            } elseif (!empty($row['zone'])) {
+                $region = trim($row['zone']);
+            }
+
+            // Status
+            $status = isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1;
+
+            // Resolve or link store
+            $store_id = null;
+            if (!empty($store_code)) {
                 $store = $this->db->group_start()
-                    ->where('store_code', trim($row['store_code']))
-                    ->or_where('store_name', trim($row['store_code']))
+                    ->where('store_code', $store_code)
+                    ->or_where('store_name', $store_code)
                     ->group_end()
                     ->get('stores')->row_array();
                 if ($store) {
                     $store_id = $store['id'];
+                    if (empty($pharmacy_name) && !empty($store['store_name'])) {
+                        $pharmacy_name = $store['store_name'];
+                    }
+                    if (empty($state) && !empty($store['state'])) {
+                        $state = $store['state'];
+                    }
+                    if (empty($region) && !empty($store['zone'])) {
+                        $region = $store['zone'];
+                    }
                 }
             }
 
-            $user_data = [
-                'first_name'         => html_escape($first_name),
-                'last_name'          => html_escape($last_name),
-                'email'              => html_escape($email),
-                'password'           => sha1($password),
-                'employee_id'        => isset($row['employee_id']) ? html_escape(trim($row['employee_id'])) : '',
-                'gender'             => isset($row['gender']) ? html_escape(trim($row['gender'])) : '',
-                'phone'              => isset($row['phone']) ? html_escape(trim($row['phone'])) : '',
-                'licence_no'         => isset($row['licence_no']) ? html_escape(trim($row['licence_no'])) : '',
-                'licence_start_date' => isset($row['licence_start_date']) ? html_escape(trim($row['licence_start_date'])) : '',
-                'address'            => isset($row['address']) ? html_escape(trim($row['address'])) : '',
-                'store_id'           => $store_id,
-                'role_id'            => 2,
-                'status'             => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
-                'date_added'         => time(),
-                'social_links'       => json_encode(['facebook' => '', 'twitter' => '', 'linkedin' => '']),
-                'wishlist'           => json_encode([]),
-                'image'              => md5(rand(10000, 10000000))
-            ];
+            if (!$store_id && !empty($pharmacy_name)) {
+                $store = $this->db->get_where('stores', ['store_name' => $pharmacy_name])->row_array();
+                if ($store) {
+                    $store_id = $store['id'];
+                    if (empty($store_code) && !empty($store['store_code'])) {
+                        $store_code = $store['store_code'];
+                    }
+                }
+            }
 
-            $this->db->insert('users', $user_data);
-            $success++;
+            // If store doesn't exist yet, auto-create it so pharmacist is linked to a valid store
+            if (!$store_id && (!empty($store_code) || !empty($pharmacy_name))) {
+                $new_store_name = !empty($pharmacy_name) ? $pharmacy_name : $store_code;
+                $new_store = [
+                    'store_name'        => html_escape($new_store_name),
+                    'store_code'        => html_escape(!empty($store_code) ? $store_code : strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $new_store_name), 0, 10))),
+                    'state'             => html_escape($state),
+                    'zone'              => html_escape(strtoupper($region)),
+                    'status'            => 1,
+                    'created_at'        => time(),
+                    'updated_at'        => time(),
+                    'assigned_role_ids' => json_encode([])
+                ];
+                $this->db->insert('stores', $new_store);
+                $store_id = $this->db->insert_id();
+            }
+
+            // Check if user already exists (only match by non-empty valid email, or by distinct employee_id)
+            $existing_user = null;
+            if (!empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $existing_user = $this->db->get_where('users', ['email' => $email, 'role_id' => 2])->row_array();
+            } elseif (!empty($employee_id) && strtoupper($employee_id) !== 'DHL' && strtoupper($employee_id) !== 'PENDING') {
+                $existing_user = $this->db->get_where('users', ['employee_id' => $employee_id, 'role_id' => 2])->row_array();
+            }
+            $pharmacist_id = null;
+            if ($existing_user) {
+                // Update existing pharmacist with updated details and new columns
+                $update_data = [
+                    'first_name'         => html_escape($first_name),
+                    'last_name'          => html_escape($last_name),
+                    'employee_id'        => html_escape($employee_id),
+                    'gender'             => html_escape($gender),
+                    'state'              => html_escape($state),
+                    'pharmacy_name'      => html_escape($pharmacy_name),
+                    'phone'              => html_escape($phone),
+                    'licence_no'         => html_escape($licence_no),
+                    'licence_start_date' => html_escape($licence_start_date),
+                    'licence_end_date'   => html_escape($licence_end_date),
+                    'address'            => html_escape($address),
+                    'designation'        => html_escape($designation),
+                    'region'             => html_escape($region),
+                    'status'             => $status,
+                    'last_modified'      => time()
+                ];
+                if (!empty($designation)) {
+                    $update_data['title'] = html_escape($designation);
+                }
+                if ($store_id) {
+                    $update_data['store_id'] = $store_id;
+                }
+                if (!empty($raw_password)) {
+                    $update_data['password'] = sha1($raw_password);
+                    $update_data['plain_password'] = $raw_password;
+                }
+                $this->db->where('id', $existing_user['id'])->update('users', $update_data);
+                $pharmacist_id = $existing_user['id'];
+                $success++;
+            } else {
+                // Insert new pharmacist
+                $user_data = [
+                    'first_name'         => html_escape($first_name),
+                    'last_name'          => html_escape($last_name),
+                    'email'              => html_escape($email),
+                    'password'           => sha1($password),
+                    'plain_password'     => $password,
+                    'employee_id'        => html_escape($employee_id),
+                    'gender'             => html_escape($gender),
+                    'state'              => html_escape($state),
+                    'pharmacy_name'      => html_escape($pharmacy_name),
+                    'phone'              => html_escape($phone),
+                    'licence_no'         => html_escape($licence_no),
+                    'licence_start_date' => html_escape($licence_start_date),
+                    'licence_end_date'   => html_escape($licence_end_date),
+                    'address'            => html_escape($address),
+                    'designation'        => html_escape($designation),
+                    'title'              => html_escape($designation),
+                    'region'             => html_escape($region),
+                    'store_id'           => $store_id,
+                    'role_id'            => 2,
+                    'status'             => $status,
+                    'date_added'         => time(),
+                    'social_links'       => json_encode(['facebook' => '', 'twitter' => '', 'linkedin' => '']),
+                    'wishlist'           => json_encode([]),
+                    'image'              => md5(rand(10000, 10000000))
+                ];
+
+                $this->db->insert('users', $user_data);
+                $pharmacist_id = $this->db->insert_id();
+                $success++;
+            }
+
+            // Assign roles to stores whose store_code matches pharmacist store_code,
+            // and add / update designation in store_users
+            $clean_designation = trim((string)$designation);
+            $role_id = null;
+            $role_title = !empty($clean_designation) ? $clean_designation : 'Pharmacist';
+
+            if (!empty($clean_designation)) {
+                // Check if role exists in store_roles (case-insensitive)
+                $role = $this->db->where('LOWER(TRIM(role_name))', strtolower($clean_designation))->get('store_roles')->row_array();
+                if (!$role) {
+                    $new_role = [
+                        'role_name'   => html_escape($clean_designation),
+                        'description' => 'Auto-created role for designation ' . $clean_designation,
+                        'status'      => 1,
+                        'created_at'  => time(),
+                        'updated_at'  => time()
+                    ];
+                    $this->db->insert('store_roles', $new_role);
+                    $role_id = $this->db->insert_id();
+                    $role_title = $clean_designation;
+                } else {
+                    $role_id = $role['id'];
+                    $role_title = $role['role_name'];
+                }
+            }
+
+            // Assign this role to all stores whose store_code matches pharmacist store_code
+            if (!empty($role_id)) {
+                $target_stores = [];
+                if (!empty($store_code)) {
+                    $found = $this->db->group_start()
+                        ->where('LOWER(TRIM(store_code))', strtolower(trim($store_code)))
+                        ->or_where('LOWER(TRIM(store_name))', strtolower(trim($store_code)))
+                        ->group_end()
+                        ->get('stores')->result_array();
+                    foreach ($found as $f) {
+                        $target_stores[$f['id']] = $f;
+                    }
+                }
+                if ($store_id && !isset($target_stores[$store_id])) {
+                    $f = $this->db->get_where('stores', ['id' => $store_id])->row_array();
+                    if ($f) {
+                        $target_stores[$f['id']] = $f;
+                    }
+                }
+
+                foreach ($target_stores as $ts) {
+                    $assigned_roles = json_decode($ts['assigned_role_ids'] ?: '[]', true);
+                    if (!is_array($assigned_roles)) {
+                        $assigned_roles = [];
+                    }
+                    if (!in_array((string)$role_id, $assigned_roles)) {
+                        $assigned_roles[] = (string)$role_id;
+                        $this->db->where('id', $ts['id'])->update('stores', [
+                            'assigned_role_ids' => json_encode(array_values(array_unique($assigned_roles))),
+                            'updated_at'        => time()
+                        ]);
+                    }
+                }
+            }
+
+            // Add designation in store_users (create or update record for this pharmacist)
+            if ($store_id && $pharmacist_id && $this->db->table_exists('store_users')) {
+                $existing_su = $this->db->get_where('store_users', ['pharmacist_id' => $pharmacist_id])->row_array();
+                if ($existing_su) {
+                    $su_update = [
+                        'store_id'    => $store_id,
+                        'designation' => html_escape($clean_designation),
+                        'updated_at'  => time()
+                    ];
+                    if (!empty($role_id)) {
+                        $su_update['role_id']    = $role_id;
+                        $su_update['role_title'] = html_escape($role_title);
+                    }
+                    if (!empty($raw_password)) {
+                        $su_update['password'] = html_escape($raw_password);
+                    }
+                    $this->db->where('id', $existing_su['id'])->update('store_users', $su_update);
+                } else {
+                    // Generate unique username
+                    $base_user = '';
+                    if (!empty($email) && strpos($email, '@') !== false) {
+                        $base_user = explode('@', $email)[0];
+                    } elseif (!empty($employee_id)) {
+                        $base_user = strtolower(preg_replace('/[^A-Za-z0-9]/', '', $employee_id));
+                    } else {
+                        $base_user = strtolower(preg_replace('/[^A-Za-z0-9]/', '', $first_name . '.' . $last_name));
+                    }
+                    if (empty($base_user)) {
+                        $base_user = 'pharmacist_' . $pharmacist_id;
+                    }
+
+                    $candidate_user = $base_user;
+                    $uidx = 1;
+                    while ($this->db->get_where('store_users', ['store_id' => $store_id, 'username' => $candidate_user])->num_rows() > 0) {
+                        $candidate_user = $base_user . '_' . $uidx;
+                        $uidx++;
+                    }
+
+                    $store_rec = $this->db->get_where('stores', ['id' => $store_id])->row_array();
+                    $portal_link = $store_rec['portal_url'] ?? '';
+
+                    $su_insert = [
+                        'store_id'      => $store_id,
+                        'pharmacist_id' => $pharmacist_id,
+                        'role_id'       => $role_id ?: null,
+                        'role_title'    => html_escape($role_title),
+                        'designation'   => html_escape($clean_designation),
+                        'username'      => html_escape($candidate_user),
+                        'password'      => html_escape(!empty($raw_password) ? $raw_password : 'password123'),
+                        'portal_link'   => html_escape($portal_link),
+                        'notes'         => 'Auto-created during pharmacist import',
+                        'status'        => $status,
+                        'created_at'    => time(),
+                        'updated_at'    => time()
+                    ];
+                    $this->db->insert('store_users', $su_insert);
+                }
+            }
         }
 
         return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
@@ -5219,45 +7466,204 @@ $developer_html
         $skipped = 0;
         $errors = [];
 
+        // Pre-cache existing store roles
         $roles_db = $this->db->get('store_roles')->result_array();
         $roles_map = [];
         foreach ($roles_db as $r) {
             $roles_map[strtolower(trim($r['role_name']))] = (string)$r['id'];
         }
 
+        // Pre-cache existing store categories
+        $cats_db = $this->db->get('store_categories')->result_array();
+        $cats_map = [];
+        foreach ($cats_db as $c) {
+            $c_clean_name = strtolower(trim(preg_replace('/\s+/', ' ', $c['category_name'])));
+            $cats_map[$c_clean_name] = $c;
+            if (!empty($c['code'])) {
+                $c_clean_code = strtolower(trim($c['code']));
+                $cats_map[$c_clean_code] = $c;
+            }
+        }
+
         foreach ($rows as $index => $row) {
             $line = $index + 2;
-            $store_name = isset($row['store_name']) ? trim($row['store_name']) : '';
 
-            if (empty($store_name)) {
+            // Helper to find value from row using multiple key aliases and fuzzy keyword fallback
+            $find_val = function($aliases, $contains = []) use ($row) {
+                // 1. Direct match on normalized keys
+                foreach ($aliases as $alias) {
+                    if (isset($row[$alias]) && trim((string)$row[$alias]) !== '') {
+                        return trim(preg_replace('/[\x00-\x1F\x7F\xA0\s]+/u', ' ', (string)$row[$alias]));
+                    }
+                }
+                // 2. Alphanumeric normalized key match
+                $alpha_row = [];
+                foreach ($row as $k => $v) {
+                    $ak = strtolower(preg_replace('/[^a-z0-9]/', '', (string)$k));
+                    $alpha_row[$ak] = $v;
+                }
+                foreach ($aliases as $alias) {
+                    $ak = strtolower(preg_replace('/[^a-z0-9]/', '', (string)$alias));
+                    if (isset($alpha_row[$ak]) && trim((string)$alpha_row[$ak]) !== '') {
+                        return trim(preg_replace('/[\x00-\x1F\x7F\xA0\s]+/u', ' ', (string)$alpha_row[$ak]));
+                    }
+                }
+                // 3. Fallback: contains keyword
+                if (!empty($contains)) {
+                    foreach ($row as $k => $v) {
+                        $lk = strtolower(trim((string)$k));
+                        foreach ($contains as $kw) {
+                            if (strpos($lk, $kw) !== false && trim((string)$v) !== '') {
+                                return trim(preg_replace('/[\x00-\x1F\x7F\xA0\s]+/u', ' ', (string)$v));
+                            }
+                        }
+                    }
+                }
+                return '';
+            };
+
+            // Store Name
+            $store_name = $find_val(
+                ['store_name', 'stores_name', 'name', 'pharmacy_name', 'pharmacy', 'store', 'shop_name', 'storename', 'storesname'],
+                ['store_name', 'pharmacy_name', 'shop_name']
+            );
+
+            // Store Code
+            $store_code = $find_val(
+                ['store_code', 'stores_code', 'code', 'store_id', 'storeid', 'store_no', 'store_number', 'storecode', 'storescode'],
+                ['store_code', 'stores_code']
+            );
+
+            // Fallback for store name if store_code exists
+            if (empty($store_name) && !empty($store_code)) {
+                $store_name = $store_code;
+            }
+
+            if (empty($store_name) && empty($store_code)) {
                 $skipped++;
-                $errors[] = "Row {$line}: Missing store name";
+                $errors[] = "Row {$line}: Missing store name and store code";
                 continue;
             }
 
-            $store_code = isset($row['store_code']) ? trim($row['store_code']) : '';
-            if (!empty($store_code)) {
-                $exists = $this->db->get_where('stores', ['store_code' => $store_code])->num_rows();
-                if ($exists > 0) {
-                    $skipped++;
-                    $errors[] = "Row {$line}: Store code '{$store_code}' already exists";
-                    continue;
+            $email = $find_val(['email', 'store_email', 'stores_email', 'email_id', 'mail']);
+            $state = $find_val(['state', 'store_state', 'stores_state', 'province']);
+            $zone  = strtoupper($find_val(['zone', 'region', 'store_zone', 'store_region', 'stores_zone', 'stores_region']));
+
+            // Mobile & Phone
+            $mobile = $find_val(['mobile', 'mobile_no', 'mobile_number', 'cell', 'store_mobile', 'stores_mobile']);
+            $phone  = $find_val(['phone', 'phone_no', 'phone_number', 'telephone', 'store_phone', 'stores_phone', 'contact_no', 'contact_number']);
+            if (empty($mobile) && !empty($phone)) $mobile = $phone;
+            if (empty($phone) && !empty($mobile)) $phone = $mobile;
+            if (empty($phone) && empty($mobile) && !empty($row['contact']) && preg_match('/^[0-9+\s\-()]{7,}$/', trim((string)$row['contact']))) {
+                $phone = trim((string)$row['contact']);
+                $mobile = $phone;
+            }
+
+            // Contact Person (handles 'store contact person', 'stores contact person', etc.)
+            $contact_person = $find_val(
+                ['store_contact_person', 'stores_contact_person', 'contact_person', 'store_contact_person_name', 'stores_contact_person_name', 'contact_person_name', 'contact_name', 'store_contact_name', 'stores_contact_name', 'store_contact', 'stores_contact', 'contactperson', 'storescontactperson', 'storecontactperson', 'person_name', 'store_person', 'stores_person', 'person', 'store_manager', 'stores_manager', 'manager_name', 'manager', 'owner_name', 'owner'],
+                ['contact_person', 'contact_name', 'store_contact', 'stores_contact', 'manager', 'person']
+            );
+            if (empty($contact_person) && !empty($row['contact']) && !preg_match('/^[0-9+\s\-()]{7,}$/', trim((string)$row['contact']))) {
+                $contact_person = trim((string)$row['contact']);
+            }
+
+            // Store Live Date
+            $live_date = $find_val(
+                ['store_live_date', 'stores_live_date', 'live_date', 'date_of_live', 'opening_date', 'start_date', 'launch_date', 'date', 'storelivedate', 'livedate'],
+                ['live_date', 'livedate']
+            );
+            if (!empty($live_date)) {
+                if (is_numeric($live_date) && (int)$live_date > 30000 && (int)$live_date < 60000) {
+                    $unix_time = ($live_date - 25569) * 86400;
+                    $live_date = date('Y-m-d', $unix_time);
+                } else {
+                    foreach (['d-m-Y', 'd/m/Y', 'Y-m-d', 'm/d/Y', 'd.m.Y'] as $fmt) {
+                        $d = DateTime::createFromFormat($fmt, $live_date);
+                        if ($d && $d->format($fmt) === $live_date) {
+                            $live_date = $d->format('Y-m-d');
+                            break;
+                        }
+                    }
                 }
             }
 
+            // Store Category (handles 'store category', 'stores category', 'category', etc.)
+            $category_id = null;
+            $store_category_name = '';
+            $cat_raw = $find_val(
+                ['store_category', 'stores_category', 'category', 'category_name', 'categories', 'store_categories', 'stores_categories', 'store_cat', 'stores_cat', 'store_category_name', 'stores_category_name', 'storecategory', 'storescategory', 'store_type', 'stores_type', 'type', 'cat'],
+                ['categor', 'store_cat', 'stores_cat', 'store_type', 'stores_type']
+            );
+
+            if (!empty($cat_raw)) {
+                $clean_cat = trim(preg_replace('/\s+/', ' ', $cat_raw));
+                $cat_lower = strtolower($clean_cat);
+
+                // 1. Check if numeric category ID
+                if (is_numeric($cat_raw)) {
+                    $cat_db_row = $this->db->get_where('store_categories', ['id' => (int)$cat_raw])->row_array();
+                    if ($cat_db_row) {
+                        $category_id = $cat_db_row['id'];
+                        $store_category_name = $cat_db_row['category_name'];
+                    }
+                }
+
+                // 2. Check if cached or in DB by name or code
+                if (!$category_id) {
+                    if (isset($cats_map[$cat_lower])) {
+                        $category_id = $cats_map[$cat_lower]['id'];
+                        $store_category_name = $cats_map[$cat_lower]['category_name'];
+                    } else {
+                        // Check DB case-insensitively
+                        $cat_db_row = $this->db->where('LOWER(TRIM(category_name))', $cat_lower)
+                            ->or_where('LOWER(TRIM(code))', $cat_lower)
+                            ->get('store_categories')->row_array();
+                        if ($cat_db_row) {
+                            $category_id = $cat_db_row['id'];
+                            $store_category_name = $cat_db_row['category_name'];
+                            $cats_map[$cat_lower] = $cat_db_row;
+                        } else {
+                            // Auto-create category in store_categories master
+                            $new_cat = [
+                                'category_name' => html_escape($clean_cat),
+                                'code'          => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $clean_cat), 0, 10)),
+                                'description'   => 'Auto-created during store import',
+                                'status'        => 1,
+                                'created_at'    => time(),
+                                'updated_at'    => time()
+                            ];
+                            $this->db->insert('store_categories', $new_cat);
+                            $new_cat_id = $this->db->insert_id();
+                            $cats_map[$cat_lower] = ['id' => $new_cat_id, 'category_name' => $clean_cat];
+                            $category_id = $new_cat_id;
+                            $store_category_name = $clean_cat;
+                        }
+                    }
+                }
+
+                // Ensure store_category_name is always set if cat_raw exists
+                if (empty($store_category_name)) {
+                    $store_category_name = $clean_cat;
+                }
+            }
+
+            // Assigned roles
             $assigned_role_ids = [];
-            if (!empty($row['assigned_roles'])) {
-                $role_names = explode(',', $row['assigned_roles']);
+            $roles_raw = $find_val(['assigned_roles', 'assigned_role', 'roles', 'role']);
+            if (!empty($roles_raw)) {
+                $role_names = explode(',', $roles_raw);
                 foreach ($role_names as $rname) {
                     $rname_clean = strtolower(trim($rname));
+                    if (empty($rname_clean)) continue;
                     if (isset($roles_map[$rname_clean])) {
                         $assigned_role_ids[] = $roles_map[$rname_clean];
                     } else {
                         $new_role = [
                             'role_name'  => html_escape(trim($rname)),
                             'status'     => 1,
-                            'created_at' => date('Y-m-d H:i:s'),
-                            'updated_at' => date('Y-m-d H:i:s')
+                            'created_at' => time(),
+                            'updated_at' => time()
                         ];
                         $this->db->insert('store_roles', $new_role);
                         $new_id = (string)$this->db->insert_id();
@@ -5267,23 +7673,107 @@ $developer_html
                 }
             }
 
+            $address    = $find_val(['address', 'store_address', 'stores_address', 'street', 'location']);
+            $city       = $find_val(['city', 'store_city', 'stores_city', 'district', 'town']);
+            $pin_code   = $find_val(['pin_code', 'pincode', 'pin', 'zip', 'zip_code', 'postal_code', 'store_pincode', 'stores_pincode']);
+            $portal_url = $find_val(['portal_url', 'portal_link', 'portal', 'url', 'login_url', 'store_portal', 'stores_portal']);
+
+            $status_raw = $find_val(['status', 'store_status', 'active', 'is_active']);
+            $status = ($status_raw !== '') ? (int)$status_raw : 1;
+
             $store_data = [
                 'store_name'        => html_escape($store_name),
                 'store_code'        => html_escape($store_code),
-                'phone'             => isset($row['phone']) ? html_escape(trim($row['phone'])) : '',
-                'email'             => isset($row['email']) ? html_escape(trim($row['email'])) : '',
-                'portal_url'        => isset($row['portal_url']) ? html_escape(trim($row['portal_url'])) : '',
-                'assigned_role_ids' => json_encode(array_values(array_unique($assigned_role_ids))),
-                'address'           => isset($row['address']) ? html_escape(trim($row['address'])) : '',
-                'city'              => isset($row['city']) ? html_escape(trim($row['city'])) : '',
-                'state'             => isset($row['state']) ? html_escape(trim($row['state'])) : '',
-                'pin_code'          => isset($row['pin_code']) ? html_escape(trim($row['pin_code'])) : (isset($row['pincode']) ? html_escape(trim($row['pincode'])) : (isset($row['pin']) ? html_escape(trim($row['pin'])) : '')),
-                'status'            => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
-                'created_at'        => date('Y-m-d H:i:s'),
-                'updated_at'        => date('Y-m-d H:i:s')
+                'category_id'       => $category_id,
+                'store_category'    => html_escape($store_category_name),
+                'zone'              => html_escape($zone),
+                'contact_person'    => html_escape($contact_person),
+                'live_date'         => html_escape($live_date),
+                'phone'             => html_escape($phone),
+                'mobile'            => html_escape($mobile),
+                'email'             => html_escape($email),
+                'portal_url'        => html_escape($portal_url),
+                'address'           => html_escape($address),
+                'city'              => html_escape($city),
+                'state'             => html_escape($state),
+                'pin_code'          => html_escape($pin_code),
+                'status'            => $status,
+                'updated_at'        => time()
             ];
 
+            if (!empty($assigned_role_ids)) {
+                $store_data['assigned_role_ids'] = json_encode(array_values(array_unique($assigned_role_ids)));
+            }
+
+            // Check if store exists by store_code or store_name
+            $existing = null;
+            if (!empty($store_code)) {
+                $existing = $this->db->where('LOWER(TRIM(store_code))', strtolower(trim($store_code)))->get('stores')->row_array();
+            }
+            if (!$existing && !empty($store_name)) {
+                $existing = $this->db->where('LOWER(TRIM(store_name))', strtolower(trim($store_name)))->get('stores')->row_array();
+            }
+
+            if ($existing) {
+                // If assigned_roles in sheet was empty, preserve existing roles
+                if (empty($assigned_role_ids) && !empty($existing['assigned_role_ids'])) {
+                    $existing_roles = json_decode($existing['assigned_role_ids'], true);
+                    if (!empty($existing_roles)) {
+                        $store_data['assigned_role_ids'] = $existing['assigned_role_ids'];
+                    }
+                }
+                $this->db->where('id', $existing['id'])->update('stores', $store_data);
+                $success++;
+                continue;
+            }
+
+            // If new store, set created_at and assigned_role_ids
+            $store_data['created_at'] = time();
+            if (!isset($store_data['assigned_role_ids'])) {
+                $store_data['assigned_role_ids'] = json_encode([]);
+            }
             $this->db->insert('stores', $store_data);
+            $success++;
+        }
+
+        return ['success' => $success, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function import_store_categories($rows)
+    {
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2;
+            $cat_name = !empty($row['category_name']) ? trim($row['category_name']) : (!empty($row['name']) ? trim($row['name']) : '');
+
+            if (empty($cat_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Missing category name";
+                continue;
+            }
+
+            $exists = $this->db->get_where('store_categories', ['category_name' => $cat_name])->num_rows();
+            if ($exists > 0) {
+                $skipped++;
+                $errors[] = "Row {$line}: Category '{$cat_name}' already exists";
+                continue;
+            }
+
+            $code = !empty($row['code']) ? strtoupper(trim($row['code'])) : strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $cat_name), 0, 10));
+
+            $cat_data = [
+                'category_name' => html_escape($cat_name),
+                'code'          => html_escape($code),
+                'description'   => isset($row['description']) ? html_escape(trim($row['description'])) : '',
+                'status'        => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
+                'created_at'    => time(),
+                'updated_at'    => time()
+            ];
+
+            $this->db->insert('store_categories', $cat_data);
             $success++;
         }
 
@@ -5410,6 +7900,7 @@ $developer_html
                 continue;
             }
 
+            $designation = isset($row['designation']) ? trim($row['designation']) : '';
             $password = !empty($row['password']) ? trim($row['password']) : substr(str_shuffle("abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"), 0, 10);
             $portal_link = !empty($row['portal_link']) ? trim($row['portal_link']) : ($store['portal_url'] ?? '');
 
@@ -5418,13 +7909,14 @@ $developer_html
                 'pharmacist_id' => $pharmacist_id,
                 'role_id'       => $role_id,
                 'role_title'    => html_escape($role_title),
+                'designation'   => html_escape($designation),
                 'username'      => html_escape($username),
                 'password'      => html_escape($password),
                 'portal_link'   => html_escape($portal_link),
                 'notes'         => isset($row['notes']) ? html_escape(trim($row['notes'])) : '',
                 'status'        => isset($row['status']) && $row['status'] !== '' ? (int)$row['status'] : 1,
-                'created_at'    => date('Y-m-d H:i:s'),
-                'updated_at'    => date('Y-m-d H:i:s')
+                'created_at'    => time(),
+                'updated_at'    => time()
             ];
 
             $this->db->insert('store_users', $store_user_data);
@@ -5737,6 +8229,8 @@ $developer_html
         $redirect_map = [
             'pharmacists'       => 'admin/users',
             'stores'            => 'admin/stores',
+            'store_categories'  => 'admin/store_categories',
+            'categories'        => 'admin/store_categories',
             'roles'             => 'admin/store_roles',
             'store_users'       => 'admin/store_users',
             'instructors'       => 'admin/instructors',
@@ -5765,6 +8259,8 @@ $developer_html
             $result = $this->import_pharmacists($rows);
         } elseif ($type == 'stores') {
             $result = $this->import_stores($rows);
+        } elseif ($type == 'store_categories' || $type == 'categories') {
+            $result = $this->import_store_categories($rows);
         } elseif ($type == 'roles') {
             $result = $this->import_roles($rows);
         } elseif ($type == 'store_users') {

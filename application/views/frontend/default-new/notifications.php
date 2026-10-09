@@ -36,26 +36,37 @@ $number_of_unread_notification = $this->db->order_by('status ASC, id desc')->lim
     </div>
     <div class="overflow-control" id="notifications">
         <?php foreach($notifications->result_array() as $notification): ?>
-            <div class="notify-item cursor-pointer d-flex py-2 px-3 <?php if($notification['status'] == 0) echo 'unread' ?>" style="width: 275px;">
+            <?php
+                $target_url = 'javascript:void(0);';
+                if ($notification['type'] == 'message') {
+                    $thread_code = $this->crud_model->get_thread_code_between($notification['from_user'], $notification['to_user']);
+                    $target_url = $thread_code ? site_url('home/my_messages/read_message/' . $thread_code) : site_url('home/my_messages');
+                }
+            ?>
+            <a href="<?php echo $target_url; ?>" class="notify-item cursor-pointer d-flex py-2 px-3 <?php if($notification['status'] == 0) echo 'unread' ?>" style="width: 275px; text-decoration: none; color: inherit;">
                 <?php if($notification['type'] == 'signup'): ?>
                     <div class="notify-icon">
                         <i class="fas fa-user-plus"></i>
+                    </div>
+                <?php elseif($notification['type'] == 'message'): ?>
+                    <div class="notify-icon">
+                        <img src="<?php echo $this->user_model->get_user_image_url($notification['from_user']); ?>" class="rounded-circle" style="width: 35px; height: 35px; object-fit: cover;" alt="User image" />
                     </div>
                 <?php else: ?>
                     <div class="notify-icon">
                         <i class="far fa-bell"></i>
                     </div>
                 <?php endif; ?>
-                <div class="ps-2">
-                  <p class="notify-details text-13px">
-                      <?php echo $notification['title']; ?>
+                <div class="ps-2" style="overflow: hidden; flex: 1;">
+                  <p class="notify-details text-13px mb-1">
+                      <span class="fw-bold"><?php echo $notification['title']; ?></span>
                       <small class="text-muted float-end"><?php echo get_past_time($notification['created_at']); ?></small>
                   </p>
-                  <div class="text-muted mb-0 user-msg text-13px">
+                  <div class="text-muted mb-0 user-msg text-13px text-truncate">
                       <?php echo ($notification['description']); ?>
                   </div>
                 </div>
-            </div>
+            </a>
         <?php endforeach; ?>
 
         <?php if($notifications->num_rows() == 0): ?>

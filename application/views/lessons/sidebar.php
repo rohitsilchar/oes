@@ -48,7 +48,7 @@
 
         <div class="accordion-item">
           <h2 class="accordion-header" id="section<?php echo $section['id']; ?>">
-            <button class="accordion-button <?php if($lesson_details['section_id'] != $section['id']) echo 'collapsed'; ?>" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne<?php echo $section['id'] ?>" aria-expanded="true" aria-controls="collapseOne<?php echo $section['id'] ?>">
+            <button class="accordion-button <?php if(empty($lesson_details['section_id']) || $lesson_details['section_id'] != $section['id']) echo 'collapsed'; ?>" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne<?php echo $section['id'] ?>" aria-expanded="true" aria-controls="collapseOne<?php echo $section['id'] ?>">
               <div class="d-flex flex-column" style="line-height:28px">
                 <span><?php echo $section['title']; ?></span>
 
@@ -69,7 +69,7 @@
                 
             </button>
           </h2>
-          <div id="collapseOne<?php echo $section['id'] ?>" class="accordion-collapse collapse <?php if($lesson_details['section_id'] == $section['id']) echo 'show'; ?>" aria-labelledby="section<?php echo $section['id']; ?>" data-bs-parent="#accordionContent">
+          <div id="collapseOne<?php echo $section['id'] ?>" class="accordion-collapse collapse <?php if(!empty($lesson_details['section_id']) && $lesson_details['section_id'] == $section['id']) echo 'show'; ?>" aria-labelledby="section<?php echo $section['id']; ?>" data-bs-parent="#accordionContent">
             <div class="accordion-body position-relative">
 
               <?php if($is_restricted): ?>
@@ -98,7 +98,7 @@
                   ?>
                   
 
-                  <li class="item <?php if($lesson['id'] == $lesson_details['id']) echo 'active'; ?>">
+                  <li class="item <?php if(!empty($lesson_details['id']) && $lesson['id'] == $lesson_details['id']) echo 'active'; ?>">
                     <a href="<?php echo $lesson_url; ?>" class="d-flex align-items-baseline w-100 checkbox-box-a">
                       <?php if(in_array($lesson['id'], $completed_lessons)){
                         $chekbox = 'title="'.get_phrase('Uncheck').'" data-bs-toggle="tooltip" checked';

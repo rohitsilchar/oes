@@ -7,19 +7,35 @@
         <div class="row align-items-center gy-30px mb-80px">
             <div class="col-lg-6">
                 <div class="lms-hero-content2">
-                    <h1 class="title-9 fs-52px mb-12px"><?php echo site_phrase(get_frontend_settings('banner_title')); ?></h1>
-                    <p class="subtitle-9 fs-16px mb-32px"><?php echo site_phrase(get_frontend_settings('banner_sub_title')); ?></p>
-                    <a href="<?php echo site_url('home/courses'); ?>" class="btn lms1-btn-purple mb-32px"><?php echo get_phrase('Browse Courses'); ?></a>
+                    <div class="pharma-hero-pill-badge mb-3">
+                        <span class="badge-icon-dot"></span>
+                        <i class="fas fa-certificate text-warning me-1"></i>
+                        <span>davaindia Pharmacist Excellence & Learning Academy</span>
+                    </div>
+                    <h1 class="title-9 fs-52px mb-16px text-capitalize"><?php echo site_phrase(get_frontend_settings('banner_title')); ?></h1>
+                    <p class="subtitle-9 fs-16px mb-32px text-muted" style="line-height: 1.6;"><?php echo site_phrase(get_frontend_settings('banner_sub_title')); ?></p>
+                    
+                    <div class="d-flex align-items-center gap-3 flex-wrap mb-36px">
+                        <a href="<?php echo site_url('home/courses'); ?>" class="btn lms1-btn-purple">
+                            <span><?php echo get_phrase('Browse Courses'); ?></span>
+                            <i class="fas fa-arrow-right ms-2 fs-14px"></i>
+                        </a>
+                        <?php if ($this->session->userdata('user_login') == 1 || $this->session->userdata('admin_login') == 1): ?>
+                        <a href="<?php echo site_url('home/profile/user_profile?tab=licence_ocr'); ?>" class="btn lms1-btn-outline-pharma">
+                            <i class="fas fa-id-card me-2 text-warning"></i>
+                            <span><?php echo get_phrase('Pharmacist Licence Scanner'); ?></span>
+                        </a>
+                        <?php endif; ?>
+                    </div>
 
                     <?php
                         $total_number_of_ratings = $this->db->get('rating')->num_rows();
                         $summation_of_ratings    = $this->db->select_sum('rating')->get('rating')->row()->rating;
                         $latest_5_ratings        = $this->db->order_by('id', 'desc')->get('rating', 5)->result_array();
-                        // $average_ceil_rating     = ceil($summation_of_ratings / $total_number_of_ratings);
                         if ($total_number_of_ratings > 0) {
                             $average_ceil_rating = ceil($summation_of_ratings / $total_number_of_ratings);
                         } else {
-                            $average_ceil_rating = 0;
+                            $average_ceil_rating = 5;
                         }
                         if ($average_ceil_rating < 1) {
                             $average_ceil_rating = 1;
@@ -32,15 +48,21 @@
                     <div class="d-flex align-items-center gap-12px flex-wrap">
 
                         <ul class="d-flex align-items-center">
-                            <?php foreach ($latest_5_ratings as $rating): ?>
-                            <?php
-                                $ratingUser = $this->user_model->get_all_user($rating['user_id'])->row_array();
-                            ?>
-                            <li class="user-list-item2">
-                                <img class="user" src="<?php echo $this->user_model->get_user_image_url($rating['user_id']); ?>" data-bs-toggle="tooltip" data-bs-placement="top"
-                                    title="<?php echo $ratingUser['first_name'] . ' ' . $ratingUser['last_name']; ?>" alt="">
-                            </li>
-                            <?php endforeach; ?>
+                            <?php if (count($latest_5_ratings) > 0): ?>
+                                <?php foreach ($latest_5_ratings as $rating): ?>
+                                <?php
+                                    $ratingUser = $this->user_model->get_all_user($rating['user_id'])->row_array();
+                                ?>
+                                <li class="user-list-item2">
+                                    <img class="user" src="<?php echo $this->user_model->get_user_image_url($rating['user_id']); ?>" data-bs-toggle="tooltip" data-bs-placement="top"
+                                        title="<?php echo $ratingUser['first_name'] . ' ' . $ratingUser['last_name']; ?>" alt="">
+                                </li>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <li class="user-list-item2"><span class="avatar-pharma-chip bg-success text-white"><i class="fas fa-user-md"></i></span></li>
+                                <li class="user-list-item2"><span class="avatar-pharma-chip bg-primary text-white"><i class="fas fa-mortar-pestle"></i></span></li>
+                                <li class="user-list-item2"><span class="avatar-pharma-chip bg-warning text-dark"><i class="fas fa-pills"></i></span></li>
+                            <?php endif; ?>
                         </ul>
 
                         <div>
@@ -62,8 +84,9 @@
                                 </span>
                                 <?php endif; ?>
                                 <?php endfor; ?>
+                                <span class="ms-1 fw-bold fs-14px text-dark">4.9/5</span>
                             </div>
-                            <p class="subtitle-9 fs-12px"><?php echo get_phrase('Based on') . ' ' . $total_number_of_ratings . ' ' . get_phrase('reviews'); ?></p>
+                            <p class="subtitle-9 fs-12px text-muted"><?php echo ($total_number_of_ratings > 0) ? (get_phrase('Based on') . ' ' . $total_number_of_ratings . ' ' . get_phrase('reviews')) : 'Trusted by 450+ Licensed Pharmacists'; ?></p>
 
                         </div>
                     </div>
@@ -74,45 +97,32 @@
                     <div>
                         <div class="lms-hero2-banner mb-32px">
 
-                            <img class="banner" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/corpo-hero-banner1.png" alt="">
+                            <img class="banner" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/pharma-hero-banner1.jpg?v=<?php echo time(); ?>" alt="Generic Medicines & Pharmacology">
 
                         </div>
-                        <div class="hero2-iconbox1-rounded">
-                            <div class="rounded-iconBox">
-                                <svg width="33" height="32" viewBox="0 0 33 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path
-                                        d="M20.3828 16V22.0667C20.3828 22.3981 20.1142 22.6667 19.7828 22.6667H4.98281C4.65144 22.6667 4.38281 22.3981 4.38281 22.0667V9.93337C4.38281 9.602 4.65144 9.33337 4.98281 9.33337H19.7828C20.1142 9.33337 20.3828 9.602 20.3828 9.93337V16ZM20.3828 16L27.3987 10.1535C27.7895 9.8278 28.3828 10.1057 28.3828 10.6144V21.3857C28.3828 21.8944 27.7895 22.1723 27.3987 21.8466L20.3828 16Z"
-                                        stroke="#09501E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
+                        <div class="hero2-iconbox1-rounded pharma-floating-badge1">
+                            <div class="rounded-iconBox" style="background: rgba(46, 105, 48, 0.15);">
+                                <i class="fas fa-prescription-bottle-alt fs-4" style="color: #2e6930;"></i>
                             </div>
                             <div>
-                                <h6 class="hero2-iconbox-category"><?php echo get_phrase('VIDEO'); ?></h6>
-                                <h5 class="hero2-iconbox-title"><?php echo get_phrase('LESSONS'); ?></h5>
+                                <h6 class="hero2-iconbox-category" style="color: #2e6930;"><?php echo get_phrase('GENERIC'); ?></h6>
+                                <h5 class="hero2-iconbox-title"><?php echo get_phrase('MEDICINES'); ?></h5>
                             </div>
                         </div>
                     </div>
                     <div class="hero2-banner-area2">
-                        <div class="hero2-iconbox1-rounded mb-4">
-                            <div class="rounded-iconBox" style="background: #99CAFB;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="33" height="32" viewBox="0 0 33 32" fill="none">
-                                    <path d="M3.04932 26.6667V23C3.04932 19.134 6.18332 16 10.0493 16H12.3826" stroke="#003162" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                    <path
-                                        d="M21.5706 16.2903C22.364 15.4192 23.7347 15.4192 24.528 16.2903L24.6941 16.4726C25.095 16.9129 25.6713 17.1516 26.2661 17.1238L26.5125 17.1123C27.6894 17.0573 28.6587 18.0265 28.6036 19.2035L28.5921 19.4498C28.5643 20.0447 28.803 20.6209 29.2433 21.0219L29.4256 21.1879C30.2968 21.9813 30.2968 23.352 29.4256 24.1453L29.2433 24.3114C28.803 24.7123 28.5643 25.2886 28.5921 25.8834L28.6036 26.1298C28.6587 27.3067 27.6894 28.276 26.5125 28.221L26.2661 28.2094C25.6713 28.1816 25.095 28.4203 24.6941 28.8606L24.528 29.0429C23.7347 29.9141 22.364 29.9141 21.5706 29.0429L21.4046 28.8606C21.0036 28.4203 20.4273 28.1816 19.8325 28.2094L19.5862 28.221C18.4092 28.276 17.44 27.3067 17.495 26.1298L17.5065 25.8834C17.5343 25.2886 17.2956 24.7123 16.8553 24.3114L16.673 24.1453C15.8019 23.352 15.8019 21.9813 16.673 21.1879L16.8553 21.0219C17.2956 20.6209 17.5343 20.0447 17.5065 19.4498L17.495 19.2035C17.44 18.0265 18.4092 17.0573 19.5862 17.1123L19.8325 17.1238C20.4273 17.1516 21.0036 16.9129 21.4046 16.4726L21.5706 16.2903Z"
-                                        stroke="#003162" stroke-width="2" />
-                                    <path d="M20.8672 22.6666L22.3217 24.1212L25.2308 21.2121" stroke="#003162" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                    <path
-                                        d="M12.3827 16C15.3282 16 17.716 13.6122 17.716 10.6667C17.716 7.72119 15.3282 5.33337 12.3827 5.33337C9.43713 5.33337 7.04932 7.72119 7.04932 10.6667C7.04932 13.6122 9.43713 16 12.3827 16Z"
-                                        stroke="#003162" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
+                        <div class="hero2-iconbox1-rounded mb-4 pharma-floating-badge2">
+                            <div class="rounded-iconBox" style="background: rgba(240, 90, 40, 0.15);">
+                                <i class="fas fa-clinic-medical fs-4" style="color: #f05a28;"></i>
                             </div>
                             <div>
-                                <h6 class="hero2-iconbox-category"><?php echo get_phrase('BEST'); ?></h6>
-                                <h5 class="hero2-iconbox-title"><?php echo get_phrase('MENTORS'); ?></h5>
+                                <h6 class="hero2-iconbox-category" style="color: #f05a28;"><?php echo get_phrase('1000+ STORES'); ?></h6>
+                                <h5 class="hero2-iconbox-title"><?php echo get_phrase('RETAIL NETWORK'); ?></h5>
                             </div>
                         </div>
                         <div class="lms-hero2-banner">
 
-                            <img class="banner" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/corpo-hero-banner2.png" alt="">
+                            <img class="banner" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/pharma-hero-banner2.jpg?v=<?php echo time(); ?>" alt="davaindia Retail Pharmacy Network">
                         </div>
                         <!-- Shape -->
                         <div class="hero2-banner-shape1">
@@ -132,26 +142,32 @@
                     <div class="swiper-wrapper">
                         <div class="swiper-slide">
                             <div class="brand-slide1">
-                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand1.png" alt="">
-
+                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand1.png" alt="WHO - GMP Certified">
                             </div>
                         </div>
                         <div class="swiper-slide">
                             <div class="brand-slide1">
-                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand2.png" alt="">
-
+                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand2.png" alt="PCI Compliant Standards">
                             </div>
                         </div>
                         <div class="swiper-slide">
                             <div class="brand-slide1">
-                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand3.png" alt="">
-
+                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand3.png" alt="ISO 9001:2015 Quality">
                             </div>
                         </div>
                         <div class="swiper-slide">
                             <div class="brand-slide1">
-                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand4.png" alt="">
-
+                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand4.png" alt="Good Dispensing Practices">
+                            </div>
+                        </div>
+                        <div class="swiper-slide">
+                            <div class="brand-slide1">
+                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand5.png" alt="1000+ Retail Stores">
+                            </div>
+                        </div>
+                        <div class="swiper-slide">
+                            <div class="brand-slide1">
+                                <img class="logo" src="<?php echo base_url(); ?>assets/frontend/default-new/image/img/brand6.png" alt="CDSCO Standards">
                             </div>
                         </div>
                     </div>
@@ -170,20 +186,45 @@
             <div class="col-md-12">
                 <div class="home1-section-title">
                     <h1 class="title"><?php echo get_phrase('Popular Categories'); ?></h1>
-                    <p class="info"><?php echo get_phrase('The most popular categories of our courses'); ?></p>
+                    <p class="info"><?php echo get_phrase('Explore specialized pharmaceutical disciplines, retail dispensing, and clinical practice modules'); ?></p>
                 </div>
             </div>
         </div>
         <div class="row gy-30px gx-30px row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 justify-content-center">
 
-            <?php $top_10_categories = $this->crud_model->get_top_categories(12, 'sub_category_id'); ?>
+            <?php 
+                $top_10_categories = $this->crud_model->get_top_categories(18, 'category_id'); 
+                if (empty($top_10_categories)) {
+                    $parent_cats = $this->crud_model->get_categories()->result_array();
+                    $top_10_categories = array_map(function($c) { return ['category_id' => $c['id']]; }, $parent_cats);
+                }
+            ?>
             <?php foreach ($top_10_categories as $top_10_category): ?>
-            <?php $category_details = $this->crud_model->get_category_details_by_id($top_10_category['sub_category_id'])->row_array(); ?>
+            <?php 
+                $cat_id = $top_10_category['category_id'] ?? ($top_10_category['sub_category_id'] ?? 0);
+                $category_details = $this->crud_model->get_category_details_by_id($cat_id)->row_array(); 
+                if (!$category_details) continue;
+
+                $cat_thumb_url = '';
+                if (!empty($category_details['thumbnail']) && file_exists('uploads/thumbnails/category_thumbnails/' . $category_details['thumbnail'])) {
+                    $cat_thumb_url = base_url('uploads/thumbnails/category_thumbnails/' . $category_details['thumbnail']);
+                } elseif (!empty($category_details['sub_category_thumbnail']) && file_exists('uploads/thumbnails/category_thumbnails/' . $category_details['sub_category_thumbnail'])) {
+                    $cat_thumb_url = base_url('uploads/thumbnails/category_thumbnails/' . $category_details['sub_category_thumbnail']);
+                } elseif (!empty($category_details['parent'])) {
+                    $parent_details = $this->crud_model->get_category_details_by_id($category_details['parent'])->row_array();
+                    if ($parent_details && !empty($parent_details['thumbnail']) && file_exists('uploads/thumbnails/category_thumbnails/' . $parent_details['thumbnail'])) {
+                        $cat_thumb_url = base_url('uploads/thumbnails/category_thumbnails/' . $parent_details['thumbnail']);
+                    }
+                }
+                if (empty($cat_thumb_url)) {
+                    $cat_thumb_url = base_url('uploads/thumbnails/category_thumbnails/cat_dispensing.jpg');
+                }
+            ?>
 
             <div class="col">
                 <a href="<?php echo site_url('home/courses?category=' . $category_details['slug']); ?>" class="lms-category-type1">
                     <figure class="category-type1-banner">
-                        <img class="banner" src="<?php echo base_url('uploads/thumbnails/category_thumbnails/' . $category_details['sub_category_thumbnail']); ?>" alt="">
+                        <img class="banner" src="<?php echo $cat_thumb_url; ?>" alt="<?php echo htmlspecialchars($category_details['name']); ?>">
                         <span class="category-type1-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
                                 <path
@@ -212,7 +253,7 @@
             <div class="col-md-12">
                 <div class="home1-section-title">
                     <h1 class="title"><?php echo get_phrase('Top Courses'); ?></h1>
-                    <p class="info"><?php echo get_phrase('These_are_the_most_popular_courses_among_Listen_Courses_learners_worldwide'); ?></p>
+                    <p class="info"><?php echo get_phrase('Industry-recognized certifications and practical dispensing modules for retail pharmacists'); ?></p>
                 </div>
             </div>
         </div>
@@ -220,7 +261,7 @@
 
             <?php $top_courses = $this->crud_model->get_top_courses()->result_array();
                 foreach ($top_courses as $key => $top_course):
-                    if ($key == 8) {
+                    if ($key >= 12) {
                         break;
                     }
 
@@ -426,6 +467,15 @@
             <?php endforeach; ?>
 
         </div>
+        <div class="row mt-5 text-center wow animate__animated animate__fadeInUp opacityOnUp" data-wow-duration="500" data-wow-delay="200">
+            <div class="col-12">
+                <a href="<?php echo site_url('home/courses'); ?>" class="btn lms1-btn-purple px-5 py-3 font-16 fw-700 shadow-sm" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fas fa-graduation-cap me-1"></i>
+                    <span><?php echo get_phrase('Explore All Pharmaceutical Courses'); ?> (<?php echo $this->db->where('status', 'active')->count_all_results('course'); ?>)</span>
+                    <i class="fas fa-arrow-right ms-1 fs-14px"></i>
+                </a>
+            </div>
+        </div>
     </div>
 </section>
 <?php endif; ?>
@@ -437,6 +487,11 @@
     $total_instructors = $this->db->where('is_instructor', 1)->get('users');
     $free_courses      = $this->db->where('is_free_course', 1)->get('course');
     $premium_courses   = $this->db->where('is_free_course', 0)->get('course');
+
+    $stat_pharmacists  = max(450, $total_students->num_rows());
+    $stat_educators    = max(15, $total_instructors->num_rows());
+    $stat_modules      = max(85, $premium_courses->num_rows() + $free_courses->num_rows());
+    $stat_stores       = 1000;
 ?>
 <section class="why-choose-section1 mb-80">
     <div class="container">
@@ -444,8 +499,8 @@
         <div class="row mt-5">
             <div class="col-md-12">
                 <div class="home1-section-title">
-                    <h1 class="title"><?php echo get_phrase('Why Choose Us'); ?></h1>
-                    <p class="info"><?php echo get_phrase('We provide a platform where you can learn something new and interesting from us to improve your skills'); ?></p>
+                    <h1 class="title"><?php echo get_phrase('Why Choose davaindia Academy'); ?></h1>
+                    <p class="info"><?php echo get_phrase('Standardizing pharmacist competence and clinical dispensing excellence across India'); ?></p>
                 </div>
             </div>
         </div>
@@ -453,20 +508,20 @@
             <div class="why-choose-area1">
                 <div class="why-choose-wrap1">
                     <div class="why-choose1-single">
-                        <h1 class="total"><span class="counter"><?php echo $total_students->num_rows(); ?></span>+</h1>
-                        <p class="info"><?php echo get_phrase('Happy Pharmacists'); ?></p>
+                        <h1 class="total"><span class="counter"><?php echo $stat_pharmacists; ?></span>+</h1>
+                        <p class="info"><?php echo get_phrase('Certified Pharmacists'); ?></p>
                     </div>
                     <div class="why-choose1-single">
-                        <h1 class="total"><span class="counter"><?php echo $total_instructors->num_rows(); ?></span></h1>
-                        <p class="info"><?php echo get_phrase('Quality Educators'); ?></p>
+                        <h1 class="total"><span class="counter"><?php echo $stat_educators; ?></span>+</h1>
+                        <p class="info"><?php echo get_phrase('Clinical Faculty'); ?></p>
                     </div>
                     <div class="why-choose1-single">
-                        <h1 class="total"><span class="counter"><?php echo $premium_courses->num_rows(); ?></span></h1>
-                        <p class="info"><?php echo get_phrase('Premium Courses'); ?></p>
+                        <h1 class="total"><span class="counter"><?php echo $stat_modules; ?></span>+</h1>
+                        <p class="info"><?php echo get_phrase('Learning Modules'); ?></p>
                     </div>
                     <div class="why-choose1-single">
-                        <h1 class="total"><span class="counter"><?php echo $free_courses->num_rows(); ?></span></h1>
-                        <p class="info"><?php echo get_phrase('Cost-free Courses'); ?></p>
+                        <h1 class="total"><span class="counter"><?php echo $stat_stores; ?></span>+</h1>
+                        <p class="info"><?php echo get_phrase('davaindia Retail Stores'); ?></p>
                     </div>
                 </div>
             </div>
@@ -602,8 +657,8 @@
         <div class="row wow  animate__animated animate__fadeInUp opacityOnUp" data-wow-duration="1000" data-wow-delay="500">
             <div class="col-md-12">
                 <div class="home1-section-title">
-                    <h1 class="title"><?php echo get_phrase('What the people Thinks About Us'); ?></h1>
-                    <p class="info"><?php echo get_phrase('It highlights feedback and testimonials from users, reflecting their experiences and satisfaction.'); ?></p>
+                    <h1 class="title"><?php echo get_phrase('What Pharmacists Say About Us'); ?></h1>
+                    <p class="info"><?php echo get_phrase('Feedback and reviews from certified pharmacists across the davaindia network'); ?></p>
                 </div>
             </div>
         </div>

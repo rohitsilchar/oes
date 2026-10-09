@@ -133,9 +133,27 @@ class Crud_model extends CI_Model
                 if (!file_exists('uploads/thumbnails/category_thumbnails')) {
                     mkdir('uploads/thumbnails/category_thumbnails', 0777, true);
                 }
-                if ($_FILES['category_thumbnail']['name'] != "") {
-                    $data['thumbnail'] = md5(rand(10000000, 20000000)) . '.jpg';
+                if (!empty($_FILES['category_thumbnail']['name'])) {
+                    $ext = strtolower(pathinfo($_FILES['category_thumbnail']['name'], PATHINFO_EXTENSION));
+                    $data['thumbnail'] = md5(rand(10000000, 20000000)) . ($ext ? '.' . $ext : '.jpg');
                     move_uploaded_file($_FILES['category_thumbnail']['tmp_name'], 'uploads/thumbnails/category_thumbnails/' . $data['thumbnail']);
+
+                    // Propagate new thumbnail to child subcategories so frontend immediately reflects it
+                    $old_parent = $this->db->get_where('category', ['id' => $param1])->row_array();
+                    $old_thumb = $old_parent['thumbnail'] ?? '';
+                    $this->db->where('parent', $param1);
+                    if (!empty($old_thumb)) {
+                        $this->db->group_start()
+                            ->where('thumbnail', $old_thumb)
+                            ->or_where('sub_category_thumbnail', $old_thumb)
+                            ->or_where('sub_category_thumbnail', '')
+                            ->or_where('sub_category_thumbnail IS NULL', null, false)
+                            ->group_end();
+                    }
+                    $this->db->update('category', [
+                        'thumbnail' => $data['thumbnail'],
+                        'sub_category_thumbnail' => $data['thumbnail']
+                    ]);
                 }
             }
 
@@ -144,8 +162,10 @@ class Crud_model extends CI_Model
                 if (!file_exists('uploads/thumbnails/category_thumbnails')) {
                     mkdir('uploads/thumbnails/category_thumbnails', 0777, true);
                 }
-                if ($_FILES['sub_category_thumbnail']['name'] != "") {
-                    $data['sub_category_thumbnail'] = md5(rand(10000000, 20000000)) . '.jpg';
+                if (!empty($_FILES['sub_category_thumbnail']['name'])) {
+                    $ext = strtolower(pathinfo($_FILES['sub_category_thumbnail']['name'], PATHINFO_EXTENSION));
+                    $data['sub_category_thumbnail'] = md5(rand(10000000, 20000000)) . ($ext ? '.' . $ext : '.jpg');
+                    $data['thumbnail'] = $data['sub_category_thumbnail'];
                     move_uploaded_file($_FILES['sub_category_thumbnail']['tmp_name'], 'uploads/thumbnails/category_thumbnails/' . $data['sub_category_thumbnail']);
                 }
             }
@@ -211,12 +231,23 @@ class Crud_model extends CI_Model
         return $this->db->get('enrol');
     }
 
-    public function enrol_history_by_date_range($timestamp_start = "", $timestamp_end = "")
+    public function enrol_history_by_date_range($timestamp_start = "", $timestamp_end = "", $course_id = "all")
     {
-        $this->db->order_by('date_added', 'desc');
-        $this->db->where('date_added >=', $timestamp_start);
-        $this->db->where('date_added <=', $timestamp_end);
-        return $this->db->get('enrol');
+        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.image as user_image, course.title as course_title, course.id as course_db_id');
+        $this->db->from('enrol');
+        $this->db->join('users', 'users.id = enrol.user_id', 'left');
+        $this->db->join('course', 'course.id = enrol.course_id', 'left');
+        $this->db->order_by('enrol.date_added', 'desc');
+        if (!empty($timestamp_start)) {
+            $this->db->where('enrol.date_added >=', $timestamp_start);
+        }
+        if (!empty($timestamp_end)) {
+            $this->db->where('enrol.date_added <=', $timestamp_end);
+        }
+        if ($course_id != 'all' && !empty($course_id)) {
+            $this->db->where('enrol.course_id', intval($course_id));
+        }
+        return $this->db->get();
     }
 
     public function get_revenue_by_user_type($timestamp_start = "", $timestamp_end = "", $revenue_type = "")
@@ -305,6 +336,40 @@ class Crud_model extends CI_Model
         $this->db->delete('payment');
     }
     
+    public function unenroll_student_from_course($user_id, $course_id)
+    {
+        // Delete records from watched_duration table
+        $this->db->where('watched_student_id', $user_id);
+        $this->db->where('watched_course_id', $course_id);
+        $this->db->delete('watched_duration');
+
+        // Delete records from watch_histories table
+        $this->db->where('student_id', $user_id);
+        $this->db->where('course_id', $course_id);
+        $this->db->delete('watch_histories');
+
+        // Get quiz lesson IDs associated with the course
+        $lesson_ids = $this->db->select('id')
+                            ->from('lesson')
+                            ->where('lesson_type', 'quiz')
+                            ->where('course_id', $course_id)
+                            ->get()
+                            ->result_array();
+
+        // Delete records from quiz_results table based on quiz IDs
+        if (!empty($lesson_ids)) {
+            $quiz_ids = array_column($lesson_ids, 'id');
+            $this->db->where_in('quiz_id', $quiz_ids);
+            $this->db->where('user_id', $user_id);
+            $this->db->delete('quiz_results');
+        }
+
+        // Delete the enrol record
+        $this->db->where('user_id', $user_id);
+        $this->db->where('course_id', $course_id);
+        $this->db->delete('enrol');
+    }
+
     public function delete_enrol_history($param1)
     {
         // Retrieve enrol data by ID
@@ -312,35 +377,7 @@ class Crud_model extends CI_Model
         $result = $this->db->get('enrol')->row_array();
 
         if ($result) {
-            // Delete records from watched_duration table
-            $this->db->where('watched_student_id', $result['user_id']);
-            $this->db->where('watched_course_id', $result['course_id']);
-            $this->db->delete('watched_duration');
-
-            // Delete records from watch_histories table
-            $this->db->where('student_id', $result['user_id']);
-            $this->db->where('course_id', $result['course_id']);
-            $this->db->delete('watch_histories');
-
-            // Get quiz lesson IDs associated with the course
-            $lesson_ids = $this->db->select('id')
-                                ->from('lesson')
-                                ->where('lesson_type', 'quiz')
-                                ->where('course_id', $result['course_id'])
-                                ->get()
-                                ->result_array();
-
-            // Delete records from quiz_results table based on quiz IDs
-            if (!empty($lesson_ids)) {
-                $quiz_ids = array_column($lesson_ids, 'id');
-                $this->db->where_in('quiz_id', $quiz_ids);
-                $this->db->where('user_id', $result['user_id']);
-                $this->db->delete('quiz_results');
-            }
-
-            // Delete the enrol record
-            $this->db->where('id', $param1);
-            $this->db->delete('enrol');
+            $this->unenroll_student_from_course($result['user_id'], $result['course_id']);
         }
     }
 
@@ -2706,6 +2743,129 @@ class Crud_model extends CI_Model
         }
     }
 
+    public function update_student_enrolment()
+    {
+        $user_id           = intval($this->input->post('user_id'));
+        $courses_id        = $this->input->post('course_id');
+        $expiry_days       = $this->input->post('expiry_days');
+        $expiry_date_input = $this->input->post('expiry_date');
+
+        if ($user_id <= 0) {
+            $this->session->set_flashdata('error_message', get_phrase('invalid_user_selected'));
+            return;
+        }
+
+        if (!is_array($courses_id)) {
+            $courses_id = (!empty($courses_id) || $courses_id === '0') ? [intval($courses_id)] : [];
+        } else {
+            $courses_id = array_map('intval', array_filter($courses_id, function($val) {
+                return $val !== '' && $val !== null;
+            }));
+        }
+
+        // Get existing enrolments for this user
+        $existing_enrolments = $this->db->get_where('enrol', ['user_id' => $user_id])->result_array();
+        $existing_course_ids = array_map('intval', array_column($existing_enrolments, 'course_id'));
+
+        // 1. Unenroll deselected courses
+        $courses_to_remove = array_diff($existing_course_ids, $courses_id);
+        foreach ($courses_to_remove as $remove_course_id) {
+            $this->unenroll_student_from_course($user_id, $remove_course_id);
+        }
+
+        // 2. Identify newly added courses & kept courses
+        $courses_to_add = array_diff($courses_id, $existing_course_ids);
+        $courses_kept   = array_intersect($existing_course_ids, $courses_id);
+
+        // Determine if custom expiry is specified
+        $has_custom_expiry = false;
+        $custom_expiry_timestamp = null;
+
+        if ($expiry_days !== null && $expiry_days !== '' && is_numeric($expiry_days)) {
+            $has_custom_expiry = true;
+            $days_int = intval($expiry_days);
+            $custom_expiry_timestamp = ($days_int > 0) ? strtotime("+" . $days_int . " days") : null; // 0 = Lifetime
+        } elseif (!empty($expiry_date_input)) {
+            $has_custom_expiry = true;
+            $custom_expiry_timestamp = strtotime($expiry_date_input . ' 23:59:59');
+        }
+
+        // 3. Update kept courses if custom expiry was given
+        if ($has_custom_expiry) {
+            foreach ($courses_kept as $course_id) {
+                $data = [
+                    'expiry_date'   => $custom_expiry_timestamp,
+                    'last_modified' => time()
+                ];
+                $this->db->where('user_id', $user_id);
+                $this->db->where('course_id', $course_id);
+                $this->db->update('enrol', $data);
+            }
+        }
+
+        // 4. Insert newly added courses
+        foreach ($courses_to_add as $course_id) {
+            $course_details = $this->get_course_by_id($course_id)->row_array();
+            if ($has_custom_expiry) {
+                $data_expiry = $custom_expiry_timestamp;
+            } elseif (!empty($course_details['expiry_period']) && $course_details['expiry_period'] > 0) {
+                $days = $course_details['expiry_period'] * 30;
+                $data_expiry = strtotime("+" . $days . " days");
+            } else {
+                $data_expiry = null;
+            }
+
+            $insert_data = [
+                'user_id'       => $user_id,
+                'course_id'     => $course_id,
+                'expiry_date'   => $data_expiry,
+                'gifted_by'     => 0,
+                'date_added'    => time(),
+                'last_modified' => time()
+            ];
+            $this->db->insert('enrol', $insert_data);
+        }
+
+        $this->session->set_flashdata('flash_message', get_phrase('course_enrolment_updated_successfully'));
+    }
+
+    public function update_single_enrol_history($enrol_id)
+    {
+        $enrol_id = intval($enrol_id);
+        $course_id = intval($this->input->post('course_id'));
+        $expiry_days = $this->input->post('expiry_days');
+        $expiry_date_input = $this->input->post('expiry_date');
+
+        $enrol = $this->db->get_where('enrol', ['id' => $enrol_id])->row_array();
+        if (!$enrol) {
+            $this->session->set_flashdata('error_message', get_phrase('enrolment_record_not_found'));
+            return;
+        }
+
+        $data = ['last_modified' => time()];
+
+        if ($course_id > 0 && $course_id != $enrol['course_id']) {
+            // Check if user is already enrolled in new course
+            $already = $this->db->get_where('enrol', ['user_id' => $enrol['user_id'], 'course_id' => $course_id])->num_rows();
+            if ($already > 0) {
+                $this->session->set_flashdata('error_message', get_phrase('user_is_already_enrolled_in_this_course'));
+                return;
+            }
+            $data['course_id'] = $course_id;
+        }
+
+        if ($expiry_days !== null && $expiry_days !== '' && is_numeric($expiry_days)) {
+            $days_int = intval($expiry_days);
+            $data['expiry_date'] = ($days_int > 0) ? strtotime("+" . $days_int . " days") : null;
+        } elseif (!empty($expiry_date_input)) {
+            $data['expiry_date'] = strtotime($expiry_date_input . ' 23:59:59');
+        }
+
+        $this->db->where('id', $enrol_id);
+        $this->db->update('enrol', $data);
+        $this->session->set_flashdata('flash_message', get_phrase('enrolment_updated_successfully'));
+    }
+
     public function shortcut_enrol_a_student_manually()
     {
         $course_id = $this->input->post('course_id');
@@ -2748,19 +2908,28 @@ class Crud_model extends CI_Model
             }
 
 
-            if ($this->db->get_where('enrol', ['course_id' => $course_id, 'user_id' => $user_id])->num_rows() > 0) {
+            $existing_enrol = $this->db->get_where('enrol', ['course_id' => $course_id, 'user_id' => $user_id]);
+            if ($existing_enrol->num_rows() > 0) {
+                $enrol_row = $existing_enrol->row_array();
+                $is_already_valid = ($enrol_row['expiry_date'] == null || $enrol_row['expiry_date'] >= time());
                 $data['gifted_by'] = 0;
-                $data['last_modified'] = strtotime(date('D, d-M-Y'));
+                $data['last_modified'] = time();
                 $this->db->where('user_id', $user_id);
                 $this->db->where('course_id', $course_id);
                 $this->db->update('enrol', $data);
+                if ($is_already_valid) {
+                    $this->session->set_flashdata('info_message', get_phrase('you_are_already_enrolled'));
+                } else {
+                    $this->session->set_flashdata('flash_message', get_phrase('successfully_enrolled'));
+                }
             } else {
                 $data['course_id'] = $course_id;
                 $data['user_id']   = $user_id;
-                $data['date_added'] = strtotime(date('D, d-M-Y'));
+                $data['date_added'] = time();
+                $data['last_modified'] = time();
                 $this->db->insert('enrol', $data);
+                $this->session->set_flashdata('flash_message', get_phrase('successfully_enrolled'));
             }
-            $this->session->set_flashdata('flash_message', get_phrase('successfully_enrolled'));
         } else {
             $this->session->set_flashdata('error_message', get_phrase('this_course_is_not_free_at_all'));
             redirect(site_url('home/course/' . slugify($course_details['title']) . '/' . $course_id), 'refresh');
@@ -3036,10 +3205,13 @@ class Crud_model extends CI_Model
         $data_message['message_thread_code']    = $message_thread_code;
         $data_message['message']                = $message;
         $data_message['sender']                 = $sender;
-        $data_message['receiver']            = $receiver;
+        $data_message['receiver']               = $receiver;
         $data_message['timestamp']              = $timestamp;
         $data_message['read_status']            = 0;
         $this->db->insert('message', $data_message);
+
+        // Trigger notification for the recipient
+        $this->trigger_message_notification($sender, $receiver, $message, $message_thread_code);
 
         return $message_thread_code;
     }
@@ -3065,6 +3237,57 @@ class Crud_model extends CI_Model
         $data_message['timestamp']              = $timestamp;
         $data_message['read_status']            = 0;
         $this->db->insert('message', $data_message);
+
+        // Trigger notification for the recipient
+        $this->trigger_message_notification($sender, $receiver, $message, $message_thread_code);
+    }
+
+    public function trigger_message_notification($sender, $receiver, $message, $message_thread_code)
+    {
+        if (empty($sender) || empty($receiver)) {
+            return;
+        }
+
+        $sender_user = $this->db->get_where('users', array('id' => $sender))->row_array();
+        $receiver_user = $this->db->get_where('users', array('id' => $receiver))->row_array();
+
+        if (!$sender_user || !$receiver_user) {
+            return;
+        }
+
+        $sender_name = trim($sender_user['first_name'] . ' ' . $sender_user['last_name']);
+        $sender_role = ($sender_user['role_id'] == 1) ? get_phrase('admin') : get_phrase('pharmacist');
+
+        $clean_msg = trim(preg_replace('/\s+/', ' ', strip_tags($message)));
+        $snippet = (mb_strlen($clean_msg) > 90) ? mb_substr($clean_msg, 0, 87) . '...' : $clean_msg;
+        if (empty($snippet)) {
+            $snippet = get_phrase('sent_you_a_message');
+        }
+
+        $title = get_phrase('new_message_from') . ' ' . $sender_name . ' (' . ucfirst($sender_role) . ')';
+
+        $notification_data = array(
+            'from_user'   => $sender,
+            'to_user'     => $receiver,
+            'type'        => 'message',
+            'title'       => $title,
+            'description' => $snippet,
+            'status'      => 0,
+            'created_at'  => time(),
+            'updated_at'  => time(),
+        );
+
+        $this->db->insert('notifications', $notification_data);
+    }
+
+    public function get_thread_code_between($user1, $user2)
+    {
+        if (empty($user1) || empty($user2)) {
+            return null;
+        }
+        $this->db->where("(sender = '{$user1}' AND receiver = '{$user2}') OR (sender = '{$user2}' AND receiver = '{$user1}')");
+        $thread = $this->db->get('message_thread')->row_array();
+        return $thread ? $thread['message_thread_code'] : null;
     }
 
     function mark_thread_messages_read($message_thread_code)
@@ -3074,6 +3297,16 @@ class Crud_model extends CI_Model
         $this->db->where('receiver', $user_id);
         $this->db->where('message_thread_code', $message_thread_code);
         $this->db->update('message', array('read_status' => 1));
+
+        // Mark corresponding message notifications as read
+        $message_thread = $this->db->get_where('message_thread', array('message_thread_code' => $message_thread_code))->row_array();
+        if ($message_thread) {
+            $sender_id = ($message_thread['sender'] == $user_id) ? $message_thread['receiver'] : $message_thread['sender'];
+            $this->db->where('to_user', $user_id);
+            $this->db->where('from_user', $sender_id);
+            $this->db->where('type', 'message');
+            $this->db->update('notifications', array('status' => 1, 'updated_at' => time()));
+        }
     }
 
     function count_unread_message_of_thread($message_thread_code)
@@ -3492,33 +3725,42 @@ class Crud_model extends CI_Model
     // multiple_choice_question crud functions
     function manage_mcq_choice_question($quiz_id, $question_id, $action)
     {
-        if (sizeof($this->input->post('options')) != $this->input->post('number_of_options')) {
-            echo get_phrase('no_options_can_be_blank_and_there_has_to_be_atleast_one_answer');
-            return;
-        }
-        if (empty($this->input->post('title'))) {
+        $raw_title = (string) $this->input->post('title', false);
+        $title_text = trim(strip_tags($raw_title));
+        if ($raw_title === '' || ($title_text === '' && !preg_match('/<img|<svg/i', $raw_title))) {
             echo get_phrase('question_title_can_not_be_empty');
             return;
         }
-        foreach ($this->input->post('options') as $option) {
-            if ($option == "") {
+
+        $options = $this->input->post('options');
+        $number_of_options = (int) $this->input->post('number_of_options');
+
+        if (!is_array($options) || count($options) != $number_of_options || $number_of_options <= 0) {
+            echo get_phrase('no_options_can_be_blank_and_there_has_to_be_atleast_one_answer');
+            return;
+        }
+
+        foreach ($options as $option) {
+            if (trim($option) === "") {
                 echo get_phrase('no_options_can_be_blank_and_there_has_to_be_atleast_one_answer');
                 return;
             }
         }
-        if (is_array($this->input->post('correct_answers')) && sizeof($this->input->post('correct_answers')) == 0) {
-            $correct_answers = [""];
-        } elseif (!empty($this->input->post('correct_answers'))) {
-            $correct_answers = $this->input->post('correct_answers');
+
+        $correct_answers_input = $this->input->post('correct_answers');
+        if (is_array($correct_answers_input) && count($correct_answers_input) > 0) {
+            $correct_answers = array_values($correct_answers_input);
+        } elseif (!empty($correct_answers_input)) {
+            $correct_answers = is_array($correct_answers_input) ? $correct_answers_input : array($correct_answers_input);
         } else {
             echo get_phrase('correct_answer_can_not_be_empty');
             return;
         }
 
-        $data['title']              = htmlspecialchars_($this->input->post('title', false));
-        $data['number_of_options']  = htmlspecialchars_($this->input->post('number_of_options'));
+        $data['title']              = htmlspecialchars_($raw_title);
+        $data['number_of_options']  = $number_of_options;
         $data['type']               = htmlspecialchars_($this->input->post('question_type'));
-        $data['options']            = json_encode($this->input->post('options'));
+        $data['options']            = json_encode(array_values($options));
         $data['correct_answers']    = json_encode($correct_answers);
 
         if ($action == 'add') {
@@ -3793,15 +4035,16 @@ class Crud_model extends CI_Model
         if ($this->db->get_where('course', array('id' => $course_id))->row('is_free_course') == 1) :
             $data['gifted_by'] = 0;
             if ($this->db->get_where('enrol', ['course_id' => $course_id, 'user_id' => $user_id])->num_rows() > 0) {
-                $data['course_id'] = $course_id;
-                $data['user_id']   = $user_id;
-                $data['date_added'] = strtotime(date('D, d-M-Y'));
-                $this->db->insert('enrol', $data);
-            } else {
                 $data['last_modified'] = strtotime(date('D, d-M-Y'));
                 $this->db->where('user_id', $user_id);
                 $this->db->where('course_id', $course_id);
                 $this->db->update('enrol', $data);
+            } else {
+                $data['course_id'] = $course_id;
+                $data['user_id']   = $user_id;
+                $data['date_added'] = strtotime(date('D, d-M-Y'));
+                $data['last_modified'] = strtotime(date('D, d-M-Y'));
+                $this->db->insert('enrol', $data);
             }
         endif;
     }
@@ -5482,14 +5725,177 @@ class Crud_model extends CI_Model
         $this->db->where('id', $badge_id);
         $this->db->update('badges', $data);
     }
-    
 
+    public function get_course_pharmacist_academic_progress_data($course_id)
+    {
+        $course_details = $this->get_course_by_id($course_id)->row_array();
+        if (empty($course_details)) {
+            return false;
+        }
 
+        $enrolments = $this->db->where('course_id', $course_id)->get('enrol')->result_array();
+        $lessons = $this->get_lessons('course', $course_id);
+        $total_lesson = $lessons->num_rows();
 
+        $quizzes = $this->db->order_by('order', 'asc')->get_where('lesson', ['course_id' => $course_id, 'lesson_type' => 'quiz'])->result_array();
+        $total_quizzes = count($quizzes);
 
+        $headers = [
+            '#',
+            'Pharmacist Name',
+            'Email',
+            'Enrollment Date',
+            'Last Seen On',
+            'Completed On',
+            'Course Progress',
+            'Completed Lessons',
+            'Watched Duration',
+            'Quiz Result',
+            'Score',
+            'Percentage',
+            'Pass Mark',
+            'Attempts',
+            'Quiz Details'
+        ];
 
+        $rows = [];
+        $index = 1;
 
+        foreach ($enrolments as $enrolment) {
+            $student = $this->user_model->get_all_user($enrolment['user_id'])->row_array();
+            if (empty($student)) continue;
+            $student_id = $enrolment['user_id'];
 
+            $watch_history = $this->db->where('course_id', $course_id)->where('student_id', $student_id)->get('watch_histories')->row_array();
+            $completed_lesson_arr = isset($watch_history['completed_lesson']) ? json_decode($watch_history['completed_lesson'], true) : [];
+            $completed_lesson_count = is_array($completed_lesson_arr) ? count($completed_lesson_arr) : 0;
+            $course_progress = isset($watch_history['course_progress']) ? $watch_history['course_progress'] : 0;
 
+            $enrollment_date = date('d M Y', $enrolment['date_added']);
+            $last_seen = isset($watch_history['date_updated']) ? date('d M Y, h:i A', $watch_history['date_updated']) : 'Not started yet';
+            $completed_date = isset($watch_history['completed_date']) ? date('d M Y', $watch_history['completed_date']) : 'Not completed yet';
 
+            // Watched duration
+            $total_watched_duration = 0;
+            $watched_durations = $this->db->get_where('watched_duration', ['watched_student_id' => $student_id, 'watched_course_id' => $course_id]);
+            foreach ($watched_durations->result_array() as $wd) {
+                $total_watched_duration += count(json_decode($wd['watched_counter'], true)) * 5;
+            }
+            $watched_duration_str = seconds_to_time_format($total_watched_duration);
+
+            // Quiz evaluation
+            if ($total_quizzes == 0) {
+                $quiz_status = 'No quiz';
+                $quiz_score = 'N/A';
+                $quiz_pct = 'N/A';
+                $quiz_pass_mark = 'N/A';
+                $attempts = 0;
+                $quiz_details = 'No quiz in this course';
+            } elseif ($total_quizzes == 1) {
+                $quiz = $quizzes[0];
+                $attachment = json_decode($quiz['attachment'] ?? '{}', true) ?: [];
+                $total_marks = !empty($attachment['total_marks']) ? floatval($attachment['total_marks']) : 0;
+                $pass_mark = isset($attachment['pass_mark']) && $attachment['pass_mark'] !== '' ? floatval($attachment['pass_mark']) : 0;
+                if ($total_marks == 0) {
+                    $total_marks = $this->db->where('quiz_id', $quiz['id'])->count_all_results('question');
+                }
+
+                $quiz_results = $this->db->order_by('quiz_result_id', 'desc')->where('quiz_id', $quiz['id'])->where('user_id', $student_id)->get('quiz_results');
+                $attempts = $quiz_results->num_rows();
+
+                if ($attempts == 0) {
+                    $quiz_status = 'Not attempted';
+                    $quiz_score = '0 / ' . $total_marks;
+                    $quiz_pct = '0%';
+                    $quiz_pass_mark = ($pass_mark > 0) ? ($pass_mark . ' / ' . $total_marks) : 'N/A';
+                    $quiz_details = 'Not attempted yet';
+                } else {
+                    $latest = $quiz_results->row_array();
+                    $obtained = floatval($latest['total_obtained_marks']);
+                    $pct = ($total_marks > 0) ? round(($obtained / $total_marks) * 100) : 0;
+                    $is_passed = ($pass_mark > 0) ? ($obtained >= $pass_mark) : ($pct >= 50);
+
+                    $quiz_status = $is_passed ? 'Passed' : 'Failed';
+                    $quiz_score = $obtained . ' / ' . $total_marks;
+                    $quiz_pct = $pct . '%';
+                    $quiz_pass_mark = ($pass_mark > 0) ? ($pass_mark . ' / ' . $total_marks) : '50%';
+                    $quiz_details = 'Latest attempt: ' . $obtained . '/' . $total_marks . ' (' . $pct . '%) - ' . ($is_passed ? 'Passed' : 'Failed');
+                }
+            } else {
+                $attempted_quizzes = 0;
+                $passed_quizzes = 0;
+                $total_obtained = 0;
+                $total_possible = 0;
+                $quiz_details_arr = [];
+
+                foreach ($quizzes as $qIdx => $quiz) {
+                    $attachment = json_decode($quiz['attachment'] ?? '{}', true) ?: [];
+                    $q_total = !empty($attachment['total_marks']) ? floatval($attachment['total_marks']) : 0;
+                    $q_pass = isset($attachment['pass_mark']) && $attachment['pass_mark'] !== '' ? floatval($attachment['pass_mark']) : 0;
+                    if ($q_total == 0) {
+                        $q_total = $this->db->where('quiz_id', $quiz['id'])->count_all_results('question');
+                    }
+                    $total_possible += $q_total;
+
+                    $q_res = $this->db->order_by('quiz_result_id', 'desc')->where('quiz_id', $quiz['id'])->where('user_id', $student_id)->get('quiz_results');
+                    $q_attempts = $q_res->num_rows();
+
+                    if ($q_attempts > 0) {
+                        $attempted_quizzes++;
+                        $l_res = $q_res->row_array();
+                        $q_obt = floatval($l_res['total_obtained_marks']);
+                        $total_obtained += $q_obt;
+                        $q_pct = ($q_total > 0) ? round(($q_obt / $q_total) * 100) : 0;
+                        $q_pass_bool = ($q_pass > 0) ? ($q_obt >= $q_pass) : ($q_pct >= 50);
+                        if ($q_pass_bool) $passed_quizzes++;
+
+                        $quiz_details_arr[] = 'Q' . ($qIdx + 1) . ' (' . $quiz['title'] . '): ' . ($q_pass_bool ? 'Pass' : 'Fail') . ' [' . $q_obt . '/' . $q_total . ' (' . $q_pct . '%), ' . $q_attempts . ' att]';
+                    } else {
+                        $quiz_details_arr[] = 'Q' . ($qIdx + 1) . ' (' . $quiz['title'] . '): Not attempted';
+                    }
+                }
+
+                if ($attempted_quizzes == 0) {
+                    $quiz_status = 'Not attempted (0/' . $total_quizzes . ')';
+                    $quiz_score = '0 / ' . $total_possible;
+                    $quiz_pct = '0%';
+                } else {
+                    if ($passed_quizzes == $total_quizzes) {
+                        $quiz_status = 'All Passed (' . $passed_quizzes . '/' . $total_quizzes . ')';
+                    } else {
+                        $quiz_status = $passed_quizzes . '/' . $total_quizzes . ' Passed';
+                    }
+                    $quiz_score = $total_obtained . ' / ' . $total_possible;
+                    $quiz_pct = ($total_possible > 0) ? round(($total_obtained / $total_possible) * 100) . '%' : '0%';
+                }
+                $attempts = $attempted_quizzes . '/' . $total_quizzes . ' attempted';
+                $quiz_pass_mark = $passed_quizzes . '/' . $total_quizzes . ' passed';
+                $quiz_details = implode('; ', $quiz_details_arr);
+            }
+
+            $rows[] = [
+                'id' => $index++,
+                'name' => $student['first_name'] . ' ' . $student['last_name'],
+                'email' => $student['email'],
+                'enrollment_date' => $enrollment_date,
+                'last_seen' => $last_seen,
+                'completed_date' => $completed_date,
+                'course_progress' => $course_progress . '%',
+                'completed_lessons' => $completed_lesson_count . ' out of ' . $total_lesson,
+                'watched_duration' => $watched_duration_str,
+                'quiz_result' => $quiz_status,
+                'score' => $quiz_score,
+                'percentage' => $quiz_pct,
+                'pass_mark' => $quiz_pass_mark,
+                'attempts' => $attempts,
+                'quiz_details' => $quiz_details
+            ];
+        }
+
+        return [
+            'course' => $course_details,
+            'headers' => $headers,
+            'rows' => $rows
+        ];
+    }
 }

@@ -125,7 +125,20 @@ $get_lesson_type = get_lesson_type($lesson_details['id']);
 <?php elseif ($get_lesson_type == 'text_file') : ?>
 	<iframe class="embed-responsive-item" width="100%" height="450px" src="<?php echo site_url('files?course_id=' . $course_details['id'] . '&lesson_id=' . $lesson_details['id'] . '&type=image'); ?>" allowfullscreen></iframe>
 <?php elseif ($get_lesson_type == 'pdf_file') : ?>
-	<iframe class="embed-responsive-item" width="100%" height="600px" src="<?php echo site_url('home/pdf_canvas/' . $course_details['id'] . '/' . $lesson_details['id'].'/'.$bundle_id); ?>" allowfullscreen></iframe>
+	<style>
+		@media print {
+			#course_pdf_canvas_iframe {
+				display: none !important;
+				visibility: hidden !important;
+				opacity: 0 !important;
+				height: 0 !important;
+				width: 0 !important;
+			}
+		}
+	</style>
+	<div class="position-relative w-100" style="min-height: 600px; background: #0f172a; border-radius: 8px; overflow: hidden;">
+		<iframe id="course_pdf_canvas_iframe" class="embed-responsive-item w-100" height="600px" style="border: 0; display: block; width: 100%; height: 600px; min-height: 600px; background: #0f172a;" src="<?php echo site_url('home/pdf_canvas/' . $course_details['id'] . '/' . $lesson_details['id'].'/'.$bundle_id); ?>" allowfullscreen></iframe>
+	</div>
 <?php elseif ($get_lesson_type == 'doc_file') : ?>
 	<iframe width="100%" height="500px" class="doc" src="<?php echo site_url('files?course_id=' . $course_details['id'] . '&lesson_id=' . $lesson_details['id']); ?>&embedded=true"></iframe>
 <?php elseif ($get_lesson_type == 'wasabi_document_file') : ?>

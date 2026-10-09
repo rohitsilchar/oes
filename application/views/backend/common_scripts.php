@@ -376,3 +376,102 @@ if ($email_list > 0) :
 
 <?php endif; ?>
 <!-- Newsletter sending end-->
+
+<!-- Navigation Sidebar Toggle Script -->
+<script type="text/javascript">
+(function() {
+    function applySidebarState(isCollapsed) {
+        var $body = $('body');
+        if (isCollapsed) {
+            $body.addClass('enlarged');
+            $body.data('keep-enlarged', 1);
+            $body.attr('data-keep-enlarged', 'true');
+            $('.btn-sidebar-toggle').attr('title', '<?php echo get_phrase('expand_navigation'); ?>').attr('aria-label', '<?php echo get_phrase('expand_navigation'); ?>');
+        } else {
+            $body.removeClass('enlarged');
+            $body.data('keep-enlarged', 0);
+            $body.removeAttr('data-keep-enlarged');
+            $('.btn-sidebar-toggle').attr('title', '<?php echo get_phrase('collapse_navigation'); ?>').attr('aria-label', '<?php echo get_phrase('collapse_navigation'); ?>');
+        }
+    }
+
+    $(document).ready(function() {
+        // Prevent theme's App.initLayout from overriding our keep-enlarged state on resize
+        if (window.jQuery && window.jQuery.App) {
+            var origInitLayout = window.jQuery.App.initLayout;
+            window.jQuery.App.initLayout = function() {
+                try {
+                    var saved = localStorage.getItem('qes_admin_sidebar_collapsed');
+                    if (saved === '1' && $(window).width() >= 768) {
+                        applySidebarState(true);
+                        return;
+                    } else if (saved === '0' && $(window).width() >= 768) {
+                        applySidebarState(false);
+                        return;
+                    }
+                } catch(e) {}
+                if (typeof origInitLayout === 'function') {
+                    origInitLayout.call(this);
+                }
+            };
+        }
+
+        // Initialize state on load
+        try {
+            if ($(window).width() >= 768) {
+                var saved = localStorage.getItem('qes_admin_sidebar_collapsed');
+                if (saved === '1') {
+                    applySidebarState(true);
+                } else if (saved === '0') {
+                    applySidebarState(false);
+                }
+            }
+        } catch(e) {}
+
+        // Single Toggle Handler
+        $(document).off('click', '.btn-sidebar-toggle').on('click', '.btn-sidebar-toggle', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if ($(window).width() >= 768) {
+                var isCurrentlyCollapsed = $('body').hasClass('enlarged');
+                var shouldCollapse = !isCurrentlyCollapsed;
+
+                applySidebarState(shouldCollapse);
+                try {
+                    localStorage.setItem('qes_admin_sidebar_collapsed', shouldCollapse ? '1' : '0');
+                } catch(err) {}
+
+                // Reset sidebar scroll plugin
+                if (window.jQuery && window.jQuery.App && typeof window.jQuery.App._resetSidebarScroll === 'function') {
+                    window.jQuery.App._resetSidebarScroll();
+                }
+
+                // Smooth resize event for datatables/charts
+                setTimeout(function() {
+                    window.dispatchEvent(new Event('resize'));
+                }, 260);
+            } else {
+                // Mobile: toggle drawer
+                $('body').removeClass('enlarged');
+                $('body').toggleClass('sidebar-enable');
+            }
+        });
+
+        // Mobile backdrop click to close
+        $(document).on('click', '.sidebar-backdrop', function() {
+            if ($(window).width() < 768) {
+                $('body').removeClass('sidebar-enable');
+            }
+        });
+    });
+})();
+
+// Global DataTables default lengthMenu options: 10, 25, 50, 100, 250, 500
+if (window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable) {
+    jQuery.extend(true, jQuery.fn.dataTable.defaults, {
+        lengthMenu: [10, 25, 50, 100, 250, 500],
+        aLengthMenu: [10, 25, 50, 100, 250, 500]
+    });
+}
+</script>

@@ -13,7 +13,7 @@ $questions = $this->crud_model->get_quiz_questions($param2)->result_array();
                             <div class="bg-dragula p-2 p-lg-4">
                                 <h5 class="mt-0"><?php echo get_phrase('questions_of').': '.$quiz_details['title']; ?>
                                     <button type="button" class="btn btn-outline-primary btn-sm btn-rounded alignToTitle ml-1" id = "question-sort-btn" onclick="sort()" name="button"><?php echo get_phrase('update_sorting'); ?></button>
-                                    <button type="button" class="btn btn-outline-primary btn-sm btn-rounded alignToTitle" onclick="showLargeModal('<?php echo site_url('modal/popup/question_add/'.$param2) ?>', '<?php echo get_phrase('add_new_question'); ?>')" name="button" data-dismiss="modal"><?php echo get_phrase('add_new_question'); ?></button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm btn-rounded alignToTitle" onclick="showLargeModal('<?php echo site_url('modal/popup/question_add/'.$param2) ?>', '<?php echo get_phrase('add_new_question'); ?>')" name="button"><?php echo get_phrase('add_new_question'); ?></button>
                                 </h5>
                                 <div id="question-list" class="py-2">
                                     <?php foreach ($questions as $question): ?>
@@ -26,7 +26,7 @@ $questions = $this->crud_model->get_quiz_questions($param2)->result_array();
                                                         </h5>
                                                         <span id = "<?php echo 'widgets-of-'.$question['id']; ?>" class="widgets-of-quiz-question">
                                                             <a href="javascript:;" class="alignToTitle float-right ml-1 text-secondary" onclick="deleteQuizQuestionAndReloadModal('<?php echo $param2; ?>', '<?php echo $question['id']; ?>')" data-dismiss="modal"><i class="dripicons-cross"></i></a>
-                                                            <a href="javascript:;" class="alignToTitle float-right text-secondary" onclick="showLargeModal('<?php echo site_url('modal/popup/question_edit/'.$question['id'].'/'.$param2); ?>', '<?php echo get_phrase('update_quiz_question'); ?>')" data-dismiss="modal"><i class="dripicons-document-edit"></i></a>
+                                                            <a href="javascript:;" class="alignToTitle float-right text-secondary" onclick="showLargeModal('<?php echo site_url('modal/popup/question_edit/'.$question['id'].'/'.$param2); ?>', '<?php echo get_phrase('update_quiz_question'); ?>')"><i class="dripicons-document-edit"></i></a>
                                                         </span>
                                                     </div> <!-- end media-body -->
                                                 </div> <!-- end media -->

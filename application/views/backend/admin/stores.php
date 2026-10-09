@@ -10,7 +10,7 @@
   }
   #basic-datatable {
     width: 100% !important;
-    min-width: 1100px;
+    min-width: 1300px;
   }
   #basic-datatable th, #basic-datatable td {
     white-space: nowrap;
@@ -42,10 +42,15 @@
         <div class="card">
             <div class="card-body">
                 <h4 class="page-title"> <i class="mdi mdi-apple-keyboard-command title_icon"></i> <?php echo $page_title; ?>
-                    <a href="<?php echo site_url('admin/store_form/add_store_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle"><i class="mdi mdi-plus"></i><?php echo get_phrase('add_new_store'); ?></a>
+                    <a href="<?php echo site_url('admin/store_form/add_store_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle">
+                        <i class="mdi mdi-plus"></i><?php echo get_phrase('add_new_store'); ?>
+                    </a>
                     <button type="button" class="btn btn-outline-info btn-rounded alignToTitle mr-1" data-toggle="modal" data-target="#bulkImportStoresModal">
                         <i class="mdi mdi-upload"></i> <?php echo get_phrase('bulk_import'); ?>
                     </button>
+                    <a href="<?php echo site_url('admin/store_categories'); ?>" class="btn btn-outline-success btn-rounded alignToTitle mr-1">
+                        <i class="mdi mdi-shape-plus"></i> <?php echo get_phrase('store_categories'); ?>
+                    </a>
                 </h4>
             </div> <!-- end card body-->
         </div> <!-- end card -->
@@ -54,7 +59,7 @@
 
 <!-- Bulk Import Stores Modal -->
 <div class="modal fade" id="bulkImportStoresModal" tabindex="-1" role="dialog" aria-labelledby="bulkImportStoresModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h4 class="modal-title" id="bulkImportStoresModalLabel"><i class="mdi mdi-store mr-1"></i> <?php echo get_phrase('bulk_import'); ?> - <?php echo get_phrase('stores'); ?></h4>
@@ -67,10 +72,11 @@
                             <div>
                                 <i class="mdi mdi-information-outline mr-1"></i> <strong><?php echo get_phrase('instructions'); ?>:</strong>
                                 <ul class="mb-0 mt-1 pl-3">
-                                    <li><?php echo get_phrase('supported_file_types'); ?>.</li>
-                                    <li><strong>store_name</strong> is mandatory.</li>
-                                    <li><strong>store_code</strong> is optional but must be unique if provided.</li>
-                                    <li><strong>assigned_roles</strong> can be comma-separated role names (e.g. <code>Senior Pharmacist, Cashier, Dispenser</code>).</li>
+                                    <li><?php echo get_phrase('supported_file_types'); ?> (.csv, .xlsx).</li>
+                                    <li><strong>Store Name</strong> (or <code>store_name</code>) is mandatory.</li>
+                                    <li><strong>Store Code</strong> (or <code>store_code</code>) is used to identify/update stores uniquely.</li>
+                                    <li><strong>Store Category</strong> (or <code>store_category</code>, e.g. <code>DAVAINDIA COCO</code>) will automatically link to or create the category in Store Categories master.</li>
+                                    <li>Supports client columns: <code>Store Code, Email, State, Zone, Store Category, Mobile, Store Name, Store Contact Person, Store Live Date, Address</code>.</li>
                                 </ul>
                             </div>
                             <div class="ml-3">
@@ -83,34 +89,40 @@
 
                     <div class="table-responsive mb-3" style="overflow-x: auto !important;">
                         <small class="text-muted font-weight-bold"><?php echo get_phrase('template_columns_preview'); ?>:</small>
-                        <table class="table table-bordered table-sm mt-1 mb-0" style="font-size: 12px; min-width: 900px; white-space: nowrap;">
+                        <table class="table table-bordered table-sm mt-1 mb-0" style="font-size: 12px; min-width: 1100px; white-space: nowrap;">
                             <thead class="thead-light">
                                 <tr>
-                                    <th>store_name <span class="text-danger">*</span></th>
-                                    <th>store_code</th>
-                                    <th>phone</th>
-                                    <th>email</th>
-                                    <th>portal_url</th>
-                                    <th>assigned_roles</th>
-                                    <th>address</th>
-                                    <th>city</th>
-                                    <th>state</th>
-                                    <th>pin_code</th>
-                                    <th>status</th>
+                                    <th>Store Code</th>
+                                    <th>Email</th>
+                                    <th>State</th>
+                                    <th>Zone</th>
+                                    <th>Store Category</th>
+                                    <th>Mobile</th>
+                                    <th>Store Name <span class="text-danger">*</span></th>
+                                    <th>Store Contact Person</th>
+                                    <th>Store Live Date</th>
+                                    <th>Address</th>
+                                    <th>City</th>
+                                    <th>Pin Code</th>
+                                    <th>Portal URL</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Apollo Pharmacy - Downtown</td>
-                                    <td>STR-001</td>
-                                    <td>9876543210</td>
-                                    <td>apollo.downtown@example.com</td>
+                                    <td>CASBAK1750</td>
+                                    <td>howlyroad1750@davaindia.co.in</td>
+                                    <td>ASSAM</td>
+                                    <td>EAST</td>
+                                    <td>DAVAINDIA COCO</td>
+                                    <td>6358818453</td>
+                                    <td>PATHSALA</td>
+                                    <td>SHAHINUR ISLAM</td>
+                                    <td>19-02-2025</td>
+                                    <td>LY ROAD, PO- PATHSALA, PS- PATHSALA, Dist. BAJALI</td>
+                                    <td>Barpeta</td>
+                                    <td>781325</td>
                                     <td>https://store1.domain.com/login</td>
-                                    <td>Senior Pharmacist, Cashier, Dispenser</td>
-                                    <td>123 Downtown Ave</td>
-                                    <td>New York</td>
-                                    <td>NY</td>
-                                    <td>10001</td>
                                     <td>1</td>
                                 </tr>
                             </tbody>
@@ -144,9 +156,13 @@
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th><?php echo get_phrase('store_name'); ?></th>
                                 <th><?php echo get_phrase('store_code'); ?></th>
-                                <th><?php echo get_phrase('contact'); ?></th>
+                                <th><?php echo get_phrase('store_name'); ?></th>
+                                <th><?php echo get_phrase('category'); ?></th>
+                                <th><?php echo get_phrase('zone_/_state'); ?></th>
+                                <th><?php echo get_phrase('contact_person'); ?></th>
+                                <th><?php echo get_phrase('mobile_/_email'); ?></th>
+                                <th><?php echo get_phrase('live_date'); ?></th>
                                 <th><?php echo get_phrase('portal_url'); ?></th>
                                 <th><?php echo get_phrase('assigned_roles'); ?></th>
                                 <th><?php echo get_phrase('status'); ?></th>
@@ -156,22 +172,56 @@
                         <tbody>
                             <?php foreach ($stores as $key => $store) : 
                                 $assigned_role_ids = json_decode($store['assigned_role_ids'] ?: '[]', true);
+                                $cat_display = !empty($store['store_category']) ? $store['store_category'] : (!empty($categories_map[$store['category_id'] ?? 0]) ? $categories_map[$store['category_id']] : '');
+                                $phone_display = !empty($store['mobile']) ? $store['mobile'] : (!empty($store['phone']) ? $store['phone'] : '');
                             ?>
                                 <tr>
                                     <td><?php echo $key + 1; ?></td>
-                                    <td><strong><?php echo htmlspecialchars($store['store_name']); ?></strong></td>
-                                    <td><span class="badge badge-light"><?php echo htmlspecialchars($store['store_code'] ?? 'N/A'); ?></span></td>
                                     <td>
-                                        <?php if (!empty($store['phone'])): ?>
-                                            <div><i class="mdi mdi-phone"></i> <?php echo htmlspecialchars($store['phone']); ?></div>
+                                        <span class="badge badge-dark"><?php echo htmlspecialchars($store['store_code'] ?? 'N/A'); ?></span>
+                                    </td>
+                                    <td><strong><?php echo htmlspecialchars($store['store_name']); ?></strong></td>
+                                    <td>
+                                        <?php if (!empty($cat_display)): ?>
+                                            <span class="badge badge-info-lighten px-2 py-1"><i class="mdi mdi-tag-outline mr-1"></i><?php echo htmlspecialchars($cat_display); ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($store['zone'])): ?>
+                                            <span class="badge badge-primary-lighten mr-1"><?php echo htmlspecialchars($store['zone']); ?></span>
+                                        <?php endif; ?>
+                                        <span class="text-dark"><?php echo htmlspecialchars($store['state'] ?? ''); ?></span>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($store['contact_person'])): ?>
+                                            <div><i class="mdi mdi-account text-muted mr-1"></i><strong><?php echo htmlspecialchars($store['contact_person']); ?></strong></div>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($phone_display)): ?>
+                                            <div><i class="mdi mdi-phone text-muted mr-1"></i><?php echo htmlspecialchars($phone_display); ?></div>
                                         <?php endif; ?>
                                         <?php if (!empty($store['email'])): ?>
-                                            <div><i class="mdi mdi-email"></i> <?php echo htmlspecialchars($store['email']); ?></div>
+                                            <div><i class="mdi mdi-email text-muted mr-1"></i><?php echo htmlspecialchars($store['email']); ?></div>
+                                        <?php endif; ?>
+                                        <?php if (empty($phone_display) && empty($store['email'])): ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($store['live_date'])): ?>
+                                            <span class="badge badge-light"><i class="mdi mdi-calendar mr-1"></i><?php echo htmlspecialchars($store['live_date']); ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if (!empty($store['portal_url'])): ?>
-                                            <a href="<?php echo htmlspecialchars($store['portal_url']); ?>" target="_blank" class="text-info"><?php echo htmlspecialchars($store['portal_url']); ?></a>
+                                            <a href="<?php echo htmlspecialchars($store['portal_url']); ?>" target="_blank" class="text-info"><i class="mdi mdi-open-in-new mr-1"></i>Link</a>
                                         <?php else: ?>
                                             <span class="text-muted">N/A</span>
                                         <?php endif; ?>
@@ -181,7 +231,7 @@
                                         if (!empty($assigned_role_ids)) {
                                             foreach ($assigned_role_ids as $r_id) {
                                                 if (isset($roles_map[$r_id])) {
-                                                    echo '<span class="badge badge-info mr-1 mb-1">' . htmlspecialchars($roles_map[$r_id]) . '</span>';
+                                                    echo '<span class="badge badge-secondary mr-1 mb-1">' . htmlspecialchars($roles_map[$r_id]) . '</span>';
                                                 }
                                             }
                                         } else {
@@ -202,8 +252,8 @@
                                                 <i class="mdi mdi-dots-vertical"></i>
                                             </button>
                                             <ul class="dropdown-menu">
-                                                <li><a class="dropdown-item" href="<?php echo site_url('admin/store_form/edit_store_form/' . $store['id']); ?>"><?php echo get_phrase('edit'); ?></a></li>
-                                                <li><a class="dropdown-item" href="#" onclick="confirm_modal('<?php echo site_url('admin/stores/delete/' . $store['id']); ?>');"><?php echo get_phrase('delete'); ?></a></li>
+                                                <li><a class="dropdown-item" href="<?php echo site_url('admin/store_form/edit_store_form/' . $store['id']); ?>"><i class="mdi mdi-pencil mr-1"></i><?php echo get_phrase('edit'); ?></a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="confirm_modal('<?php echo site_url('admin/stores/delete/' . $store['id']); ?>');"><i class="mdi mdi-delete mr-1 text-danger"></i><?php echo get_phrase('delete'); ?></a></li>
                                             </ul>
                                         </div>
                                     </td>

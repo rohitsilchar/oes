@@ -65,6 +65,16 @@
     display: inline-block;
     vertical-align: middle;
   }
+  .btn-xs {
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 12px;
+  }
+  .btn-duration-preset {
+    font-weight: 500;
+    cursor: pointer;
+  }
 </style>
 
 <!-- start page title -->
@@ -81,7 +91,7 @@
                         <i class="mdi mdi-upload mr-1"></i> <?php echo get_phrase('bulk_import'); ?>
                     </button>
                     <button type="button" class="btn btn-outline-secondary btn-rounded" data-toggle="modal" data-target="#manualEnrolmentModal">
-                        <i class="mdi mdi-form-select mr-1"></i> <?php echo get_phrase('manual_enrolment_form'); ?>
+                        <i class="mdi mdi-format-list-bulleted mr-1"></i> <?php echo get_phrase('manual_enrolment_form'); ?>
                     </button>
                 </div>
             </div> <!-- end card body-->
@@ -166,7 +176,7 @@
     <div class="modal-dialog modal-md" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title" id="manualEnrolmentModalLabel"><i class="mdi mdi-form-select mr-1"></i> <?php echo get_phrase('manual_enrolment_form'); ?></h4>
+                <h4 class="modal-title" id="manualEnrolmentModalLabel"><i class="mdi mdi-format-list-bulleted mr-1"></i> <?php echo get_phrase('manual_enrolment_form'); ?></h4>
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
             </div>
             <form class="required-form" action="<?php echo site_url('admin/enrol_student/enrol'); ?>" method="post">
@@ -382,10 +392,19 @@
                                     </td>
                                     <td>
                                         <?php if (count($enrolled_list) > 0): ?>
-                                            <div class="d-flex flex-wrap" style="gap: 3px; max-width: 250px;">
-                                                <?php foreach ($enrolled_list as $enrol_item): ?>
-                                                    <span class="badge badge-success-lighten course-badge" title="<?php echo htmlspecialchars($enrol_item['course_title'] ?? ''); ?>">
+                                            <div class="d-flex flex-wrap" style="gap: 3px; max-width: 260px;">
+                                                <?php foreach ($enrolled_list as $enrol_item): 
+                                                    $is_expired = (!empty($enrol_item['expiry_date']) && $enrol_item['expiry_date'] < time());
+                                                    $expiry_label = empty($enrol_item['expiry_date']) ? get_phrase('lifetime_access') : ($is_expired ? get_phrase('expired_on') . ' ' . date('d M Y', $enrol_item['expiry_date']) : get_phrase('expires_on') . ' ' . date('d M Y', $enrol_item['expiry_date']));
+                                                    $badge_class = $is_expired ? 'badge-danger-lighten' : 'badge-success-lighten';
+                                                ?>
+                                                    <span class="badge <?php echo $badge_class; ?> course-badge" 
+                                                          data-toggle="tooltip" data-placement="top" 
+                                                          title="<?php echo htmlspecialchars(($enrol_item['course_title'] ?? 'Course') . ' — ' . $expiry_label); ?>">
                                                         <i class="mdi mdi-book-open-page-variant mr-1"></i><?php echo htmlspecialchars($enrol_item['course_title'] ?? 'Course'); ?>
+                                                        <?php if ($is_expired): ?>
+                                                            <span class="text-danger ml-1 font-weight-bold">•</span>
+                                                        <?php endif; ?>
                                                     </span>
                                                 <?php endforeach; ?>
                                             </div>
@@ -401,13 +420,27 @@
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-single-enrol" 
-                                                data-user-id="<?php echo $user_id; ?>" 
-                                                data-name="<?php echo htmlspecialchars($full_name); ?>" 
-                                                data-email="<?php echo htmlspecialchars($user['email']); ?>"
-                                                title="<?php echo get_phrase('enrol_course'); ?>">
-                                            <i class="mdi mdi-school mr-1"></i><?php echo get_phrase('enrol'); ?>
-                                        </button>
+                                        <div class="d-flex align-items-center" style="gap: 5px;">
+                                            <button type="button" class="btn btn-sm btn-outline-primary btn-rounded btn-single-enrol" 
+                                                    data-user-id="<?php echo $user_id; ?>" 
+                                                    data-name="<?php echo htmlspecialchars($full_name); ?>" 
+                                                    data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                                    title="<?php echo get_phrase('enrol_course'); ?>">
+                                                <i class="mdi mdi-school mr-1"></i><?php echo get_phrase('enrol'); ?>
+                                            </button>
+                                            <?php if (count($enrolled_list) > 0): ?>
+                                                <button type="button" class="btn btn-sm btn-outline-info btn-rounded btn-edit-enrol" 
+                                                        data-user-id="<?php echo $user_id; ?>" 
+                                                        data-name="<?php echo htmlspecialchars($full_name); ?>" 
+                                                        data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                                        data-role="<?php echo htmlspecialchars(!empty($user['is_instructor']) ? get_phrase('instructor') : (!empty($user['store_role_title']) ? $user['store_role_title'] : get_phrase('pharmacist'))); ?>"
+                                                        data-store="<?php echo htmlspecialchars($user['store_name'] ?? get_phrase('none')); ?>"
+                                                        data-enrolments='<?php echo json_encode($enrolled_list, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>'
+                                                        title="<?php echo get_phrase('edit_course_enrolment'); ?>">
+                                                    <i class="mdi mdi-pencil mr-1"></i><?php echo get_phrase('edit'); ?>
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -469,6 +502,127 @@
                     <button type="button" class="btn btn-secondary btn-rounded" data-dismiss="modal"><?php echo get_phrase('cancel'); ?></button>
                     <button type="submit" class="btn btn-success btn-rounded" id="btn_submit_bulk_enrol">
                         <i class="mdi mdi-check mr-1"></i> <?php echo get_phrase('enroll_selected_users_now'); ?>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Course Enrolment for a User -->
+<div class="modal fade" id="editEnrolmentModal" tabindex="-1" role="dialog" aria-labelledby="editEnrolmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h4 class="modal-title font-weight-bold" id="editEnrolmentModalLabel">
+                    <i class="mdi mdi-square-edit-outline mr-1 text-info"></i> <?php echo get_phrase('edit_course_enrolment'); ?>
+                </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+            </div>
+            <form action="<?php echo site_url('admin/enrol_student/update'); ?>" method="post" id="form_edit_enrol">
+                <input type="hidden" name="redirect_to" value="admin/enrol_student">
+                <input type="hidden" name="user_id" id="edit_enrol_user_id" value="">
+
+                <div class="modal-body p-3">
+                    <!-- User Profile Banner -->
+                    <div class="card border mb-3 shadow-none bg-light">
+                        <div class="card-body py-2 px-3 d-flex flex-wrap justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0 font-weight-bold text-dark" id="edit_user_name_display"></h5>
+                                <div class="text-muted font-13" id="edit_user_email_display"></div>
+                            </div>
+                            <div class="mt-1 mt-sm-0">
+                                <span class="badge badge-primary-lighten mr-1" id="edit_user_role_display"></span>
+                                <span class="badge badge-info-lighten" id="edit_user_store_display"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Course to Enrol (Select2 Multi-select) -->
+                    <div class="form-group mb-3">
+                        <label for="edit_course_id" class="font-weight-bold">
+                            <?php echo get_phrase('course_to_enrol'); ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="select2 form-control select2-multiple" data-toggle="select2" multiple="multiple" 
+                                data-placeholder="<?php echo get_phrase('choose_course(s)...'); ?>" 
+                                name="course_id[]" id="edit_course_id" style="width: 100%;">
+                            <?php foreach ($courses as $course): ?>
+                                <option value="<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['title']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted d-block mt-1">
+                            <i class="mdi mdi-information-outline mr-1"></i><?php echo get_phrase('add_or_remove_courses_for_this_pharmacist._deselected_courses_will_be_unenrolled'); ?>.
+                        </small>
+                    </div>
+
+                    <!-- Access Duration (Days) & Expiry Date -->
+                    <div class="row">
+                        <div class="col-md-7">
+                            <div class="form-group mb-2">
+                                <label for="edit_expiry_days" class="font-weight-bold">
+                                    <?php echo get_phrase('access_duration_(days)'); ?>
+                                    <small class="text-muted font-weight-normal">(<?php echo get_phrase('optional'); ?>)</small>
+                                </label>
+                                <input type="number" min="0" class="form-control" name="expiry_days" id="edit_expiry_days" 
+                                       placeholder="<?php echo get_phrase('enter_days_or_0_for_lifetime_(leave_blank_to_keep_current)'); ?>">
+                            </div>
+                            <!-- Preset duration buttons -->
+                            <div class="d-flex flex-wrap align-items-center mb-2" style="gap: 5px;">
+                                <small class="text-muted mr-1 font-weight-bold"><?php echo get_phrase('presets'); ?>:</small>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-duration-preset" data-days="30">30d</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-duration-preset" data-days="60">60d</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-duration-preset" data-days="90">90d</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-duration-preset" data-days="180">180d</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-duration-preset" data-days="365">365d (1yr)</button>
+                                <button type="button" class="btn btn-xs btn-outline-success btn-duration-preset" data-days="0">Lifetime</button>
+                                <button type="button" class="btn btn-xs btn-outline-danger btn-duration-preset" data-days="">Clear</button>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="form-group mb-2">
+                                <label for="edit_expiry_date" class="font-weight-bold">
+                                    <?php echo get_phrase('or_specific_expiry_date'); ?>
+                                    <small class="text-muted font-weight-normal">(<?php echo get_phrase('optional'); ?>)</small>
+                                </label>
+                                <input type="date" class="form-control" name="expiry_date" id="edit_expiry_date">
+                            </div>
+                            <small class="text-muted d-block font-12">
+                                <?php echo get_phrase('leave_both_blank_to_keep_existing_expiry_dates_unchanged'); ?>.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Enrolment Breakdown -->
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="font-weight-bold mb-0 text-dark">
+                                <i class="mdi mdi-book-multiple mr-1 text-primary"></i><?php echo get_phrase('currently_enrolled_courses'); ?> 
+                                (<span id="edit_current_courses_count">0</span>)
+                            </h6>
+                            <small class="text-muted"><?php echo get_phrase('live_status_of_active_enrolments'); ?></small>
+                        </div>
+                        <div class="table-responsive border rounded" style="max-height: 220px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mb-0 font-13" id="edit_enrolments_breakdown_table">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th><?php echo get_phrase('course_title'); ?></th>
+                                        <th><?php echo get_phrase('enrolled_on'); ?></th>
+                                        <th><?php echo get_phrase('expiry_date'); ?></th>
+                                        <th><?php echo get_phrase('status'); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Populated dynamically via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-rounded" data-dismiss="modal"><?php echo get_phrase('cancel'); ?></button>
+                    <button type="submit" class="btn btn-info btn-rounded font-weight-bold" id="btn_submit_edit_enrol">
+                        <i class="mdi mdi-check-circle mr-1"></i> <?php echo get_phrase('save_changes'); ?>
                     </button>
                 </div>
             </form>
@@ -545,10 +699,10 @@ $(document).ready(function() {
         }
     }
 
-    // Master function to select / deselect all users
-    function setAllCheckboxes(isChecked) {
-        // 1. Update DOM visible checkboxes directly
-        $('#users_enrolment_datatable tbody input.user-checkbox').each(function() {
+    // Select / deselect only the checkboxes currently showing on the active page/filter
+    function setShowingCheckboxes(isChecked) {
+        var showingCheckboxes = $('#users_enrolment_datatable tbody input.user-checkbox');
+        showingCheckboxes.each(function() {
             this.checked = isChecked;
             var userId = String($(this).val());
             var userName = $(this).data('name') || '';
@@ -561,33 +715,25 @@ $(document).ready(function() {
             }
         });
 
-        // 2. Also update all rows across other pages in DataTables memory if paginated
-        if (table && typeof table.$ === 'function') {
-            table.$('input.user-checkbox').each(function() {
-                this.checked = isChecked;
-                var userId = String($(this).val());
-                var userName = $(this).data('name') || '';
-                var userEmail = $(this).data('email') || '';
-
-                if (isChecked) {
-                    selectedUsers.set(userId, { name: userName, email: userEmail });
-                } else {
-                    selectedUsers.delete(userId);
-                }
-            });
-        }
-
-        // 3. Keep master checkbox state in sync
-        $('input#check_all_users').prop('checked', isChecked);
-
+        $('input#check_all_users').prop('checked', isChecked && showingCheckboxes.length > 0);
         updateSelectionUI();
     }
 
-    // Header master checkbox: Click and Change listener (delegated to document)
-    $(document).on('click change', '#check_all_users', function(e) {
-        e.stopPropagation();
+    // Deselect all users across all pages
+    function deselectAllUsers() {
+        selectedUsers.clear();
+        $('#users_enrolment_datatable tbody input.user-checkbox').prop('checked', false);
+        $('input#check_all_users').prop('checked', false);
+        if (table && typeof table.$ === 'function') {
+            table.$('input.user-checkbox').prop('checked', false);
+        }
+        updateSelectionUI();
+    }
+
+    // Header master checkbox: Change listener (delegated to document)
+    $(document).on('change', '#check_all_users', function(e) {
         var isChecked = $(this).is(':checked');
-        setAllCheckboxes(isChecked);
+        setShowingCheckboxes(isChecked);
     });
 
     // Clicking anywhere on the first th (containing the checkbox) also toggles
@@ -595,14 +741,17 @@ $(document).ready(function() {
         if (!$(e.target).is('#check_all_users')) {
             var masterCb = $('#check_all_users');
             var newChecked = !masterCb.prop('checked');
-            masterCb.prop('checked', newChecked);
-            setAllCheckboxes(newChecked);
+            masterCb.prop('checked', newChecked).trigger('change');
         }
     });
 
-    // Row checkbox click / change event (delegated to document)
-    $(document).on('click change', '#users_enrolment_datatable tbody input.user-checkbox', function(e) {
+    // Row checkbox click stops propagation
+    $(document).on('click', '#users_enrolment_datatable tbody input.user-checkbox', function(e) {
         e.stopPropagation();
+    });
+
+    // Row checkbox change event (delegated to document)
+    $(document).on('change', '#users_enrolment_datatable tbody input.user-checkbox', function(e) {
         var userId = String($(this).val());
         var userName = $(this).data('name') || '';
         var userEmail = $(this).data('email') || '';
@@ -630,7 +779,7 @@ $(document).ready(function() {
 
     // Deselect All button
     $('#btn_deselect_all').on('click', function() {
-        setAllCheckboxes(false);
+        deselectAllUsers();
     });
 
     // Quick single enrol button per row
@@ -740,6 +889,163 @@ $(document).ready(function() {
                 alert("Please select at least one course.");
             }
             return false;
+        }
+    });
+
+    // Helper: format timestamp to readable date string
+    function formatEnrolDate(timestamp) {
+        if (!timestamp || timestamp == 0) return '—';
+        var d = new Date(parseInt(timestamp) * 1000);
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    // Helper: format timestamp to expiry badge/label
+    function formatExpiryStatus(timestamp) {
+        if (!timestamp || timestamp == 0) {
+            return '<span class="badge badge-success-lighten"><i class="mdi mdi-infinity mr-1"></i><?php echo get_phrase('lifetime'); ?></span>';
+        }
+        var ts = parseInt(timestamp);
+        var now = Math.floor(Date.now() / 1000);
+        var diff = ts - now;
+        var d = new Date(ts * 1000);
+        var dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+        if (diff < 0) {
+            var daysAgo = Math.ceil(Math.abs(diff) / 86400);
+            return '<span class="badge badge-danger-lighten">' + dateStr + ' (Expired ' + daysAgo + 'd ago)</span>';
+        } else {
+            var daysLeft = Math.ceil(diff / 86400);
+            return '<span class="badge badge-info-lighten">' + dateStr + ' (' + daysLeft + 'd left)</span>';
+        }
+    }
+
+    // Handle Edit Enrolment button click per row
+    $('#users_enrolment_datatable').on('click', '.btn-edit-enrol', function() {
+        var userId = $(this).data('user-id');
+        var userName = $(this).data('name') || '';
+        var userEmail = $(this).data('email') || '';
+        var userRole = $(this).data('role') || '';
+        var userStore = $(this).data('store') || '';
+        var enrolments = $(this).data('enrolments') || [];
+
+        // Set hidden user_id
+        $('#edit_enrol_user_id').val(userId);
+
+        // Populate user banner
+        $('#edit_user_name_display').text(userName);
+        $('#edit_user_email_display').text(userEmail);
+        $('#edit_user_role_display').text(userRole);
+        if (userStore && userStore !== 'None' && userStore !== '') {
+            $('#edit_user_store_display').text(userStore).show();
+        } else {
+            $('#edit_user_store_display').hide();
+        }
+
+        // Pre-select existing courses in Select2
+        var selectedCourseIds = [];
+        if (Array.isArray(enrolments)) {
+            selectedCourseIds = enrolments.map(function(item) {
+                return String(item.course_id);
+            });
+        }
+        $('#edit_course_id').val(selectedCourseIds).trigger('change');
+
+        // Reset expiry inputs
+        $('#edit_expiry_days').val('');
+        $('#edit_expiry_date').val('');
+
+        // Populate breakdown table
+        var $tbody = $('#edit_enrolments_breakdown_table tbody');
+        $tbody.empty();
+        $('#edit_current_courses_count').text(enrolments.length);
+
+        if (Array.isArray(enrolments) && enrolments.length > 0) {
+            enrolments.forEach(function(item) {
+                var isExpired = (item.expiry_date && parseInt(item.expiry_date) < Math.floor(Date.now() / 1000));
+                var statusHtml = isExpired 
+                    ? '<span class="badge badge-danger"><?php echo get_phrase('expired'); ?></span>' 
+                    : '<span class="badge badge-success"><?php echo get_phrase('active'); ?></span>';
+                var tr = '<tr>' +
+                    '<td><strong>' + $('<div>').text(item.course_title || 'Course #' + item.course_id).html() + '</strong></td>' +
+                    '<td>' + formatEnrolDate(item.date_added) + '</td>' +
+                    '<td>' + formatExpiryStatus(item.expiry_date) + '</td>' +
+                    '<td>' + statusHtml + '</td>' +
+                    '</tr>';
+                $tbody.append(tr);
+            });
+        } else {
+            $tbody.append('<tr><td colspan="4" class="text-center text-muted py-2"><?php echo get_phrase('no_enrolled_courses'); ?></td></tr>');
+        }
+
+        // Show the Edit modal
+        $('#editEnrolmentModal').modal('show');
+    });
+
+    // Ensure Select2 in Edit Modal renders with full width and proper z-index parent
+    $('#editEnrolmentModal').on('shown.bs.modal', function () {
+        $('#edit_course_id').select2({
+            dropdownParent: $('#editEnrolmentModal'),
+            width: '100%'
+        });
+    });
+
+    // Duration presets click handler
+    $(document).on('click', '.btn-duration-preset', function() {
+        var days = $(this).data('days');
+        $('#edit_expiry_days').val(days).trigger('input');
+    });
+
+    // Two-way sync: When Access Duration (Days) changes, calculate and set specific Expiry Date
+    $('#edit_expiry_days').on('input change', function() {
+        var val = $(this).val().trim();
+        if (val === '' || isNaN(val)) {
+            $('#edit_expiry_date').val('');
+        } else {
+            var days = parseInt(val, 10);
+            if (days > 0) {
+                var target = new Date();
+                target.setDate(target.getDate() + days);
+                var yyyy = target.getFullYear();
+                var mm = String(target.getMonth() + 1).padStart(2, '0');
+                var dd = String(target.getDate()).padStart(2, '0');
+                $('#edit_expiry_date').val(yyyy + '-' + mm + '-' + dd);
+            } else if (days === 0) {
+                // Lifetime access
+                $('#edit_expiry_date').val('');
+            }
+        }
+    });
+
+    // Two-way sync: When Specific Expiry Date changes, calculate and set Duration (Days)
+    $('#edit_expiry_date').on('change', function() {
+        var val = $(this).val();
+        if (val) {
+            var target = new Date(val + 'T00:00:00');
+            var today = new Date();
+            today.setHours(0, 0, 0, 0);
+            var diffTime = target.getTime() - today.getTime();
+            var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays >= 0) {
+                $('#edit_expiry_days').val(diffDays);
+            }
+        }
+    });
+
+    // Validate Edit Enrolment form submission
+    $('#form_edit_enrol').on('submit', function(e) {
+        var userId = $('#edit_enrol_user_id').val();
+        if (!userId) {
+            e.preventDefault();
+            alert("User ID missing.");
+            return false;
+        }
+
+        var courses = $('#edit_course_id').val();
+        if (!courses || courses.length === 0) {
+            if (!confirm("<?php echo get_phrase('you_have_deselected_all_courses._this_will_unenroll_this_pharmacist_from_all_courses._do_you_want_to_proceed?'); ?>")) {
+                e.preventDefault();
+                return false;
+            }
         }
     });
 });

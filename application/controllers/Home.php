@@ -33,6 +33,17 @@ class Home extends CI_Controller
             $this->user_model->session_destroy();
         }
 
+        // Pharmacist licence restriction check: restrict all pages if licence_no is missing
+        if (is_pharmacist_licence_missing()) {
+            $curr_method = strtolower($this->router->fetch_method());
+            $allowed_methods = ['index', 'home', 'profile', 'update_profile', 'extract_licence_ocr', 'isloggedin', 'switch_language', 'logout'];
+            if (!in_array($curr_method, $allowed_methods)) {
+                $this->session->set_flashdata('licence_missing_modal', 1);
+                redirect(site_url('home'), 'refresh');
+                exit;
+            }
+        }
+
         ini_set('memory_limit', '1024M');
     }
 
@@ -71,6 +82,21 @@ class Home extends CI_Controller
                 $page_data['gift_status'] = 'gift';
             }
         }
+
+        // Filter out courses that the logged-in user is already enrolled in
+        if ($gift_status != 'gift' && $this->session->userdata('user_login')) {
+            $cart_items = $this->session->userdata('cart_items');
+            $filtered_cart = [];
+            foreach ($cart_items as $c_id) {
+                if (enroll_status($c_id) != 'valid') {
+                    $filtered_cart[] = $c_id;
+                }
+            }
+            if (count($filtered_cart) != count($cart_items)) {
+                $this->session->set_userdata('cart_items', $filtered_cart);
+            }
+        }
+
         $page_data['page_name'] = "shopping_cart";
         $page_data['page_title'] = site_phrase('shopping_cart');
         $this->load->view('frontend/' . get_frontend_settings('theme') . '/index', $page_data);
@@ -459,7 +485,19 @@ class Home extends CI_Controller
             redirect(site_url('home'), 'refresh');
         }
 
+        // If pharmacist licence is missing, restrict other profile subpages and allow only user_profile
+        if (is_pharmacist_licence_missing() && $param1 != 'user_profile') {
+            $this->session->set_flashdata('licence_missing_modal', 1);
+            redirect(site_url('home'), 'refresh');
+            exit;
+        }
+
         if ($param1 == 'user_profile') {
+            $this->session->unset_userdata('licence_missing_modal');
+            unset($_SESSION['licence_missing_modal']);
+            if (isset($_SESSION['__ci_vars']['licence_missing_modal'])) {
+                unset($_SESSION['__ci_vars']['licence_missing_modal']);
+            }
             $page_data['page_name'] = "user_profile";
             $page_data['page_title'] = site_phrase('user_profile');
         } elseif ($param1 == 'user_credentials') {
@@ -496,6 +534,10 @@ class Home extends CI_Controller
         if ($param1 == 'update_basics') {
             $this->user_model->edit_user($this->session->userdata('user_id'));
             redirect(site_url('home/profile/user_profile'), 'refresh');
+        } elseif ($param1 == 'update_licence') {
+            $this->user_model->update_pharmacist_licence($this->session->userdata('user_id'));
+            $this->session->set_flashdata('flash_message', site_phrase('licence_details_updated_successfully'));
+            redirect(site_url('home/profile/user_profile?tab=licence_ocr'), 'refresh');
         } elseif ($param1 == "update_credentials") {
             $this->user_model->update_account_settings($this->session->userdata('user_id'));
             redirect(site_url('home/profile/user_credentials'), 'refresh');
@@ -515,6 +557,16 @@ class Home extends CI_Controller
                 redirect(site_url('home/profile/user_photo'), 'refresh');
             }
         }
+    }
+
+    public function extract_licence_ocr()
+    {
+        if ($this->session->userdata('user_login') != 1 && $this->session->userdata('admin_login') != true) {
+            echo json_encode(['status' => false, 'message' => get_phrase('unauthorized_access')]);
+            return;
+        }
+
+        $this->user_model->process_licence_ocr_request();
     }
 
     public function handleWishList($return_number = "")
@@ -606,6 +658,11 @@ class Home extends CI_Controller
             $response['hide'] = '#added_to_cart_btn_' . $identifier . $course_id;
             $response['show'] = '#add_to_cart_btn_' . $identifier . $course_id;
         } else {
+            if ($this->session->userdata('user_login') && enroll_status($course_id) == 'valid') {
+                $response['error'] = get_phrase('you_are_already_enrolled');
+                echo json_encode($response);
+                return;
+            }
             array_push($previous_cart_items, $course_id);
 
             $response['success'] = get_phrase('Item successfully added to cart');
@@ -637,6 +694,13 @@ class Home extends CI_Controller
     }
     public function handle_buy_now($course_id = "")
     {
+        if (!isset($_GET['gift']) && $this->session->userdata('user_login') && enroll_status($course_id) == 'valid') {
+            $course_title = $this->crud_model->get_course_by_id($course_id)->row('title');
+            $this->session->set_flashdata('info_message', get_phrase('you_are_already_enrolled'));
+            echo json_encode(['redirectTo' => site_url('home/lesson/' . slugify($course_title) . '/' . $course_id)]);
+            return;
+        }
+
         if (!$this->session->userdata('cart_items')) {
             $this->session->set_userdata('cart_items', array());
         }
@@ -672,6 +736,10 @@ class Home extends CI_Controller
         }
 
         $course_id = $this->input->post('course_id');
+        if ($this->session->userdata('user_login') && enroll_status($course_id) == 'valid') {
+            $this->load->view('frontend/' . get_frontend_settings('theme') . '/cart_items');
+            return;
+        }
         $previous_cart_items = $this->session->userdata('cart_items');
         if (!in_array($course_id, $previous_cart_items)) {
             array_push($previous_cart_items, $course_id);
@@ -935,7 +1003,8 @@ class Home extends CI_Controller
                     }
                 } else {
                     $page_data['lesson_id']  = $lesson_id;
-                    $section_id = $this->db->get_where('lesson', array('id' => $lesson_id))->row()->section_id;
+                    $lesson_row = $this->db->get_where('lesson', array('id' => $lesson_id))->row();
+                    $section_id = ($lesson_row && isset($lesson_row->section_id)) ? $lesson_row->section_id : 0;
                     $page_data['section_id'] = $section_id;
                 }
             } else {
@@ -958,8 +1027,8 @@ class Home extends CI_Controller
             }
         }
 
-        $lesson_details = $this->crud_model->get_lessons('lesson', $lesson_id)->row_array();
-        if ($lesson_details['course_id'] != $course_id && $course_details['course_type'] == 'general') {
+        $lesson_details = !empty($lesson_id) ? $this->crud_model->get_lessons('lesson', $lesson_id)->row_array() : null;
+        if (!empty($lesson_details) && isset($lesson_details['course_id']) && $lesson_details['course_id'] != $course_id && $course_details['course_type'] == 'general') {
             $this->session->set_flashdata('error_message', site_phrase('Access denied'));
             redirect('home', 'refresh');
         }
@@ -979,8 +1048,19 @@ class Home extends CI_Controller
         $is_admin = $this->session->userdata('admin_login');
         $is_course_instructor = $this->crud_model->is_course_instructor($course_id, $this->session->userdata('user_id'));
         if (enroll_status($course_id) == 'valid' || $is_course_instructor || $is_admin || get_bundle_validity($bundle_id) == 'valid') {
+            $user_id = $this->session->userdata('user_id');
+            $user_details = $this->user_model->get_all_user($user_id)->row_array();
+            $user_name = $user_details ? trim($user_details['first_name'] . ' ' . $user_details['last_name']) : ($this->session->userdata('name') ? $this->session->userdata('name') : 'Student');
+            $user_email = $user_details ? $user_details['email'] : ($this->session->userdata('email') ? $this->session->userdata('email') : '');
+            $user_ip = $this->input->ip_address();
+
             $page_data['course_id'] = $course_id;
             $page_data['lesson_id'] = $lesson_id;
+            $page_data['bundle_id'] = $bundle_id;
+            $page_data['user_name'] = $user_name;
+            $page_data['user_email'] = $user_email;
+            $page_data['user_ip'] = $user_ip;
+            $page_data['user_id'] = $user_id ? $user_id : '0';
             $this->load->view('lessons/pdf_canvas', $page_data);
         } else {
             echo get_phrase('Access denied');
@@ -1297,6 +1377,11 @@ class Home extends CI_Controller
         $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
 
         if ($this->session->userdata('user_login') == 1) {
+            if (enroll_status($course_id, $this->session->userdata('user_id')) == 'valid') {
+                $this->session->set_flashdata('info_message', get_phrase('you_are_already_enrolled'));
+                redirect(site_url('home/lesson/' . slugify($course_details['title']) . '/' . $course_id), 'refresh');
+                return;
+            }
             $this->crud_model->enrol_to_free_course($course_id, $this->session->userdata('user_id'));
             redirect(site_url('home/course/' . slugify($course_details['title']) . '/' . $course_id), 'refresh');
         } else {
@@ -1943,7 +2028,7 @@ class Home extends CI_Controller
 
         if ($type == 'mark_all_as_read') {
             $this->db->where('to_user', $user_id);
-            $this->db->update('notifications', ['status' => 1]);
+            $this->db->update('notifications', ['status' => 1, 'updated_at' => time()]);
         }
 
         if ($type == 'remove_all') {
@@ -1951,11 +2036,35 @@ class Home extends CI_Controller
             $this->db->delete('notifications');
         }
 
-
         $this->db->where('to_user', $user_id);
         $this->db->limit(50);
-        $query = $this->db->order_by('status ASC, id desc');
-        $page_data['notifications'] = $query->get('notifications');
+        $this->db->order_by('status ASC, id desc');
+        $page_data['notifications'] = $this->db->get('notifications');
+
+        $unread_count = $this->db->where('to_user', $user_id)->where('status', 0)->get('notifications')->num_rows();
+
+        // Unread messages count
+        $this->db->where('receiver', $user_id);
+        $this->db->where('read_status !=', 1);
+        $unread_message_count = $this->db->get('message')->num_rows();
+
+        // Latest unread message notification
+        $latest_msg = $this->db->where('to_user', $user_id)
+            ->where('status', 0)
+            ->where('type', 'message')
+            ->order_by('id', 'desc')
+            ->limit(1)
+            ->get('notifications')
+            ->row_array();
+
+        $response['unread_count'] = $unread_count;
+        $response['unread_message_count'] = $unread_message_count;
+        $response['latest_message_notification'] = $latest_msg ? [
+            'id'          => (int)$latest_msg['id'],
+            'title'       => $latest_msg['title'],
+            'description' => $latest_msg['description'],
+            'created_at'  => $latest_msg['created_at'],
+        ] : null;
 
         $response['html'] = [
             'elem' => '#headerNotification',
