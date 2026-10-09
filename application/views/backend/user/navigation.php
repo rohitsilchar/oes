@@ -3,6 +3,13 @@ $status_wise_courses = $this->crud_model->get_status_wise_courses();
 ?>
 <!-- ========== Left Sidebar Start ========== -->
 <div class="left-side-menu left-side-menu-detached">
+	<!-- Sidebar Menu Toggle Header -->
+	<div class="sidebar-header-toggle">
+		<span class="sidebar-header-title"><?php echo get_phrase('navigation'); ?></span>
+		<button type="button" class="btn-sidebar-toggle" id="btn-sidebar-toggle" title="<?php echo get_phrase('toggle_navigation'); ?>" aria-label="Toggle navigation">
+			<i class="mdi mdi-menu"></i>
+		</button>
+	</div>
 	<div class="leftbar-user">
 		<a href="javascript: void(0);">
 			<img src="<?php echo $this->user_model->get_user_image_url($this->session->userdata('user_id')); ?>" alt="user-image" height="42" class="rounded-circle shadow-sm">

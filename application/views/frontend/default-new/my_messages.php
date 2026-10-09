@@ -61,6 +61,9 @@
                                                                 <a class="heading" href="<?php echo site_url('home/my_messages/read_message/' . $row['message_thread_code']); ?>">
                                                                     <?php echo $conversation_user_info['first_name'] . ' ' . $conversation_user_info['last_name']; ?>
                                                                 </a>
+                                                                <?php if ($conversation_user_info['role_id'] == 1): ?>
+                                                                    <span class="badge bg-primary text-white ms-1" style="font-size: 10px;"><?php echo get_phrase('Admin'); ?></span>
+                                                                <?php endif; ?>
                                                             </h5>
                                                             <h6 class="ellipsis-line-2"><?php echo $conversation_user_info['email']; ?></h6>
                                                         </div>
@@ -161,19 +164,40 @@
                                 <div class="conversation-sending">
                                     <form action="<?php echo site_url('home/my_messages/send_new'); ?>" method="post" class="mt-5">
                                         <div class="form-group mb-3">
-                                            <?php $instructor_list = $this->user_model->get_instructor_list()->result_array(); ?>
-                                            <label><?php echo get_phrase('Select a user'); ?></label>
-                                            <select class="form-control my-2 py-3 radius-5" name="receiver">
-                                                <?php foreach ($instructor_list as $instructor) :
-                                                    if ($instructor['id'] == $this->session->userdata('user_id'))
-                                                        continue;
-                                                ?>
-                                                    <option value="<?php echo $instructor['id']; ?>"><?php echo $instructor['first_name'] . ' ' . $instructor['last_name']; ?></option>
-                                                <?php endforeach; ?>
+                                            <?php
+                                                $admin_users = $this->db->get_where('users', array('role_id' => 1, 'status' => 1))->result_array();
+                                                $instructor_list = $this->user_model->get_instructor_list()->result_array();
+                                            ?>
+                                            <label><?php echo get_phrase('Select recipient'); ?></label>
+                                            <select class="form-control my-2 py-3 radius-5" name="receiver" required>
+                                                <option value=""><?php echo get_phrase('select_a_user'); ?></option>
+                                                <?php if (count($admin_users) > 0) : ?>
+                                                    <optgroup label="<?php echo get_phrase('admin'); ?>">
+                                                        <?php foreach ($admin_users as $admin) :
+                                                            if ($admin['id'] == $this->session->userdata('user_id')) continue;
+                                                        ?>
+                                                            <option value="<?php echo $admin['id']; ?>">
+                                                                <?php echo $admin['first_name'] . ' ' . $admin['last_name']; ?> (<?php echo get_phrase('admin'); ?>)
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </optgroup>
+                                                <?php endif; ?>
+                                                <?php if (count($instructor_list) > 0) : ?>
+                                                    <optgroup label="<?php echo get_phrase('instructors'); ?>">
+                                                        <?php foreach ($instructor_list as $instructor) :
+                                                            if ($instructor['id'] == $this->session->userdata('user_id') || $instructor['role_id'] == 1)
+                                                                continue;
+                                                        ?>
+                                                            <option value="<?php echo $instructor['id']; ?>"><?php echo $instructor['first_name'] . ' ' . $instructor['last_name']; ?></option>
+                                                        <?php endforeach; ?>
+                                                    </optgroup>
+                                                <?php endif; ?>
 
                                                 <?php if (isset($_GET['instructor_id']) && $_GET['instructor_id'] > 0) : ?>
                                                     <?php $user_details = $this->user_model->get_all_user($_GET['instructor_id'])->row_array(); ?>
-                                                    <option value="<?php echo $user_details['id']; ?>"><?php echo $user_details['first_name'] . ' ' . $user_details['last_name']; ?></option>
+                                                    <?php if ($user_details): ?>
+                                                        <option value="<?php echo $user_details['id']; ?>" selected><?php echo $user_details['first_name'] . ' ' . $user_details['last_name']; ?></option>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
                                             </select>
                                         </div>

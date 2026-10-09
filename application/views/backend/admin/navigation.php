@@ -3,6 +3,13 @@
 ?>
 <!-- ========== Left Sidebar Start ========== -->
 <div class="left-side-menu left-side-menu-detached">
+    <!-- Sidebar Menu Toggle Header -->
+    <div class="sidebar-header-toggle">
+        <span class="sidebar-header-title"><?php echo get_phrase('navigation'); ?></span>
+        <button type="button" class="btn-sidebar-toggle" id="btn-sidebar-toggle" title="<?php echo get_phrase('toggle_navigation'); ?>" aria-label="Toggle navigation">
+            <i class="mdi mdi-menu"></i>
+        </button>
+    </div>
     <div class="leftbar-user">
         <a href="javascript: void(0);">
             <img src="<?php echo $this->user_model->get_user_image_url($this->session->userdata('user_id')); ?>" alt="user-image" height="42" class="rounded-circle shadow-sm">
@@ -323,33 +330,27 @@
         </li>
         <?php endif; ?>
 
-        <?php if (has_permission('revenue')): ?>
-        <li class="side-nav-item">
+        <?php if (has_permission('revenue') || has_permission('report') || has_permission('student') || has_permission('user')): ?>
+        <li class="side-nav-item<?php if ($page_name == 'licence_report' || $page_name == 'pharmacist_evaluation_report' || $page_name == 'pharmacist_progress_report' || $page_name == 'store_performance_report' || $page_name == 'licence_validity'): ?> active<?php endif; ?>">
             <a href="javascript: void(0);"
-                class="side-nav-link                                    				                                                    <?php if ($page_name == 'admin_revenue' || $page_name == 'instructor_revenue' || $page_name == 'purchase_history' || $page_name == 'invoice'): ?> active<?php endif; ?>">
-                <i class="dripicons-box"></i>
+                class="side-nav-link <?php if ($page_name == 'licence_report' || $page_name == 'pharmacist_evaluation_report' || $page_name == 'pharmacist_progress_report' || $page_name == 'store_performance_report' || $page_name == 'licence_validity'): ?> active<?php endif; ?>">
+                <i class="dripicons-graph-bar"></i>
                 <span> <?php echo get_phrase('report'); ?> </span>
                 <span class="menu-arrow"></span>
             </a>
             <ul class="side-nav-second-level" aria-expanded="false">
-                <li class="<?php if ($page_name == 'admin_revenue') {
-                                   echo 'active';
-                           }
-                           ?>"> <a href="<?php echo site_url('admin/admin_revenue'); ?>"><?php echo get_phrase('admin_revenue'); ?></a> </li>
-                <?php if (get_settings('allow_instructor') == 1): ?>
-                <li class="<?php if ($page_name == 'instructor_revenue') {
-        echo 'active';
-}
-?>">
-                    <a href="<?php echo site_url('admin/instructor_revenue'); ?>">
-                        <?php echo get_phrase('instructor_revenue'); ?>
-                    </a>
+                <li class="<?php if ($page_name == 'licence_report' || $page_name == 'licence_validity') { echo 'active'; } ?>">
+                    <a href="<?php echo site_url('admin/licence_report'); ?>"><?php echo get_phrase('licence_report'); ?></a>
                 </li>
-                <?php endif; ?>
-                <li class="<?php if ($page_name == 'purchase_history') {
-        echo 'active';
-}
-?>"> <a href="<?php echo site_url('admin/purchase_history'); ?>"><?php echo get_phrase('purchase_history'); ?></a> </li>
+                <li class="<?php if ($page_name == 'pharmacist_evaluation_report') { echo 'active'; } ?>">
+                    <a href="<?php echo site_url('admin/pharmacist_evaluation_report'); ?>"><?php echo get_phrase('pharmacist_evaluation_report'); ?></a>
+                </li>
+                <li class="<?php if ($page_name == 'pharmacist_progress_report') { echo 'active'; } ?>">
+                    <a href="<?php echo site_url('admin/pharmacist_progress_report'); ?>"><?php echo get_phrase('course_completion_report'); ?></a>
+                </li>
+                <li class="<?php if ($page_name == 'store_performance_report') { echo 'active'; } ?>">
+                    <a href="<?php echo site_url('admin/store_performance_report'); ?>"><?php echo get_phrase('store_performance_report'); ?></a>
+                </li>
             </ul>
         </li>
         <?php endif; ?>
@@ -524,9 +525,9 @@
                 <?php endif; ?>
 
                 <?php if (has_permission('student')): ?>
-                <li class="side-nav-item<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit'): ?> active<?php endif; ?>">
+                <li class="side-nav-item<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit' || $page_name == 'licence_validity'): ?> active<?php endif; ?>">
                     <a href="javascript: void(0);" aria-expanded="false"
-                        class="<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit'): ?> active<?php endif; ?>"><?php echo get_phrase('pharmacists'); ?>
+                        class="<?php if ($page_name == 'users' || $page_name == 'user_add' || $page_name == 'user_edit' || $page_name == 'licence_validity'): ?> active<?php endif; ?>"><?php echo get_phrase('pharmacists'); ?>
                         <span class="menu-arrow"></span>
                     </a>
                     <ul class="side-nav-third-level" aria-expanded="false">
@@ -542,6 +543,12 @@
                                    ?>">
                             <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>"><?php echo get_phrase('add_new_pharmacist'); ?></a>
                         </li>
+                        <li class="<?php if ($page_name == 'licence_validity') {
+                                           echo 'active';
+                                   }
+                                   ?>">
+                            <a href="<?php echo site_url('admin/licence_validity'); ?>"><?php echo get_phrase('licence_validity'); ?></a>
+                        </li>
                     </ul>
                 </li>
                 <?php endif; ?>
@@ -549,8 +556,8 @@
         </li>
         <?php endif; ?>
 
-        <li class="side-nav-item <?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit' || $page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit' || $page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit'): ?> active <?php endif; ?>">
-            <a href="javascript: void(0);" class="side-nav-link <?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit' || $page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit' || $page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit'): ?> active <?php endif; ?>">
+        <li class="side-nav-item <?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit' || $page_name == 'store_categories' || $page_name == 'store_category_add' || $page_name == 'store_category_edit' || $page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit' || $page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit'): ?> active <?php endif; ?>">
+            <a href="javascript: void(0);" class="side-nav-link <?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit' || $page_name == 'store_categories' || $page_name == 'store_category_add' || $page_name == 'store_category_edit' || $page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit' || $page_name == 'store_users' || $page_name == 'store_user_add' || $page_name == 'store_user_edit'): ?> active <?php endif; ?>">
                 <i class="dripicons-store"></i>
                 <span> <?php echo get_phrase('stores'); ?> </span>
                 <span class="menu-arrow"></span>
@@ -558,6 +565,9 @@
             <ul class="side-nav-second-level" aria-expanded="false">
                 <li class="<?php if ($page_name == 'stores' || $page_name == 'store_add' || $page_name == 'store_edit') echo 'active'; ?>">
                     <a href="<?php echo site_url('admin/stores'); ?>"><?php echo get_phrase('manage_stores'); ?></a>
+                </li>
+                <li class="<?php if ($page_name == 'store_categories' || $page_name == 'store_category_add' || $page_name == 'store_category_edit') echo 'active'; ?>">
+                    <a href="<?php echo site_url('admin/store_categories'); ?>"><?php echo get_phrase('store_categories'); ?></a>
                 </li>
                 <li class="<?php if ($page_name == 'store_roles' || $page_name == 'store_role_add' || $page_name == 'store_role_edit') echo 'active'; ?>">
                     <a href="<?php echo site_url('admin/store_roles'); ?>"><?php echo get_phrase('store_roles'); ?></a>
@@ -629,7 +639,7 @@
         <?php endif; ?>
 
 
-        <?php if (has_permission('newsletter')): ?>
+        <?php if (false && has_permission('newsletter')): ?>
         <li class="side-nav-item<?php if ($page_name == 'subscribed_user' || $page_name == 'newsletters' || $page_name == 'newsletter_history'): ?> active<?php endif; ?>">
             <a href="javascript: void(0);"
                 class="side-nav-link				                                                    <?php if ($page_name == 'subscribed_user' || $page_name == 'newsletters'): ?> active<?php endif; ?>">
@@ -655,7 +665,7 @@
         <?php endif; ?>
 
 
-        <?php if (has_permission('contact')): ?>
+        <?php if (false && has_permission('contact')): ?>
         <li class="side-nav-item">
             <a href="<?php echo site_url('admin/contact'); ?>" class="side-nav-link<?php if ($page_name == 'contact'): ?> active<?php endif; ?>">
                 <i class="dripicons-user-id"></i>
@@ -669,7 +679,7 @@
         <?php endif; ?>
 
 
-        <?php if (has_permission('blog')): ?>
+        <?php if (false && has_permission('blog')): ?>
         <li
             class="side-nav-item<?php if ($page_name == 'blog' || $page_name == 'blog_add' || $page_name == 'blog_edit' || $page_name == 'blog_category' || $page_name == 'blog_settings'): ?> active<?php endif; ?>">
             <a href="javascript: void(0);"
@@ -748,7 +758,7 @@
         </li>
         <?php endif; ?>
 
-        <?php if (has_permission('addon')): ?>
+        <?php if (false && has_permission('addon')): ?>
         <li class="side-nav-item">
             <a href="<?php echo site_url('admin/addon'); ?>"
                 class="side-nav-link<?php if ($page_name == 'addons' || $page_name == 'addon_add' || $page_name == 'available_addons'): ?> active<?php endif; ?>">
@@ -758,7 +768,7 @@
         </li>
         <?php endif; ?>
 
-        <?php if (has_permission('theme')): ?>
+        <?php if (false && has_permission('theme')): ?>
         <li class="side-nav-item">
             <a href="<?php echo site_url('admin/theme_settings'); ?>" class="side-nav-link<?php if ($page_name == 'theme_settings') {
         echo 'active';

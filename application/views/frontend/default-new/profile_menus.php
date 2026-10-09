@@ -113,20 +113,29 @@ $unreaded_message = $this->db->get('message')->num_rows();
             <?php echo get_phrase('Badges'); ?>
         </a>
 
-        <a class="btn-profile-menu <?php if($page_name == 'user_profile') echo 'active'; ?>" href="<?php echo site_url('home/profile/user_profile'); ?>">
+        <a class="btn-profile-menu <?php if($page_name == 'user_profile' && (!isset($_GET['tab']) || $_GET['tab'] != 'licence_ocr')) echo 'active'; ?>" href="<?php echo site_url('home/profile/user_profile'); ?>">
             <i class="fa-regular fa-user me-2"></i>
             <?php echo get_phrase('Profile'); ?>
         </a>
 
+        <a class="btn-profile-menu <?php if($page_name == 'user_profile' && (isset($_GET['tab']) && $_GET['tab'] == 'licence_ocr')) echo 'active'; ?>" href="<?php echo site_url('home/profile/user_profile?tab=licence_ocr'); ?>">
+            <i class="fas fa-file-invoice me-2"></i>
+            <?php echo get_phrase('Licence Document OCR'); ?>
+            <?php if(is_pharmacist_licence_missing()): ?>
+                <span class="badge bg-danger ms-auto font-11 py-1 px-2"><?php echo get_phrase('Required'); ?></span>
+            <?php endif; ?>
+        </a>
 
         <a class="btn-profile-menu <?php if($page_name == 'instructor_following') echo 'active'; ?>" href="<?php echo site_url('home/instructor_following'); ?>">
             <i class="fas fa-users me-2"></i>
             <?php echo get_phrase('Instructor Followings'); ?>
+            <?php if(is_pharmacist_licence_missing()): ?><i class="fas fa-lock text-muted font-11 ms-auto"></i><?php endif; ?>
         </a>
 
         <a class="btn-profile-menu <?php if($page_name == 'user_credentials') echo 'active'; ?>" href="<?php echo site_url('home/profile/user_credentials'); ?>">
             <i class="fas fa-key me-2"></i>
             <?php echo get_phrase('Account'); ?>
+            <?php if(is_pharmacist_licence_missing()): ?><i class="fas fa-lock text-muted font-11 ms-auto"></i><?php endif; ?>
         </a>
     </div>
 </div>

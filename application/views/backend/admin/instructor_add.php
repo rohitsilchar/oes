@@ -29,18 +29,7 @@
                                     <span class="d-none d-sm-inline"><?php echo get_phrase('login_credentials'); ?></span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a href="#social_information" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
-                                    <i class="mdi mdi-wifi mr-1"></i>
-                                    <span class="d-none d-sm-inline"><?php echo get_phrase('social_information'); ?></span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="#payment_info" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
-                                    <i class="mdi mdi-currency-eur mr-1"></i>
-                                    <span class="d-none d-sm-inline"><?php echo get_phrase('payment_info'); ?></span>
-                                </a>
-                            </li>
+
                             <li class="nav-item">
                                 <a href="#finish" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
                                     <i class="mdi mdi-checkbox-marked-circle-outline mr-1"></i>
@@ -124,55 +113,6 @@
                                 </div> <!-- end row -->
                             </div>
 
-                            <div class="tab-pane" id="social_information">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="facebook_link"> <?php echo get_phrase('facebook'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="facebook_link" name="facebook_link" class="form-control">
-                                            </div>
-                                        </div>
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="twitter_link"><?php echo get_phrase('twitter'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="twitter_link" name="twitter_link" class="form-control">
-                                            </div>
-                                        </div>
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="linkedin_link"><?php echo get_phrase('linkedin'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="linkedin_link" name="linkedin_link" class="form-control">
-                                            </div>
-                                        </div>
-                                    </div> <!-- end col -->
-                                </div> <!-- end row -->
-                            </div>
-                            <div class="tab-pane" id="payment_info">
-                                <div class="row">
-                                    <div class="col-12">
-
-                                        <?php $payment_gateways = $this->db->get('payment_gateways')->result_array();
-                                            foreach($payment_gateways as $key => $payment_gateway):
-                                            $keys = json_decode($payment_gateway['keys'], true);
-                                            ?>
-                                            <div class="<?php if($payment_gateway['status'] != 1 || !addon_status($payment_gateway['identifier']) && $payment_gateway['is_addon'] == 1) echo 'd-none'; ?>">
-                                                <h4><?php echo get_phrase($payment_gateway['title']); ?></h4>
-                                                <?php foreach($keys as $index => $value): ?>
-                                                    <div class="form-group row mb-3">
-                                                        <label class="col-md-3 col-form-label" for="<?php echo $payment_gateway['identifier'].$index; ?>"> <?php echo get_phrase($index); ?></label>
-                                                        <div class="col-md-9">
-                                                            <input type="text" id="<?php echo $payment_gateway['identifier'].$index; ?>" name="gateways[<?php echo $payment_gateway['identifier']; ?>][<?php echo $index; ?>]" class="form-control">
-                                                            <small><?php echo get_phrase("required_for_instructor"); ?></small>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                                <hr>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div> <!-- end col -->
-                                </div> <!-- end row -->
-                            </div>
                             <div class="tab-pane" id="finish">
                                 <div class="row">
                                     <div class="col-12">

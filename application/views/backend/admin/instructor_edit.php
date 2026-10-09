@@ -7,6 +7,7 @@
     $paypal_keys = isset($payment_keys['paypal']) && is_array($payment_keys['paypal']) ? $payment_keys['paypal'] : [];
     $stripe_keys = isset($payment_keys['stripe']) && is_array($payment_keys['stripe']) ? $payment_keys['stripe'] : [];
     $razorpay_keys = isset($payment_keys['razorpay']) && is_array($payment_keys['razorpay']) ? $payment_keys['razorpay'] : [];
+    $display_password = $this->user_model->get_user_plain_password($user_id);
 ?>
 <div class="row ">
     <div class="col-xl-12">
@@ -39,18 +40,7 @@
                                     <span class="d-none d-sm-inline"><?php echo get_phrase('login_credentials'); ?></span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a href="#social_information" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
-                                    <i class="mdi mdi-wifi mr-1"></i>
-                                    <span class="d-none d-sm-inline"><?php echo get_phrase('social_information'); ?></span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="#payment_info" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
-                                    <i class="mdi mdi-currency-eur mr-1"></i>
-                                    <span class="d-none d-sm-inline"><?php echo get_phrase('payment_info'); ?></span>
-                                </a>
-                            </li>
+
                             <li class="nav-item">
                                 <a href="#finish" data-toggle="tab" class="nav-link rounded-0 pt-2 pb-2">
                                     <i class="mdi mdi-checkbox-marked-circle-outline mr-1"></i>
@@ -142,76 +132,35 @@
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="email"> <?php echo get_phrase('email'); ?> <span class="required">*</span> </label>
                                             <div class="col-md-9">
-                                                <input type="email" id="email" name="email" class="form-control" value="<?php echo $user_data['email']; ?>" required>
-                                            </div>
-                                        </div>
-                                    </div> <!-- end col -->
-                                </div> <!-- end row -->
-                            </div>
-
-                            <div class="tab-pane" id="social_information">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="facebook_link"> <?php echo get_phrase('facebook'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="facebook_link" name="facebook_link" class="form-control" value="<?php echo htmlspecialchars($social_links['facebook'] ?? ''); ?>">
+                                                <input type="email" id="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="twitter_link"><?php echo get_phrase('twitter'); ?></label>
+                                            <label class="col-md-3 col-form-label" for="password"><?php echo get_phrase('password'); ?> <span class="required">*</span></label>
                                             <div class="col-md-9">
-                                                <input type="text" id="twitter_link" name="twitter_link" class="form-control" value="<?php echo htmlspecialchars($social_links['twitter'] ?? ''); ?>">
-                                            </div>
-                                        </div>
-                                        <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="linkedin_link"><?php echo get_phrase('linkedin'); ?></label>
-                                            <div class="col-md-9">
-                                                <input type="text" id="linkedin_link" name="linkedin_link" class="form-control" value="<?php echo htmlspecialchars($social_links['linkedin'] ?? ''); ?>">
-                                            </div>
-                                        </div>
-                                    </div> <!-- end col -->
-                                </div> <!-- end row -->
-                            </div>
-
-
-                            <div class="tab-pane" id="payment_info">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <?php $payment_gateways = $this->db->get('payment_gateways')->result_array();
-                                            foreach($payment_gateways as $key => $payment_gateway):
-                                            $keys = json_decode($payment_gateway['keys'], true);
-                                            $user_keys = !empty($user_data['payment_keys']) ? json_decode($user_data['payment_keys'], true) : [];
-                                            if (!is_array($user_keys)) $user_keys = [];
-                                            ?>
-                                            <div class="<?php if($payment_gateway['status'] != 1 || !addon_status($payment_gateway['identifier']) && $payment_gateway['is_addon'] == 1) echo 'd-none'; ?>">
-                                                <h4><?php echo get_phrase($payment_gateway['title']); ?></h4>
-                                                <?php foreach($keys as $index => $value):
-                                                    if(is_array($user_keys) && array_key_exists($payment_gateway['identifier'], $user_keys) && is_array($user_keys[$payment_gateway['identifier']])){
-                                                        if(array_key_exists($index, $user_keys[$payment_gateway['identifier']])){
-                                                            $value = $user_keys[$payment_gateway['identifier']][$index];
-                                                        }else{
-                                                            $value = '';
-                                                        }
-                                                    }else{
-                                                        $value = '';
-                                                    }
-                                                    ?>
-
-                                                    <div class="form-group row mb-3">
-                                                        <label class="col-md-3 col-form-label" for="<?php echo $payment_gateway['identifier'].$index; ?>"> <?php echo get_phrase($index); ?></label>
-                                                        <div class="col-md-9">
-                                                            <input type="text" id="<?php echo $payment_gateway['identifier'].$index; ?>" name="gateways[<?php echo $payment_gateway['identifier']; ?>][<?php echo $index; ?>]" value="<?php echo $value; ?>" class="form-control">
-                                                            <small><?php echo get_phrase("required_for_instructor"); ?></small>
-                                                        </div>
+                                                <div class="input-group">
+                                                    <input type="text" id="password" name="password" class="form-control" value="<?php echo htmlspecialchars($display_password); ?>" placeholder="<?php echo get_phrase('password'); ?>" required autocomplete="new-password">
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" onclick="togglePasswordVisibility()" title="<?php echo get_phrase('show_or_hide_password'); ?>">
+                                                            <i class="mdi mdi-eye-off-outline" id="togglePasswordIcon"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-outline-info" id="copyPasswordBtn" onclick="copyPasswordToClipboard()" title="<?php echo get_phrase('copy_password'); ?>">
+                                                            <i class="mdi mdi-content-copy"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-primary" onclick="generateAutoPassword()" title="<?php echo get_phrase('auto_generate_password'); ?>">
+                                                            <i class="mdi mdi-refresh"></i> <?php echo get_phrase('auto_generate'); ?>
+                                                        </button>
                                                     </div>
-                                                <?php endforeach; ?>
-                                                <hr>
+                                                </div>
+                                                <small class="form-text text-muted mt-1">
+                                                    <i class="mdi mdi-information-outline"></i> <?php echo get_phrase('you_can_view,_edit,_or_auto-generate_the_password'); ?>.
+                                                </small>
                                             </div>
-                                        <?php endforeach; ?>
+                                        </div>
                                     </div> <!-- end col -->
                                 </div> <!-- end row -->
                             </div>
+
                             <div class="tab-pane" id="finish">
                                 <div class="row">
                                     <div class="col-12">
@@ -246,3 +195,72 @@
         </div> <!-- end card-->
     </div>
 </div>
+
+<script type="text/javascript">
+function togglePasswordVisibility() {
+    var passwordInput = $('#password');
+    var icon = $('#togglePasswordIcon');
+    if (passwordInput.attr('type') === 'password') {
+        passwordInput.attr('type', 'text');
+        icon.removeClass('mdi-eye-outline').addClass('mdi-eye-off-outline');
+    } else {
+        passwordInput.attr('type', 'password');
+        icon.removeClass('mdi-eye-off-outline').addClass('mdi-eye-outline');
+    }
+}
+
+function generateAutoPassword() {
+    var chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
+    var pass = "";
+    for (var i = 0; i < 10; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    var passwordInput = $('#password');
+    passwordInput.val(pass);
+    passwordInput.attr('type', 'text');
+    $('#togglePasswordIcon').removeClass('mdi-eye-outline').addClass('mdi-eye-off-outline');
+
+    if (typeof $.NotificationApp !== 'undefined') {
+        $.NotificationApp.send("<?php echo get_phrase('password_generated'); ?>", "<?php echo get_phrase('new_password'); ?>: " + pass, "top-right", "rgba(0,0,0,0.2)", "info");
+    }
+}
+
+function copyPasswordToClipboard() {
+    var pass = $('#password').val();
+    if (!pass || pass.trim() === '') {
+        if (typeof $.NotificationApp !== 'undefined') {
+            $.NotificationApp.send("<?php echo get_phrase('heads_up'); ?>!", "<?php echo get_phrase('password_field_is_empty'); ?>", "top-right", "rgba(0,0,0,0.2)", "warning");
+        } else {
+            alert('Password field is empty');
+        }
+        return;
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(pass).then(function() {
+            if (typeof $.NotificationApp !== 'undefined') {
+                $.NotificationApp.send("<?php echo get_phrase('success'); ?>!", "<?php echo get_phrase('password_copied_to_clipboard'); ?>", "top-right", "rgba(0,0,0,0.2)", "success");
+            }
+        }).catch(function() {
+            fallbackCopyText(pass);
+        });
+    } else {
+        fallbackCopyText(pass);
+    }
+}
+
+function fallbackCopyText(text) {
+    var tempInput = document.createElement("input");
+    tempInput.value = text;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    try {
+        document.execCommand("copy");
+        if (typeof $.NotificationApp !== 'undefined') {
+            $.NotificationApp.send("<?php echo get_phrase('success'); ?>!", "<?php echo get_phrase('password_copied_to_clipboard'); ?>", "top-right", "rgba(0,0,0,0.2)", "success");
+        }
+    } catch (e) {
+        console.error('Could not copy text: ', e);
+    }
+    document.body.removeChild(tempInput);
+}
+</script>

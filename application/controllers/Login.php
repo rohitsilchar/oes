@@ -61,6 +61,22 @@ class Login extends CI_Controller
 
         if ($query->num_rows() > 0) {
             $row = $query->row();
+
+            // Verify and check client MAC address
+            try {
+                $mac_result = $this->user_model->verify_user_mac_address($row->id);
+                if (!$mac_result['status']) {
+                    $this->session->set_flashdata('error_message', $mac_result['message']);
+                    redirect(site_url('login'), 'refresh');
+                }
+            } catch (\Throwable $t) {
+                log_message('error', 'MAC verification error: ' . $t->getMessage());
+                if ($row->role_id != 1) {
+                    $this->session->set_flashdata('error_message', get_phrase('access_denied') . '! ' . get_phrase('device_registration_failed'));
+                    redirect(site_url('login'), 'refresh');
+                }
+            }
+
             $this->user_model->new_device_login_tracker($row->id);
             $this->user_model->set_login_userdata($row->id);
         } else {

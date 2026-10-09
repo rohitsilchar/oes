@@ -32,10 +32,14 @@
                         </div>
 
                         <div class="form-group mb-3">
-                            <label for="role_id"><?php echo get_phrase('role'); ?><span class="required">*</span></label>
-                            <select class="form-control" name="role_id" id="role_id" required disabled onchange="updateRoleTitle(this)">
+                            <label for="role_id"><?php echo get_phrase('role'); ?><span class="text-danger">*</span></label>
+                            <select class="form-control" name="role_id" id="role_id" required onchange="updateRoleTitle(this)">
                                 <option value=""><?php echo get_phrase('select_store_first'); ?></option>
                             </select>
+                            <div id="no_role_warning" class="alert alert-danger py-1 px-2 font-12 mt-1" style="display: none;">
+                                <i class="mdi mdi-alert-circle mr-1"></i> <?php echo get_phrase('this_store_has_no_roles_assigned._please_assign_roles_to_this_store_first.'); ?>
+                                <a href="<?php echo site_url('admin/stores'); ?>" target="_blank" class="ml-1 text-danger font-weight-bold text-underline"><?php echo get_phrase('manage_stores'); ?></a>
+                            </div>
                             <input type="hidden" name="role_title" id="role_title" value="">
                             <small class="text-muted"><?php echo get_phrase('Shows only the roles assigned to the selected store.'); ?></small>
                         </div>
@@ -45,11 +49,16 @@
                             <select class="form-control select2" data-toggle="select2" name="pharmacist_id" id="pharmacist_id" onchange="autoFillPharmacistDetails(this)">
                                 <option value=""><?php echo get_phrase('select_pharmacist_optional'); ?></option>
                                 <?php foreach ($pharmacists as $ph): ?>
-                                    <option value="<?php echo $ph['id']; ?>" data-email="<?php echo htmlspecialchars($ph['email']); ?>">
+                                    <option value="<?php echo $ph['id']; ?>" data-email="<?php echo htmlspecialchars($ph['email']); ?>" data-designation="<?php echo htmlspecialchars($ph['designation'] ?? ''); ?>">
                                         <?php echo htmlspecialchars($ph['first_name'] . ' ' . $ph['last_name'] . ' (' . $ph['email'] . (!empty($ph['employee_id']) ? ' | EMP: ' . $ph['employee_id'] : '') . ')'); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="designation"><?php echo get_phrase('designation'); ?></label>
+                            <input type="text" class="form-control" id="designation" name="designation" placeholder="e.g. M. Pharm, B. Pharm, Pharmacist">
                         </div>
 
                         <div class="form-group mb-3">
@@ -100,9 +109,10 @@ function loadStoreRoles(storeId) {
     var portalInput = $('#portal_link');
 
     if (!storeId) {
-        roleSelect.html('<option value=""><?php echo get_phrase("select_store_first"); ?></option>').prop('disabled', true);
+        roleSelect.html('<option value=""><?php echo get_phrase("select_store_first"); ?></option>');
         $('#role_title').val('');
         portalInput.val('');
+        $('#no_role_warning').hide();
         return;
     }
 
@@ -117,19 +127,22 @@ function loadStoreRoles(storeId) {
         dataType: 'json',
         success: function(roles) {
             var options = '<option value=""><?php echo get_phrase("select_a_role"); ?></option>';
-            if (roles.length > 0) {
+            if (roles && roles.length > 0) {
                 $.each(roles, function(i, r) {
                     options += '<option value="' + r.id + '" data-name="' + r.role_name + '">' + r.role_name + '</option>';
                 });
-                roleSelect.html(options).prop('disabled', false);
+                roleSelect.html(options);
+                $('#no_role_warning').hide();
             } else {
                 options = '<option value=""><?php echo get_phrase("no_roles_assigned_to_this_store"); ?></option>';
-                roleSelect.html(options).prop('disabled', true);
+                roleSelect.html(options);
+                $('#no_role_warning').show();
             }
             $('#role_title').val('');
         },
         error: function() {
-            roleSelect.html('<option value=""><?php echo get_phrase("failed_to_load_roles"); ?></option>').prop('disabled', true);
+            roleSelect.html('<option value=""><?php echo get_phrase("failed_to_load_roles"); ?></option>');
+            $('#no_role_warning').hide();
         }
     });
 }
@@ -137,7 +150,12 @@ function loadStoreRoles(storeId) {
 function updateRoleTitle(selectEl) {
     var selected = $(selectEl).find('option:selected');
     var title = selected.data('name') || selected.text();
-    $('#role_title').val(title);
+    if ($(selectEl).val()) {
+        $('#role_title').val(title);
+        $(selectEl).removeClass('is-invalid');
+    } else {
+        $('#role_title').val('');
+    }
 }
 
 function autoFillPharmacistDetails(selectEl) {
@@ -146,6 +164,10 @@ function autoFillPharmacistDetails(selectEl) {
     if (email && !$('#username').val()) {
         var username = email.split('@')[0];
         $('#username').val(username);
+    }
+    var designation = selected.data('designation');
+    if (designation && !$('#designation').val()) {
+        $('#designation').val(designation);
     }
 }
 
@@ -162,5 +184,51 @@ $(document).ready(function() {
     if (!$('#password').val()) {
         generateAutoPassword();
     }
+    var initialStoreId = $('#store_id').val();
+    if (initialStoreId) {
+        var portal = $('#store_id option:selected').data('portal') || '';
+        $('#portal_link').val(portal);
+        loadStoreRoles(initialStoreId);
+    }
+    $('#store_id').on('change', function() {
+        var portal = $(this).find('option:selected').data('portal') || '';
+        $('#portal_link').val(portal);
+        $(this).removeClass('is-invalid');
+    });
+
+    $('form.required-form').on('submit', function(e) {
+        var storeId = $('#store_id').val();
+        var roleId = $('#role_id').val();
+
+        if (!storeId) {
+            e.preventDefault();
+            if (typeof toastr !== 'undefined') {
+                toastr.error('<?php echo get_phrase('please_select_a_store'); ?>');
+            } else {
+                alert('<?php echo get_phrase('please_select_a_store'); ?>');
+            }
+            $('#store_id').focus();
+            return false;
+        }
+
+        if (!roleId || roleId === '' || roleId === '0') {
+            e.preventDefault();
+            $('#role_id').addClass('is-invalid');
+            if (typeof toastr !== 'undefined') {
+                toastr.error('<?php echo get_phrase('role_is_mandatory_please_select_a_role'); ?>');
+            } else {
+                alert('<?php echo get_phrase('role_is_mandatory_please_select_a_role'); ?>');
+            }
+            $('#role_id').focus();
+            return false;
+        }
+
+        $('#role_id').removeClass('is-invalid');
+
+        if (!$('#portal_link').val()) {
+            var portal = $('#store_id option:selected').data('portal') || '';
+            $('#portal_link').val(portal);
+        }
+    });
 });
 </script>

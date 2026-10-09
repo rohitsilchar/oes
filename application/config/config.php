@@ -24,13 +24,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 |
 */
 
-if (isset($_SERVER['HTTP_HOST'])) {
-    $config['base_url'] = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") ? "https" : "http");
-    $config['base_url'] .= "://".$_SERVER['HTTP_HOST'];
-    $config['base_url'] .= str_replace(basename($_SERVER['SCRIPT_NAME']),"",$_SERVER['SCRIPT_NAME']);
-} else {
-    $config['base_url'] = 'http://localhost/qes-main/';
-}
+$config['base_url'] = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") ? "https" : "http");
+$config['base_url'] .= "://".$_SERVER['HTTP_HOST'];
+$config['base_url'] .= str_replace(basename($_SERVER['SCRIPT_NAME']),"",$_SERVER['SCRIPT_NAME']);
 
 /*
 |--------------------------------------------------------------------------
@@ -331,7 +327,7 @@ $config['cache_query_string'] = FALSE;
 | https://codeigniter.com/user_guide/libraries/encryption.html
 |
 */
-$config['encryption_key'] = '7c4d8e92f1a30b5c8e1d2f3a4b5c6d7e';
+$config['encryption_key'] = '';
 
 /*
 |--------------------------------------------------------------------------

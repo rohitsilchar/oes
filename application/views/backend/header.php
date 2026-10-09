@@ -245,13 +245,6 @@
                 </div>
             </li>
         </ul>
-        <a class="button-menu-mobile disable-btn">
-            <div class="lines">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </a>
         <div class="visit_website">
             <h4 style="color: #fff; float: left;" class="d-none d-md-inline-block"> <?php echo $this->db->get_where('settings', array('key' => 'system_name'))->row()->value; ?></h4>
             <a href="<?php echo site_url('home'); ?>" target="" class="btn btn-outline-light ml-3 d-none d-md-inline-block"><?php echo get_phrase('visit_website'); ?></a>
@@ -263,19 +256,68 @@
 
 
 <script type="text/javascript">
-    // setInterval(function(){
-    //     handleNotification();
-    // }, 10000);
+    var lastAdminAlertedNotificationId = <?php
+        $latest_admin_init = $this->db->where('to_user', $logged_user_id)
+            ->where('type', 'message')
+            ->order_by('id', 'desc')
+            ->limit(1)
+            ->get('notifications')
+            ->row_array();
+        echo $latest_admin_init ? (int)$latest_admin_init['id'] : 0;
+    ?>;
 
     function handleNotification(type) {
+        var actionParam = (typeof type !== 'undefined' && type) ? type : '';
         $.ajax({
-            url: '<?php echo site_url('admin/get_my_notification/'); ?>' + type,
-            success: function(response) {
-                var responseVal = JSON.parse(response);
-                $('#headerNotification').html(responseVal.rendered_view);
+            url: '<?php echo site_url('admin/get_my_notification/'); ?>' + actionParam,
+            dataType: 'json',
+            success: function(responseVal) {
+                if (typeof responseVal.rendered_view !== 'undefined') {
+                    $('#headerNotification').html(responseVal.rendered_view);
+                }
                 $('#newNotificationIcon').removeClass('noti-icon-badge');
-                $('#newNotificationIcon').addClass(responseVal.notification_icon_class);
+                if (responseVal.notification_icon_class) {
+                    $('#newNotificationIcon').addClass(responseVal.notification_icon_class);
+                }
+
+                // Update left sidebar unread message badge dynamically
+                if (typeof responseVal.unread_message_count !== 'undefined') {
+                    var $messageLink = $('a.side-nav-link[href*="admin/message"]');
+                    if ($messageLink.length) {
+                        var $badge = $messageLink.find('.badge');
+                        if (responseVal.unread_message_count > 0) {
+                            if ($badge.length) {
+                                $badge.text(responseVal.unread_message_count);
+                            } else {
+                                $messageLink.append('<span class="badge badge-danger-lighten float-right">' + responseVal.unread_message_count + '</span>');
+                            }
+                        } else {
+                            $badge.remove();
+                        }
+                    }
+                }
+
+                // If a new message arrived while admin is on any page, show notification popup
+                if (responseVal.latest_message_notification && responseVal.latest_message_notification.id > lastAdminAlertedNotificationId) {
+                    lastAdminAlertedNotificationId = responseVal.latest_message_notification.id;
+                    if (typeof $.NotificationApp !== 'undefined') {
+                        $.NotificationApp.send(
+                            responseVal.latest_message_notification.title,
+                            responseVal.latest_message_notification.description,
+                            "top-right",
+                            "rgba(0,0,0,0.2)",
+                            "info"
+                        );
+                    } else if (typeof toastr !== 'undefined') {
+                        toastr.info(responseVal.latest_message_notification.description, responseVal.latest_message_notification.title);
+                    }
+                }
             }
         });
     }
+
+    // Auto check for notifications every 10 seconds
+    setInterval(function(){
+        handleNotification();
+    }, 10000);
 </script>

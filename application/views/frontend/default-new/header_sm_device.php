@@ -142,7 +142,13 @@
           <?php elseif($user_login): ?>
             <li class="bg-light"><a class="btn btn-toggle-list d-inline-flex align-items-center rounded border-0 text-dark text-16px fw-500" href="<?php echo site_url('home/my_courses'); ?>"><i class="far fa-gem me-2"></i><?php echo site_phrase('my_courses'); ?></a></li>
             <li class="bg-light"><a class="btn btn-toggle-list d-inline-flex align-items-center rounded border-0 text-dark text-16px fw-500" href="<?php echo site_url('home/my_wishlist'); ?>"><i class="far fa-heart me-2"></i><?php echo site_phrase('my_wishlist'); ?></a></li>
-            <li class="bg-light"><a class="btn btn-toggle-list d-inline-flex align-items-center rounded border-0 text-dark text-16px fw-500" href="<?php echo site_url('home/my_messages'); ?>"><i class="far fa-envelope me-2"></i><?php echo site_phrase('my_messages'); ?></a></li>
+            <li class="bg-light"><a class="btn btn-toggle-list d-inline-flex align-items-center rounded border-0 text-dark text-16px fw-500" href="<?php echo site_url('home/my_messages'); ?>"><i class="far fa-envelope me-2"></i><?php echo site_phrase('my_messages'); ?>
+              <?php
+                $unread_msgs_sm = $this->db->where('receiver', $this->session->userdata('user_id'))->where('read_status !=', 1)->get('message')->num_rows();
+                if ($unread_msgs_sm > 0): ?>
+                  <span class="badge bg-danger rounded-pill ms-auto" style="font-size: 11px; padding: 2px 7px;"><?php echo $unread_msgs_sm; ?></span>
+              <?php endif; ?>
+            </a></li>
             <li class="bg-light"><a class="btn btn-toggle-list d-inline-flex align-items-center rounded border-0 text-dark text-16px fw-500" href="<?php echo site_url('home/purchase_history'); ?>"><i class="fas fa-shopping-cart me-2"></i><?php echo site_phrase('purchase_history'); ?></a></li>
             <li class="bg-light"><a class="btn btn-toggle-list d-inline-flex align-items-center rounded border-0 text-dark text-16px fw-500" href="<?php echo site_url('home/profile/user_profile'); ?>"><i class="fas fa-user me-2"></i><?php echo site_phrase('user_profile'); ?></a></li>
             <?php if (addon_status('affiliate_course') ) :

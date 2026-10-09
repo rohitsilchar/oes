@@ -330,7 +330,13 @@
                           <path d="M12.75 15.375H5.25C3 15.375 1.5 14.25 1.5 11.625V6.375C1.5 3.75 3 2.625 5.25 2.625H12.75C15 2.625 16.5 3.75 16.5 6.375V11.625C16.5 14.25 15 15.375 12.75 15.375Z" stroke="#99A1B7" stroke-width="1.2" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/>
                           <path d="M12.75 6.75L10.4025 8.625C9.63 9.24 8.3625 9.24 7.59 8.625L5.25 6.75" stroke="#99A1B7" stroke-width="1.2" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/>
                          </svg>
-                        <?php echo site_phrase('my_messages'); ?></a></li>
+                        <?php echo site_phrase('my_messages'); ?>
+                        <?php
+                          $unread_user_msgs = $this->db->where('receiver', $this->session->userdata('user_id'))->where('read_status !=', 1)->get('message')->num_rows();
+                          if ($unread_user_msgs > 0): ?>
+                            <span class="badge bg-danger rounded-pill ms-auto" style="font-size: 11px; padding: 2px 7px;"><?php echo $unread_user_msgs; ?></span>
+                        <?php endif; ?>
+                      </a></li>
                       <li class="user-dropdown-menu-item"><a href="<?php echo site_url('home/purchase_history'); ?>">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M10 21C10 21.552 9.55501 22 9.005 22C8.45701 22 8 21.552 8 21C8 20.448 8.43499 20 8.98499 20H9.005C9.55501 20 10 20.448 10 21ZM17.005 20H16.985C16.435 20 16 20.448 16 21C16 21.552 16.457 22 17.005 22C17.555 22 18 21.552 18 21C18 20.448 17.555 20 17.005 20ZM21.459 8.44701L20.444 14.617C20.185 16.046 19.574 17.499 17 17.499H8.73401C7.49801 17.499 6.43403 16.576 6.25903 15.353L4.74902 4.78799C4.64502 4.05399 4.00601 3.5 3.26501 3.5H3C2.724 3.5 2.5 3.276 2.5 3C2.5 2.724 2.724 2.5 3 2.5H3.26599C4.50199 2.5 5.56597 3.423 5.74097 4.646L5.86304 5.5H19C19.744 5.5 20.443 5.82699 20.92 6.39799C21.396 6.969 21.592 7.71601 21.459 8.44701ZM19.615 13.5H13C12.724 13.5 12.5 13.276 12.5 13C12.5 12.724 12.724 12.5 13 12.5H19.7791L20.473 8.276C20.554 7.829 20.436 7.381 20.151 7.039C19.865 6.696 19.445 6.5 18.999 6.5H6.005L7.25 15.212C7.354 15.946 7.99301 16.5 8.73401 16.5H17C18.754 16.5 19.218 15.778 19.459 14.447L19.615 13.5Z" fill="#99A1B7"/>

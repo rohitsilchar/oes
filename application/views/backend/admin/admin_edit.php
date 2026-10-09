@@ -1,6 +1,8 @@
 <?php
 $user_data = $this->db->get_where('users', array('id' => $user_id))->row_array();
-$social_links = json_decode($user_data['social_links'], true);
+$social_links = !empty($user_data['social_links']) ? json_decode($user_data['social_links'], true) : [];
+if (!is_array($social_links)) $social_links = [];
+$display_password = $this->user_model->get_user_plain_password($user_id);
 ?>
 <div class="row ">
     <div class="col-xl-12">
@@ -132,7 +134,29 @@ $social_links = json_decode($user_data['social_links'], true);
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="email"> <?php echo get_phrase('email'); ?> <span class="required">*</span> </label>
                                             <div class="col-md-9">
-                                                <input type="email" id="email" name="email" class="form-control" value="<?php echo $user_data['email']; ?>" required>
+                                                <input type="email" id="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
+                                            </div>
+                                        </div>
+                                        <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label" for="password"><?php echo get_phrase('password'); ?> <span class="required">*</span></label>
+                                            <div class="col-md-9">
+                                                <div class="input-group">
+                                                    <input type="text" id="password" name="password" class="form-control" value="<?php echo htmlspecialchars($display_password); ?>" placeholder="<?php echo get_phrase('password'); ?>" required autocomplete="new-password">
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" onclick="togglePasswordVisibility()" title="<?php echo get_phrase('show_or_hide_password'); ?>">
+                                                            <i class="mdi mdi-eye-off-outline" id="togglePasswordIcon"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-outline-info" id="copyPasswordBtn" onclick="copyPasswordToClipboard()" title="<?php echo get_phrase('copy_password'); ?>">
+                                                            <i class="mdi mdi-content-copy"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-primary" onclick="generateAutoPassword()" title="<?php echo get_phrase('auto_generate_password'); ?>">
+                                                            <i class="mdi mdi-refresh"></i> <?php echo get_phrase('auto_generate'); ?>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <small class="form-text text-muted mt-1">
+                                                    <i class="mdi mdi-information-outline"></i> <?php echo get_phrase('you_can_view,_edit,_or_auto-generate_the_password'); ?>.
+                                                </small>
                                             </div>
                                         </div>
                                     </div> <!-- end col -->
@@ -198,3 +222,72 @@ $social_links = json_decode($user_data['social_links'], true);
         </div> <!-- end card-->
     </div>
 </div>
+
+<script type="text/javascript">
+function togglePasswordVisibility() {
+    var passwordInput = $('#password');
+    var icon = $('#togglePasswordIcon');
+    if (passwordInput.attr('type') === 'password') {
+        passwordInput.attr('type', 'text');
+        icon.removeClass('mdi-eye-outline').addClass('mdi-eye-off-outline');
+    } else {
+        passwordInput.attr('type', 'password');
+        icon.removeClass('mdi-eye-off-outline').addClass('mdi-eye-outline');
+    }
+}
+
+function generateAutoPassword() {
+    var chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
+    var pass = "";
+    for (var i = 0; i < 10; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    var passwordInput = $('#password');
+    passwordInput.val(pass);
+    passwordInput.attr('type', 'text');
+    $('#togglePasswordIcon').removeClass('mdi-eye-outline').addClass('mdi-eye-off-outline');
+
+    if (typeof $.NotificationApp !== 'undefined') {
+        $.NotificationApp.send("<?php echo get_phrase('password_generated'); ?>", "<?php echo get_phrase('new_password'); ?>: " + pass, "top-right", "rgba(0,0,0,0.2)", "info");
+    }
+}
+
+function copyPasswordToClipboard() {
+    var pass = $('#password').val();
+    if (!pass || pass.trim() === '') {
+        if (typeof $.NotificationApp !== 'undefined') {
+            $.NotificationApp.send("<?php echo get_phrase('heads_up'); ?>!", "<?php echo get_phrase('password_field_is_empty'); ?>", "top-right", "rgba(0,0,0,0.2)", "warning");
+        } else {
+            alert('Password field is empty');
+        }
+        return;
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(pass).then(function() {
+            if (typeof $.NotificationApp !== 'undefined') {
+                $.NotificationApp.send("<?php echo get_phrase('success'); ?>!", "<?php echo get_phrase('password_copied_to_clipboard'); ?>", "top-right", "rgba(0,0,0,0.2)", "success");
+            }
+        }).catch(function() {
+            fallbackCopyText(pass);
+        });
+    } else {
+        fallbackCopyText(pass);
+    }
+}
+
+function fallbackCopyText(text) {
+    var tempInput = document.createElement("input");
+    tempInput.value = text;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    try {
+        document.execCommand("copy");
+        if (typeof $.NotificationApp !== 'undefined') {
+            $.NotificationApp.send("<?php echo get_phrase('success'); ?>!", "<?php echo get_phrase('password_copied_to_clipboard'); ?>", "top-right", "rgba(0,0,0,0.2)", "success");
+        }
+    } catch (e) {
+        console.error('Could not copy text: ', e);
+    }
+    document.body.removeChild(tempInput);
+}
+</script>

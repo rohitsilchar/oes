@@ -19,7 +19,7 @@
 <script src="<?php echo base_url('assets/backend/js/vendor/fullcalendar.min.js'); ?>"></script>
 <script src="<?php echo base_url('assets/backend/js/pages/demo.summernote.js'); ?>"></script>
 <script src="<?php echo base_url('assets/backend/js/vendor/dropzone.js'); ?>"></script>
-<script src="<?php echo base_url('assets/backend/js/pages/datatable-initializer.js'); ?>"></script>
+<script src="<?php echo base_url('assets/backend/js/pages/datatable-initializer.js?v=' . filemtime('assets/backend/js/pages/datatable-initializer.js')); ?>"></script>
 <script src="<?php echo base_url('assets/backend/js/font-awesome-icon-picker/fontawesome-iconpicker.min.js'); ?>" charset="utf-8"></script>
 <script src="<?php echo base_url('assets/backend/js/vendor/bootstrap-tagsinput.min.js'); ?>" charset="utf-8"></script>
 <script src="<?php echo base_url() . 'assets/frontend/default-new/js/bootstrap.bundle.min.js'; ?>"></script>
@@ -35,7 +35,7 @@
 <!-- Jquery form -->
 <script src="<?php echo base_url('assets/global/jquery-form/jquery.form.min.js'); ?>"></script>
 
-<script src="<?php echo site_url('assets/backend/js/custom.js'); ?>"></script>
+<script src="<?php echo base_url('assets/backend/js/custom.js?v=' . filemtime('assets/backend/js/custom.js')); ?>"></script>
 
 <!-- Dashboard chart's data is coming from this file -->
 
@@ -58,7 +58,7 @@
   }
 
   function success_notify(message) {
-    $.NotificationApp.send("<?php echo get_phrase('congratulations'); ?>!", message, "top-right", "rgba(0,0,0,0.2)", "success");
+    $.NotificationApp.send("<?php echo get_phrase('success'); ?>!", message, "top-right", "rgba(0,0,0,0.2)", "success");
   }
 
   function error_notify(message) {
@@ -84,6 +84,6 @@
 
 <?php if ($this->session->flashdata('flash_message') != ""): ?>
   <script type="text/javascript">
-    $.NotificationApp.send("<?php echo get_phrase('congratulations'); ?>!", '<?php echo $this->session->flashdata("flash_message"); ?>', "top-right", "rgba(0,0,0,0.2)", "success");
+    $.NotificationApp.send("<?php echo get_phrase('success'); ?>!", '<?php echo $this->session->flashdata("flash_message"); ?>', "top-right", "rgba(0,0,0,0.2)", "success");
   </script>
 <?php endif; ?>

@@ -8,7 +8,7 @@
                     <div class="col-12 col-md-4 col-xl-4">
                         <div class="ft2-logo-area">
                             <a href="<?php echo base_url('home'); ?>" class="lms2-footer-logo mb-3">
-                                <img width="180px" height="40px" loading="lazy" src="<?php echo base_url('uploads/system/' . get_frontend_settings('light_logo')); ?>">
+                                <img style="max-height: 40px; width: auto;" loading="lazy" src="<?php echo base_url('uploads/system/' . get_frontend_settings('light_logo')); ?>" alt="Logo">
                             </a>
                             <p><?php echo get_settings('website_description'); ?></p>
                             <h4 class="ft2-title mt-4 mb-4"><?php echo get_phrase('Contact_us'); ?></h4>

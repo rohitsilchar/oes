@@ -15,6 +15,15 @@
     <?php include 'includes_top.php'; ?>
 </head>
 <body data-layout="detached">
+    <script>
+        try {
+            if (localStorage.getItem('qes_admin_sidebar_collapsed') === '1' && window.innerWidth >= 768) {
+                document.body.classList.add('enlarged');
+                document.body.setAttribute('data-keep-enlarged', 'true');
+            }
+        } catch(e) {}
+    </script>
+    <div class="sidebar-backdrop"></div>
     <!-- HEADER -->
     <?php include 'header.php'; ?>
     <div class="container-fluid">

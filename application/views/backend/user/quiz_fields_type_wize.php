@@ -2,7 +2,7 @@
     <div class="form-group">
         <label for="number_of_options"><?php echo get_phrase('number_of_options'); ?></label>
         <div class="input-group">
-            <input type="number" value="<?php if(isset($question_details)) echo $question_details['number_of_options']; ?>" onkeyup="appendOptions(this.value, '<?php echo $question_type; ?>')" class="form-control" name="number_of_options" id="number_of_options" data-validate="required" data-message-required="Value Required" min="0">
+            <input type="number" value="<?php if(isset($question_details)) echo $question_details['number_of_options']; ?>" onkeyup="appendOptions(this.value, '<?php echo $question_type; ?>')" oninput="appendOptions(this.value, '<?php echo $question_type; ?>')" onchange="appendOptions(this.value, '<?php echo $question_type; ?>')" class="form-control" name="number_of_options" id="number_of_options" data-validate="required" data-message-required="Value Required" min="0">
         </div>
     </div>
 

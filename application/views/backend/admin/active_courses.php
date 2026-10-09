@@ -140,7 +140,7 @@
 
           tableContainer.dataTable({
               "sPaginationType": "bootstrap",
-              "aLengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
+              "aLengthMenu": [[10, 25, 50, 100, 250, 500, -1], [10, 25, 50, 100, 250, 500, "All"]],
               "bStateSave": true,
 
 

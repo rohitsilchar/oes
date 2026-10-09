@@ -1029,7 +1029,7 @@ class User extends CI_Controller
         $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
         $multi_instructors = explode(',', $course_details['user_id']);
 
-        if (!in_array($this->session->userdata('user_id'), $multi_instructors)) {
+        if (!in_array($this->session->userdata('user_id'), $multi_instructors) && $course_details['creator'] != $this->session->userdata('user_id')) {
             return false;
         }
 
@@ -1037,12 +1037,127 @@ class User extends CI_Controller
         $this->load->view('backend/user/student_academic_progress', $page_data);
     }
 
+    public function export_student_progress_excel($course_id)
+    {
+        if ($this->session->userdata('user_login') != 1) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
+        $multi_instructors = explode(',', $course_details['user_id'] ?? '');
+
+        if (!in_array($this->session->userdata('user_id'), $multi_instructors) && $course_details['creator'] != $this->session->userdata('user_id')) {
+            $this->session->set_flashdata('error_message', get_phrase('you_do_not_have_permission_to_access_this_course'));
+            redirect(site_url('user/courses'), 'refresh');
+        }
+
+        $progress_data = $this->crud_model->get_course_pharmacist_academic_progress_data($course_id);
+        if (!$progress_data) {
+            $this->session->set_flashdata('error_message', get_phrase('course_not_found'));
+            redirect(site_url('user/courses'), 'refresh');
+        }
+
+        require_once APPPATH . 'libraries/SimpleXLSXGen.php';
+
+        $excel_data = [];
+        // Header with bold tags
+        $header_row = [];
+        foreach ($progress_data['headers'] as $header) {
+            $header_row[] = '<b>' . $header . '</b>';
+        }
+        $excel_data[] = $header_row;
+
+        // Data rows
+        foreach ($progress_data['rows'] as $row) {
+            $excel_data[] = [
+                $row['id'],
+                $row['name'],
+                $row['email'],
+                $row['enrollment_date'],
+                $row['last_seen'],
+                $row['completed_date'],
+                $row['course_progress'],
+                $row['completed_lessons'],
+                $row['watched_duration'],
+                $row['quiz_result'],
+                $row['score'],
+                $row['percentage'],
+                $row['pass_mark'],
+                $row['attempts'],
+                $row['quiz_details']
+            ];
+        }
+
+        $course_title = slugify($progress_data['course']['title']);
+        $filename = 'pharmacist_progress_' . $course_title . '_' . date('Y_m_d_His') . '.xlsx';
+
+        $xlsx = \Shuchkin\SimpleXLSXGen::fromArray($excel_data, 'Pharmacist Progress');
+        $xlsx->downloadAs($filename);
+        exit;
+    }
+
+    public function export_student_progress_csv($course_id)
+    {
+        if ($this->session->userdata('user_login') != 1) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
+        $multi_instructors = explode(',', $course_details['user_id'] ?? '');
+
+        if (!in_array($this->session->userdata('user_id'), $multi_instructors) && $course_details['creator'] != $this->session->userdata('user_id')) {
+            $this->session->set_flashdata('error_message', get_phrase('you_do_not_have_permission_to_access_this_course'));
+            redirect(site_url('user/courses'), 'refresh');
+        }
+
+        $progress_data = $this->crud_model->get_course_pharmacist_academic_progress_data($course_id);
+        if (!$progress_data) {
+            $this->session->set_flashdata('error_message', get_phrase('course_not_found'));
+            redirect(site_url('user/courses'), 'refresh');
+        }
+
+        $course_title = slugify($progress_data['course']['title']);
+        $filename = 'pharmacist_progress_' . $course_title . '_' . date('Y_m_d_His') . '.csv';
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $output = fopen('php://output', 'w');
+        // UTF-8 BOM for proper Excel display of Unicode characters
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        fputcsv($output, $progress_data['headers']);
+
+        foreach ($progress_data['rows'] as $row) {
+            fputcsv($output, [
+                $row['id'],
+                $row['name'],
+                $row['email'],
+                $row['enrollment_date'],
+                $row['last_seen'],
+                $row['completed_date'],
+                $row['course_progress'],
+                $row['completed_lessons'],
+                $row['watched_duration'],
+                $row['quiz_result'],
+                $row['score'],
+                $row['percentage'],
+                $row['pass_mark'],
+                $row['attempts'],
+                $row['quiz_details']
+            ]);
+        }
+
+        fclose($output);
+        exit;
+    }
+
     function student_academic_quiz_result($course_id = "", $student_id = "")
     {
         $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
         $multi_instructors = explode(',', $course_details['user_id']);
 
-        if (!in_array($this->session->userdata('user_id'), $multi_instructors)) {
+        if (!in_array($this->session->userdata('user_id'), $multi_instructors) && $course_details['creator'] != $this->session->userdata('user_id')) {
             return false;
         }
 

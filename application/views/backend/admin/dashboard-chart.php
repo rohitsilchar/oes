@@ -25,7 +25,8 @@
         $this->db->select_sum('admin_revenue');
         $this->db->where('date_added >=', $start_ts);
         $this->db->where('date_added <=', $end_ts);
-        $rev = $this->db->get('payment')->row()->admin_revenue;
+        $rev_row = $this->db->get('payment')->row();
+        $rev = ($rev_row && isset($rev_row->admin_revenue)) ? $rev_row->admin_revenue : 0;
         $month_wise_income[] = ($rev > 0) ? (float)$rev : 0;
     }
 
@@ -33,29 +34,51 @@
     $number_of_active_course = isset($status_wise_courses['active']) ? $status_wise_courses['active']->num_rows() : 0;
     $number_of_pending_course = isset($status_wise_courses['pending']) ? $status_wise_courses['pending']->num_rows() : 0;
 
-    $lic_yes = isset($licensed_pharmacists) ? $licensed_pharmacists : 0;
-    $total_p = isset($total_pharmacists) ? $total_pharmacists : 0;
+    $lic_yes = isset($licensed_pharmacists) ? (int)$licensed_pharmacists : 0;
+    $total_p = isset($total_pharmacists) ? (int)$total_pharmacists : 0;
     $lic_no = max(0, $total_p - $lic_yes);
+
+    // Store staffing chart data
+    $store_chart_labels = array();
+    $store_chart_data = array();
+    if (!empty($store_distribution)) {
+        foreach ($store_distribution as $st) {
+            $lbl = !empty($st['store_code']) ? $st['store_name'] . ' (' . $st['store_code'] . ')' : $st['store_name'];
+            $store_chart_labels[] = $lbl;
+            $store_chart_data[] = (int)($st['pharmacist_count'] ?? 0);
+        }
+    } else {
+        $store_chart_labels = array(get_phrase('no_stores'));
+        $store_chart_data = array(0);
+    }
 ?>
 
 <script type="text/javascript">
 (function($) {
     "use strict";
 
+    var enrolChartInstance = null;
+    var storeChartInstance = null;
+    var complianceChartInstance = null;
+
     function initDashboardCharts() {
+        if (typeof Chart === 'undefined') {
+            return;
+        }
+
         Chart.defaults.global.defaultFontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
         Chart.defaults.global.defaultFontColor = '#8391a2';
 
-        // 1. Enrollment Trends Area Chart
+        // 1. Enrollment Trends Area Line Chart
         var enrolCanvas = document.getElementById('enrollment-trend-chart');
         if (enrolCanvas) {
             var ctx = enrolCanvas.getContext('2d');
             var gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(114, 124, 245, 0.45)');
-            gradient.addColorStop(0.7, 'rgba(114, 124, 245, 0.08)');
+            gradient.addColorStop(0, 'rgba(114, 124, 245, 0.40)');
+            gradient.addColorStop(0.7, 'rgba(114, 124, 245, 0.05)');
             gradient.addColorStop(1, 'rgba(114, 124, 245, 0.0)');
 
-            new Chart(ctx, {
+            enrolChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: <?php echo json_encode($translated_month); ?>,
@@ -93,7 +116,7 @@
                         cornerRadius: 6,
                         callbacks: {
                             label: function(tooltipItem, data) {
-                                return ' ' + tooltipItem.yLabel + ' <?php echo get_phrase('pharmacists_enrolled'); ?>';
+                                return ' ' + tooltipItem.yLabel + ' <?php echo get_phrase('enrolled_records'); ?>';
                             }
                         }
                     },
@@ -127,11 +150,75 @@
             });
         }
 
-        // 2. Course & Compliance Doughnut Chart
+        // 2. Store Staffing Distribution Bar Chart
+        var storeCanvas = document.getElementById('store-staffing-chart');
+        if (storeCanvas) {
+            var ctxStore = storeCanvas.getContext('2d');
+            storeChartInstance = new Chart(ctxStore, {
+                type: 'bar',
+                data: {
+                    labels: <?php echo json_encode($store_chart_labels); ?>,
+                    datasets: [{
+                        label: "<?php echo get_phrase('pharmacists_assigned'); ?>",
+                        backgroundColor: '#ffbc00',
+                        hoverBackgroundColor: '#e5a900',
+                        borderRadius: 4,
+                        borderWidth: 0,
+                        data: <?php echo json_encode($store_chart_data); ?>
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    legend: {
+                        display: false
+                    },
+                    tooltips: {
+                        backgroundColor: '#313a46',
+                        titleFontColor: '#ffffff',
+                        bodyFontColor: '#ffffff',
+                        cornerRadius: 6,
+                        callbacks: {
+                            label: function(tooltipItem) {
+                                return ' ' + tooltipItem.yLabel + ' <?php echo get_phrase('pharmacists'); ?>';
+                            }
+                        }
+                    },
+                    scales: {
+                        xAxes: [{
+                            gridLines: {
+                                display: false,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                fontColor: '#98a6ad',
+                                fontSize: 11
+                            }
+                        }],
+                        yAxes: [{
+                            gridLines: {
+                                color: 'rgba(235, 237, 242, 0.7)',
+                                borderDash: [4, 4],
+                                drawBorder: false
+                            },
+                            ticks: {
+                                beginAtZero: true,
+                                precision: 0,
+                                fontColor: '#98a6ad',
+                                fontSize: 11,
+                                padding: 10
+                            }
+                        }]
+                    }
+                }
+            });
+        }
+
+        // 3. Course & Compliance Doughnut Chart
         var complianceCanvas = document.getElementById('compliance-status-chart');
         if (complianceCanvas) {
             var ctx2 = complianceCanvas.getContext('2d');
-            new Chart(ctx2, {
+            complianceChartInstance = new Chart(ctx2, {
                 type: 'doughnut',
                 data: {
                     labels: [
@@ -141,13 +228,13 @@
                     ],
                     datasets: [{
                         data: [
-                            <?php echo max(1, $lic_yes); ?>,
-                            <?php echo $lic_no; ?>,
-                            <?php echo $number_of_active_course; ?>
+                            <?php echo max(0, $lic_yes); ?>,
+                            <?php echo max(0, $lic_no); ?>,
+                            <?php echo max(0, $number_of_active_course); ?>
                         ],
                         backgroundColor: [
                             '#0acf97',
-                            '#ffbc00',
+                            '#fa5c7c',
                             '#727cf5'
                         ],
                         borderColor: '#ffffff',
@@ -174,6 +261,23 @@
             });
         }
     }
+
+    // Toggle between Enrollment and Store distribution views
+    window.toggleDashboardChart = function(chartType) {
+        if (chartType === 'enrol') {
+            $('#chart-wrap-enrol').show();
+            $('#chart-wrap-store').hide();
+            $('#btn-view-enrol').addClass('btn-primary').removeClass('btn-outline-primary');
+            $('#btn-view-store').addClass('btn-outline-primary').removeClass('btn-primary');
+            if (enrolChartInstance) enrolChartInstance.resize();
+        } else {
+            $('#chart-wrap-enrol').hide();
+            $('#chart-wrap-store').show();
+            $('#btn-view-store').addClass('btn-primary').removeClass('btn-outline-primary');
+            $('#btn-view-enrol').addClass('btn-outline-primary').removeClass('btn-primary');
+            if (storeChartInstance) storeChartInstance.resize();
+        }
+    };
 
     $(document).ready(function() {
         initDashboardCharts();

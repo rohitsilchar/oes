@@ -22,7 +22,7 @@
                 </div>
                 <div class="col-3 ms-auto d-none d-sm-inline-block">
                     <div class="book-img">
-                        <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/brd-book.png') ?>" alt="">
+                        <img loading="lazy" src="<?php echo base_url('assets/frontend/default-new/image/brd-pharma.png') ?>" alt="<?php echo site_phrase('Pharmacy'); ?>">
                     </div>
                 </div>
             </div>

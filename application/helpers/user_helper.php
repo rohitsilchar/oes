@@ -83,6 +83,33 @@ if ( ! function_exists('enroll_status'))
 		}
 	}
 }
+if ( ! function_exists('is_pharmacist_licence_missing'))
+{
+	function is_pharmacist_licence_missing($user_id = null) {
+		$CI	=&	get_instance();
+		$CI->load->library('session');
+		$CI->load->database();
+
+		if ($CI->session->userdata('user_login') != 1) {
+			return false;
+		}
+
+		if ($user_id === null) {
+			$user_id = $CI->session->userdata('user_id');
+		}
+
+		if (!$user_id) {
+			return false;
+		}
+
+		$user = $CI->db->select('role_id, licence_no')->where('id', $user_id)->get('users')->row_array();
+		if ($user && $user['role_id'] == 2) {
+			$licence_no = trim($user['licence_no'] ?? '');
+			return empty($licence_no);
+		}
+		return false;
+	}
+}
 
 // ------------------------------------------------------------------------
 /* End of file user_helper.php */

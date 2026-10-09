@@ -182,3 +182,42 @@
   }
 
 </script>
+
+<?php if ($this->session->userdata('user_login') == 1): ?>
+<script type="text/javascript">
+  var lastFrontendAlertedId = <?php
+    $logged_u = $this->session->userdata('user_id');
+    $latest_front_init = $this->db->where('to_user', $logged_u)
+        ->where('type', 'message')
+        ->where('status', 0)
+        ->order_by('id', 'desc')
+        ->limit(1)
+        ->get('notifications')
+        ->row_array();
+    echo $latest_front_init ? (int)$latest_front_init['id'] : 0;
+  ?>;
+
+  function checkFrontendNotifications() {
+    $.ajax({
+      url: '<?php echo site_url('home/get_my_notification'); ?>',
+      dataType: 'json',
+      success: function(response) {
+        if (response && response.html && $(response.html.elem).length) {
+          $(response.html.elem).html(response.html.content);
+        }
+
+        // Show toastr notification when a new message notification arrives
+        if (response && response.latest_message_notification && response.latest_message_notification.id > lastFrontendAlertedId) {
+          lastFrontendAlertedId = response.latest_message_notification.id;
+          if (typeof toastr !== 'undefined') {
+            toastr.info(response.latest_message_notification.description, response.latest_message_notification.title);
+          }
+        }
+      }
+    });
+  }
+
+  // Poll frontend notifications every 12 seconds
+  setInterval(checkFrontendNotifications, 12000);
+</script>
+<?php endif; ?>
