@@ -422,7 +422,7 @@ class Admin extends CI_Controller
         $filter_date_to = $this->input->post('filter_date_to') ? trim($this->input->post('filter_date_to')) : '';
         $search = isset($this->input->post('search')['value']) ? trim($this->input->post('search')['value']) : '';
 
-        $date_sql = "COALESCE(STR_TO_DATE(users.licence_end_date, '%Y-%m-%d'), STR_TO_DATE(users.licence_end_date, '%d-%m-%Y'), STR_TO_DATE(users.licence_end_date, '%d/%m/%Y'))";
+        $date_sql = "COALESCE(STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%Y-%m-%d'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d-%m-%Y'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d/%m/%Y'))";
 
         $apply_common_filters = function($db_instance) use ($filter_status, $filter_store_id, $filter_date_from, $filter_date_to, $search, $date_sql) {
             if ($filter_store_id === 'no_store') {
@@ -643,7 +643,7 @@ class Admin extends CI_Controller
         $filter_date_to = $this->input->get('date_to') ? trim($this->input->get('date_to')) : '';
         $search = $this->input->get('search') ? trim($this->input->get('search')) : '';
 
-        $date_sql = "COALESCE(STR_TO_DATE(users.licence_end_date, '%Y-%m-%d'), STR_TO_DATE(users.licence_end_date, '%d-%m-%Y'), STR_TO_DATE(users.licence_end_date, '%d/%m/%Y'))";
+        $date_sql = "COALESCE(STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%Y-%m-%d'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d-%m-%Y'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d/%m/%Y'))";
 
         $this->db->select("users.*, stores.store_name, stores.store_code, {$date_sql} as parsed_end_date", FALSE);
         $this->db->from('users');
@@ -1532,7 +1532,7 @@ class Admin extends CI_Controller
         }
 
         $stores = $this->db->order_by('store_name', 'asc')->get('stores')->result_array();
-        $date_sql = "COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y'))";
+        $date_sql = "COALESCE(STR_TO_DATE(NULLIF(licence_end_date, ''), '%Y-%m-%d'), STR_TO_DATE(NULLIF(licence_end_date, ''), '%d-%m-%Y'), STR_TO_DATE(NULLIF(licence_end_date, ''), '%d/%m/%Y'))";
 
         // 1. Grouped licence stats by store_id in 1 single fast query (instead of 1940 * 5 = 9700 queries!)
         $user_stats_grouped = [];
