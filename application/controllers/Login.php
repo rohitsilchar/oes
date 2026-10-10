@@ -62,19 +62,13 @@ class Login extends CI_Controller
         if ($query->num_rows() > 0) {
             $row = $query->row();
 
-            // Verify and check client MAC address
-            try {
-                $mac_result = $this->user_model->verify_user_mac_address($row->id);
-                if (!$mac_result['status']) {
-                    $this->session->set_flashdata('error_message', $mac_result['message']);
-                    redirect(site_url('login'), 'refresh');
-                }
-            } catch (\Throwable $t) {
-                log_message('error', 'MAC verification error: ' . $t->getMessage());
-                if ($row->role_id != 1) {
-                    $this->session->set_flashdata('error_message', get_phrase('access_denied') . '! ' . get_phrase('device_registration_failed'));
-                    redirect(site_url('login'), 'refresh');
-                }
+            // Device lock: non-admin users must register (first login) or verify this device with a
+            // device-bound passkey before the login completes (see Passkey controller)
+            if ($row->role_id != 1) {
+                $this->load->model('passkey_model');
+                $this->session->set_userdata('passkey_pending_user_id', $row->id);
+                $this->session->set_userdata('passkey_pending_expires', time() + Passkey_model::PENDING_LOGIN_TTL);
+                redirect(site_url($this->passkey_model->has_passkey($row->id) ? 'passkey/verify' : 'passkey/register'), 'refresh');
             }
 
             $this->user_model->new_device_login_tracker($row->id);

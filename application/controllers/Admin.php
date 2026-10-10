@@ -303,6 +303,11 @@ class Admin extends CI_Controller
             $this->user_model->reset_user_mac($param2);
             $this->session->set_flashdata('flash_message', get_phrase('mac_address_reset_successfully'));
             redirect(site_url('admin/users'), 'refresh');
+        } elseif ($param1 == "reset_passkey") {
+            $this->load->model('passkey_model');
+            $this->passkey_model->reset_user_passkeys($param2);
+            $this->session->set_flashdata('flash_message', get_phrase('device_reset_successfully') . '. ' . get_phrase('the_next_login_will_register_a_new_device'));
+            redirect(site_url('admin/users'), 'refresh');
         }
 
         $page_data['page_name']  = 'users';
@@ -380,6 +385,8 @@ class Admin extends CI_Controller
         $stats = $stats_query ? $stats_query->row_array() : [
             'total' => 0, 'valid_count' => 0, 'expiring_soon_count' => 0, 'expired_count' => 0, 'pending_count' => 0
         ];
+        // SUM() returns NULL when no rows match; normalise to integers
+        $stats = array_map('intval', $stats);
 
         $stores = $this->db->where('status', 1)->order_by('store_name', 'asc')->get('stores')->result_array();
 
@@ -1976,6 +1983,15 @@ class Admin extends CI_Controller
             $filtered_number_of_row = $this->db->get('users')->num_rows();
         }
 
+        // Users on this page who have a registered device passkey
+        $this->load->model('passkey_model');
+        $passkey_user_ids = [];
+        $student_ids = array_column($students, 'id');
+        if (!empty($student_ids)) {
+            $passkey_rows = $this->db->select('user_id')->where_in('user_id', $student_ids)->get('user_passkeys')->result_array();
+            $passkey_user_ids = array_flip(array_column($passkey_rows, 'user_id'));
+        }
+
         foreach ($students as $key => $student):
 
             //photo
@@ -1991,10 +2007,10 @@ class Admin extends CI_Controller
 
             //user email
             $email = $student['email'];
-            if (!empty($student['mac_address'])) {
-                $email .= '<br><span class="badge font-11 mt-1" style="background-color: #fff3ed; color: #f05a28; border: 1px solid rgba(240, 90, 40, 0.4); font-weight: 600; padding: 3px 8px; border-radius: 4px;" title="' . get_phrase('registered_mac_address') . '"><i class="mdi mdi-lan-connect mr-1" style="color: #f05a28;"></i>' . htmlspecialchars($student['mac_address']) . '</span>';
+            if (isset($passkey_user_ids[$student['id']])) {
+                $email .= '<br><span class="badge font-11 mt-1" style="background-color: #fff3ed; color: #f05a28; border: 1px solid rgba(240, 90, 40, 0.4); font-weight: 600; padding: 3px 8px; border-radius: 4px;" title="' . get_phrase('login_is_locked_to_the_registered_device') . '"><i class="mdi mdi-fingerprint mr-1" style="color: #f05a28;"></i>' . get_phrase('device_registered') . '</span>';
             } else {
-                $email .= '<br><span class="badge badge-light text-muted font-11 mt-1" style="border: 1px solid #e2e8f0; padding: 3px 7px; border-radius: 4px;"><i class="mdi mdi-lan-disconnect mr-1"></i>' . get_phrase('no_mac_registered') . '</span>';
+                $email .= '<br><span class="badge badge-light text-muted font-11 mt-1" style="border: 1px solid #e2e8f0; padding: 3px 7px; border-radius: 4px;" title="' . get_phrase('device_is_registered_on_next_login') . '"><i class="mdi mdi-fingerprint-off mr-1"></i>' . get_phrase('no_device_registered') . '</span>';
             }
 
             //enrolled courses
@@ -2017,7 +2033,7 @@ class Admin extends CI_Controller
 		                            <ul class="dropdown-menu">
 		                                <li><a class="dropdown-item" href="javascript:void(0)" onclick="sendRegistrationMailSingle(' . $student['id'] . ', \'user\')"><i class="mdi mdi-email-fast-outline mr-1"></i>' . get_phrase('send_registration_mail') . '</a></li>
 		                                <li><a class="dropdown-item" href="' . site_url('admin/user_form/edit_user_form/' . $student['id']) . '">' . get_phrase('edit') . '</a></li>
-		                                <li><a class="dropdown-item" href="' . site_url('admin/users/reset_mac/' . $student['id']) . '" onclick="return confirm(\'' . get_phrase('are_you_sure_you_want_to_reset_mac_address') . '?\');"><i class="mdi mdi-refresh text-warning mr-1"></i>' . get_phrase('reset_mac_address') . '</a></li>
+		                                <li><a class="dropdown-item" href="' . site_url('admin/users/reset_passkey/' . $student['id']) . '" onclick="return confirm(\'' . get_phrase('are_you_sure_you_want_to_reset_the_registered_device') . '?\');"><i class="mdi mdi-refresh text-warning mr-1"></i>' . get_phrase('reset_device_passkey') . '</a></li>
 		                                <li><a class="dropdown-item" href="#" onclick="confirm_modal(&#39;' . site_url('admin/users/delete/' . $student['id']) . '&#39;);">' . get_phrase('delete') . '</a></li>
 		                            </ul>
 		                        </div>';
