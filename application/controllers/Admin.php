@@ -403,6 +403,8 @@ class Admin extends CI_Controller
             return;
         }
 
+        ob_start();
+
         $this->user_model->check_licence_end_date_column();
 
         $columns = ['users.id', 'users.first_name', 'stores.store_name', 'users.licence_no', 'users.licence_start_date', 'users.licence_end_date', 'users.licence_end_date', 'users.licence_end_date', 'users.id'];
@@ -617,13 +619,25 @@ class Admin extends CI_Controller
             ];
         }
 
-        echo json_encode([
+        // Anything echoed so far (PHP notices/warnings) would corrupt the JSON; log it instead
+        $stray_output = ob_get_clean();
+        if (trim($stray_output) !== '') {
+            error_log('server_side_licence_report_data stray output: ' . substr(strip_tags($stray_output), 0, 2000));
+        }
+
+        $json = json_encode([
             "draw"            => (int)$this->input->post('draw'),
             "recordsTotal"    => (int)$total_number_of_row,
             "recordsFiltered" => (int)$filtered_number_of_row,
             "data"            => $data,
             "stats"           => $stats
-        ]);
+        ], JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+        if ($json === false) {
+            error_log('server_side_licence_report_data json_encode failed: ' . json_last_error_msg());
+            $json = json_encode(["draw" => (int)$this->input->post('draw'), "recordsTotal" => 0, "recordsFiltered" => 0, "data" => [], "error" => json_last_error_msg()]);
+        }
+
+        $this->output->set_content_type('application/json')->set_output($json);
     }
 
     public function server_side_licence_validity_data()
