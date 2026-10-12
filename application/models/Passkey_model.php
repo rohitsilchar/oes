@@ -14,7 +14,7 @@ class Passkey_model extends CI_Model
     //   user's own passkey, which may sync between that user's devices.
     // TRUE: strict one-device lock — only the device's built-in authenticator and only passkeys that
     //   cannot sync. In practice this works only on Windows 10 (1903+) / 11 with Windows Hello.
-    const STRICT_DEVICE_BINDING = false;
+    const STRICT_DEVICE_BINDING = true;
 
     // How long a user has to complete the passkey step after entering a valid password
     const PENDING_LOGIN_TTL = 300;

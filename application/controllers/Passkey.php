@@ -56,7 +56,7 @@ class Passkey extends CI_Controller
             trim($user['first_name'] . ' ' . $user['last_name']),
             120,
             false,      // no discoverable credential needed: the user is already identified by email/password
-            'required', // device PIN / fingerprint / face
+            $this->user_verification(),
             // strict: the device's built-in authenticator only; otherwise also a phone (QR) or security key
             Passkey_model::STRICT_DEVICE_BINDING ? false : null
         );
@@ -83,7 +83,7 @@ class Passkey extends CI_Controller
                 base64_decode($post->clientDataJSON),
                 base64_decode($post->attestationObject),
                 $challenge,
-                true,  // user verification required
+                Passkey_model::STRICT_DEVICE_BINDING, // PIN / fingerprint / face enforced in strict mode
                 true,  // user presence required
                 false
             );
@@ -122,7 +122,7 @@ class Passkey extends CI_Controller
             120,
             $allow_external, $allow_external, $allow_external, $allow_external,
             true,
-            'required'
+            $this->user_verification()
         );
         $this->session->set_userdata('passkey_challenge', base64_encode($webauthn->getChallenge()->getBinaryString()));
 
@@ -153,7 +153,7 @@ class Passkey extends CI_Controller
                 $passkey['public_key'],
                 $challenge,
                 (int) $passkey['sign_count'],
-                true, // user verification required
+                Passkey_model::STRICT_DEVICE_BINDING, // PIN / fingerprint / face enforced in strict mode
                 true  // user presence required
             );
         } catch (\Throwable $e) {
@@ -189,6 +189,14 @@ class Passkey extends CI_Controller
     {
         $this->session->unset_userdata(['passkey_pending_user_id', 'passkey_pending_expires', 'passkey_verified_user_id', 'passkey_challenge']);
         redirect(site_url('login'), 'refresh');
+    }
+
+    // Strict mode (live, Windows Hello): the device PIN / fingerprint / face check is required on every
+    // registration and login. Default mode (testing on any OS): only requested, because some password
+    // managers (Microsoft / Google Password Manager) skip it after a recent unlock and report "not verified".
+    private function user_verification()
+    {
+        return Passkey_model::STRICT_DEVICE_BINDING ? 'required' : 'preferred';
     }
 
     private function unregistered_device_message()
