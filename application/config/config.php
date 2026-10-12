@@ -535,3 +535,16 @@ $config['rewrite_short_tags'] = FALSE;
 | Array:		array('10.0.1.200', '192.168.5.0/24')
 */
 $config['proxy_ips'] = '';
+
+/*
+|--------------------------------------------------------------------------
+| Passkey relying-party ID
+|--------------------------------------------------------------------------
+|
+| The domain that pharmacist device passkeys are bound to. Leave empty to use
+| the site's host without a leading "www." (www.example.com and example.com
+| then share passkeys). Set it when the site is reached through several
+| subdomains, e.g. 'example.com'. Changing it later invalidates existing passkeys.
+|
+*/
+$config['passkey_rp_id'] = '';

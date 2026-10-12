@@ -89,14 +89,16 @@ class Passkey extends CI_Controller
             );
         } catch (\Throwable $e) {
             log_message('error', 'Passkey registration failed for user ' . $user['id'] . ': ' . $e->getMessage());
-            $this->json_fail(get_phrase('device_registration_failed') . ': ' . $e->getMessage());
+            $this->json_fail(get_phrase('device_registration_failed') . '. ' . get_phrase('please_try_again'));
         }
 
         if ($data->isBackupEligible && Passkey_model::STRICT_DEVICE_BINDING) {
             $this->json_fail(get_phrase('this_passkey_can_sync_to_other_devices_so_it_cannot_lock_your_account_to_this_device') . '. ' . get_phrase('please_try_again_and_choose_windows_hello_or_this_device_instead_of_a_password_manager_or_phone') . '.');
         }
 
-        $this->passkey_model->save_passkey($user['id'], $data);
+        if (!$this->passkey_model->save_passkey($user['id'], $data)) {
+            $this->json_fail(get_phrase('a_device_is_already_registered_for_this_account'));
+        }
         $this->session->set_userdata('passkey_verified_user_id', $user['id']);
         $this->json_out(['ok' => true, 'redirect' => site_url('passkey/complete')]);
     }
@@ -106,7 +108,10 @@ class Passkey extends CI_Controller
         $user = $this->pending_user_or_fail();
         $credential_ids = $this->passkey_model->get_credential_ids($user['id']);
         if (empty($credential_ids)) {
-            $this->json_fail(get_phrase('no_device_is_registered_for_this_account'));
+            // Strict mode: the only registered passkey can sync to other devices, so it no longer counts
+            $this->json_fail($this->passkey_model->has_passkey($user['id'])
+                ? get_phrase('your_registered_passkey_can_sync_to_other_devices_and_is_no_longer_allowed') . '. ' . get_phrase('please_contact_the_administrator_to_reset_your_device') . '.'
+                : get_phrase('no_device_is_registered_for_this_account'));
         }
 
         // strict: only the device's built-in authenticator; otherwise also USB / NFC / BLE keys and a phone (hybrid / QR)
@@ -153,7 +158,7 @@ class Passkey extends CI_Controller
             );
         } catch (\Throwable $e) {
             log_message('error', 'Passkey verification failed for user ' . $user['id'] . ': ' . $e->getMessage());
-            $this->json_fail(get_phrase('device_verification_failed') . ': ' . $e->getMessage());
+            $this->json_fail(get_phrase('device_verification_failed') . '. ' . get_phrase('please_try_again'));
         }
 
         $sign_count = $webauthn->getSignatureCounter();
@@ -165,17 +170,19 @@ class Passkey extends CI_Controller
     // Finish the normal login once the device check passed
     public function complete()
     {
-        $user_id = $this->session->userdata('passkey_pending_user_id');
+        // Same expiry and status checks as the passkey step itself; Login::validate_login() clears
+        // any verified flag left from an earlier attempt, so it must come from this login
+        $user = $this->pending_user();
         $verified_user_id = $this->session->userdata('passkey_verified_user_id');
         $this->session->unset_userdata(['passkey_pending_user_id', 'passkey_pending_expires', 'passkey_verified_user_id', 'passkey_challenge']);
 
-        if (!$user_id || $user_id != $verified_user_id) {
+        if (!$user || $user['id'] != $verified_user_id) {
             $this->session->set_flashdata('error_message', get_phrase('device_verification_failed') . '. ' . get_phrase('please_try_again'));
             redirect(site_url('login'), 'refresh');
         }
 
-        $this->user_model->new_device_login_tracker($user_id);
-        $this->user_model->set_login_userdata($user_id);
+        $this->user_model->new_device_login_tracker($user['id']);
+        $this->user_model->set_login_userdata($user['id']);
     }
 
     public function cancel()

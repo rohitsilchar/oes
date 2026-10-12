@@ -58,6 +58,9 @@
                                                 <ul class="dropdown-menu">
                                                     <li><a class="dropdown-item" href="<?php echo site_url('admin/permissions?permission_assing_to=' . $user['id']); ?>"><?php echo get_phrase('assign_permission'); ?></a></li>
                                                     <li><a class="dropdown-item" href="<?php echo site_url('admin/admin_form/edit_admin_form/' . $user['id']); ?>"><?php echo get_phrase('edit'); ?></a></li>
+                                                    <?php if (!is_root_admin($user['id'])): ?>
+                                                        <li><a class="dropdown-item" href="<?php echo site_url('admin/admins/reset_passkey/' . $user['id']); ?>" onclick="return postDeviceReset(this, '<?php echo get_phrase('are_you_sure_you_want_to_reset_the_registered_device'); ?>?');"><?php echo get_phrase('reset_device_passkey'); ?></a></li>
+                                                    <?php endif; ?>
                                                     <li><a class="dropdown-item" href="#" onclick="confirm_modal('<?php echo site_url('admin/admins/delete/' . $user['id']); ?>');"><?php echo get_phrase('delete'); ?></a></li>
                                                 </ul>
                                             </div>

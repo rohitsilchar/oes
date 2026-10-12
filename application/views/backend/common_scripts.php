@@ -8,6 +8,18 @@
         }
     }
 
+    // Device passkey reset is POST-only on the server; send the link's URL as a form post
+    function postDeviceReset(link, message) {
+        if (confirm(message)) {
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = link.href;
+            document.body.appendChild(form);
+            form.submit();
+        }
+        return false;
+    }
+
     function set_js_flashdata(url) {
         $.ajax({
             url: url,

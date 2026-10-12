@@ -62,10 +62,13 @@ class Login extends CI_Controller
         if ($query->num_rows() > 0) {
             $row = $query->row();
 
-            // Device lock: non-admin users must register (first login) or verify this device with a
-            // device-bound passkey before the login completes (see Passkey controller)
-            if ($row->role_id != 1) {
+            // Device lock: everyone except full (root) admins must register (first login) or verify this
+            // device with a passkey before the login completes (see Passkey controller). Restricted admins
+            // stay bound, as they were under the old MAC address check.
+            if (!($row->role_id == 1 && is_root_admin($row->id))) {
                 $this->load->model('passkey_model');
+                // Start the passkey step from scratch: nothing verified in an earlier attempt carries over
+                $this->session->unset_userdata(['passkey_verified_user_id', 'passkey_challenge']);
                 $this->session->set_userdata('passkey_pending_user_id', $row->id);
                 $this->session->set_userdata('passkey_pending_expires', time() + Passkey_model::PENDING_LOGIN_TTL);
                 redirect(site_url($this->passkey_model->has_passkey($row->id) ? 'passkey/verify' : 'passkey/register'), 'refresh');

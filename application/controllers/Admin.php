@@ -304,10 +304,7 @@ class Admin extends CI_Controller
             $this->session->set_flashdata('flash_message', get_phrase('mac_address_reset_successfully'));
             redirect(site_url('admin/users'), 'refresh');
         } elseif ($param1 == "reset_passkey") {
-            $this->load->model('passkey_model');
-            $this->passkey_model->reset_user_passkeys($param2);
-            $this->session->set_flashdata('flash_message', get_phrase('device_reset_successfully') . '. ' . get_phrase('the_next_login_will_register_a_new_device'));
-            redirect(site_url('admin/users'), 'refresh');
+            $this->reset_device_passkey($param2, 2, 'admin/users');
         }
 
         $page_data['page_name']  = 'users';
@@ -2033,7 +2030,7 @@ class Admin extends CI_Controller
 		                            <ul class="dropdown-menu">
 		                                <li><a class="dropdown-item" href="javascript:void(0)" onclick="sendRegistrationMailSingle(' . $student['id'] . ', \'user\')"><i class="mdi mdi-email-fast-outline mr-1"></i>' . get_phrase('send_registration_mail') . '</a></li>
 		                                <li><a class="dropdown-item" href="' . site_url('admin/user_form/edit_user_form/' . $student['id']) . '">' . get_phrase('edit') . '</a></li>
-		                                <li><a class="dropdown-item" href="' . site_url('admin/users/reset_passkey/' . $student['id']) . '" onclick="return confirm(\'' . get_phrase('are_you_sure_you_want_to_reset_the_registered_device') . '?\');"><i class="mdi mdi-refresh text-warning mr-1"></i>' . get_phrase('reset_device_passkey') . '</a></li>
+		                                <li><a class="dropdown-item" href="' . site_url('admin/users/reset_passkey/' . $student['id']) . '" onclick="return postDeviceReset(this, \'' . get_phrase('are_you_sure_you_want_to_reset_the_registered_device') . '?\');"><i class="mdi mdi-refresh text-warning mr-1"></i>' . get_phrase('reset_device_passkey') . '</a></li>
 		                                <li><a class="dropdown-item" href="#" onclick="confirm_modal(&#39;' . site_url('admin/users/delete/' . $student['id']) . '&#39;);">' . get_phrase('delete') . '</a></li>
 		                            </ul>
 		                        </div>';
@@ -3931,12 +3928,32 @@ class Admin extends CI_Controller
 
             $this->user_model->delete_user($param2);
             redirect(site_url('admin/admins'), 'refresh');
+        } elseif ($param1 == "reset_passkey") {
+            $this->reset_device_passkey($param2, 1, 'admin/admins');
         }
 
         $page_data['page_name']  = 'admins';
         $page_data['page_title'] = get_phrase('admins');
         $page_data['admins']     = $this->user_model->get_admins()->result_array();
         $this->load->view('backend/index', $page_data);
+    }
+
+    /**
+     * Remove a user's device passkey so their next login registers a new device. POST only, so a
+     * link or image on another page cannot trigger it; full (root) admins have no passkey to reset.
+     */
+    private function reset_device_passkey($user_id, $role_id, $return_page)
+    {
+        $user = $this->db->get_where('users', ['id' => $user_id, 'role_id' => $role_id])->row_array();
+        if ($this->input->method() !== 'post' || !$user || ($role_id == 1 && is_root_admin($user['id']))) {
+            $this->session->set_flashdata('error_message', get_phrase('invalid_request'));
+            redirect(site_url($return_page), 'refresh');
+        }
+
+        $this->load->model('passkey_model');
+        $this->passkey_model->reset_user_passkeys($user['id']);
+        $this->session->set_flashdata('flash_message', get_phrase('device_reset_successfully') . '. ' . get_phrase('the_next_login_will_register_a_new_device'));
+        redirect(site_url($return_page), 'refresh');
     }
 
     public function admin_form($param1 = "", $param2 = "")

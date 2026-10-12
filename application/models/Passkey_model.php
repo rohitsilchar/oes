@@ -24,7 +24,12 @@ class Passkey_model extends CI_Model
     public function __construct()
     {
         parent::__construct();
-        $this->ensure_passkey_table();
+        // The table check is cached so it does not run a metadata query on every request
+        $this->load->library('fast_cache');
+        if (!$this->fast_cache->get('user_passkeys_table_ready')) {
+            $this->ensure_passkey_table();
+            $this->fast_cache->set('user_passkeys_table_ready', 1, 86400);
+        }
     }
 
     /**
@@ -44,7 +49,7 @@ class Passkey_model extends CI_Model
                 `created_at` INT UNSIGNED NULL DEFAULT NULL,
                 `last_used_at` INT UNSIGNED NULL DEFAULT NULL,
                 PRIMARY KEY (`id`),
-                KEY `idx_user_passkeys_user_id` (`user_id`)
+                UNIQUE KEY `uniq_user_passkeys_user_id` (`user_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         }
     }
@@ -56,16 +61,26 @@ class Passkey_model extends CI_Model
     {
         if ($this->webauthn === null) {
             require_once APPPATH . 'vendor/autoload.php';
-            $rp_id   = parse_url(base_url(), PHP_URL_HOST);
+            // Passkeys are bound to this domain. Without $config['passkey_rp_id'], use the site's host
+            // minus a leading "www." so www.example.com and example.com share the same passkeys.
+            $rp_id   = $this->config->item('passkey_rp_id') ?: preg_replace('/^www\./i', '', parse_url(base_url(), PHP_URL_HOST));
             $rp_name = get_settings('system_name') ?: $rp_id;
             $this->webauthn = new \lbuchs\WebAuthn\WebAuthn($rp_name, $rp_id, ['none']);
         }
         return $this->webauthn;
     }
 
-    public function get_user_passkeys($user_id)
+    /**
+     * A user's passkeys. $usable_only: in strict mode, leave out passkeys that can sync to other
+     * devices (e.g. registered before strict mode was switched on), so they can no longer log in.
+     */
+    public function get_user_passkeys($user_id, $usable_only = false)
     {
-        return $this->db->get_where('user_passkeys', ['user_id' => $user_id])->result_array();
+        $this->db->where('user_id', $user_id);
+        if ($usable_only && self::STRICT_DEVICE_BINDING) {
+            $this->db->where('backup_eligible', 0);
+        }
+        return $this->db->get('user_passkeys')->result_array();
     }
 
     public function has_passkey($user_id)
@@ -74,23 +89,23 @@ class Passkey_model extends CI_Model
     }
 
     /**
-     * Binary credential IDs of a user's passkeys (for allowCredentials / excludeCredentials)
+     * Binary credential IDs of the passkeys a user may log in with (for allowCredentials)
      */
     public function get_credential_ids($user_id)
     {
         $ids = [];
-        foreach ($this->get_user_passkeys($user_id) as $passkey) {
+        foreach ($this->get_user_passkeys($user_id, true) as $passkey) {
             $ids[] = $this->base64url_decode($passkey['credential_id']);
         }
         return $ids;
     }
 
     /**
-     * Find one of the user's passkeys by its binary credential ID
+     * Find one of the passkeys a user may log in with by its binary credential ID
      */
     public function find_user_passkey($user_id, $credential_id_binary)
     {
-        foreach ($this->get_user_passkeys($user_id) as $passkey) {
+        foreach ($this->get_user_passkeys($user_id, true) as $passkey) {
             if (hash_equals($this->base64url_decode($passkey['credential_id']), $credential_id_binary)) {
                 return $passkey;
             }
@@ -98,10 +113,16 @@ class Passkey_model extends CI_Model
         return null;
     }
 
+    /**
+     * Store a new passkey. Returns false if the user already has one: the unique key on user_id
+     * makes this safe even when two registrations race each other.
+     */
     public function save_passkey($user_id, $data)
     {
         $user_agent = (string) $this->input->user_agent();
-        $this->db->insert('user_passkeys', [
+        $db_debug = $this->db->db_debug;
+        $this->db->db_debug = false; // a duplicate key is an expected outcome here, not an error page
+        $saved = $this->db->insert('user_passkeys', [
             'user_id'         => $user_id,
             'credential_id'   => $this->base64url_encode($data->credentialId),
             'public_key'      => $data->credentialPublicKey,
@@ -110,6 +131,8 @@ class Passkey_model extends CI_Model
             'device_name'     => substr($user_agent, 0, 255),
             'created_at'      => time(),
         ]);
+        $this->db->db_debug = $db_debug;
+        return (bool) $saved;
     }
 
     public function mark_used($passkey_id, $sign_count)
