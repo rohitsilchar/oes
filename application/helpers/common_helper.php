@@ -289,11 +289,17 @@ if (! function_exists('resizeImage')) {
 if (!function_exists('get_settings')) {
     function get_settings($key = '', $type = "")
     {
-        $CI    = &get_instance();
-        $CI->load->database();
+        static $memo = array();
 
-        $CI->db->where('key', $key);
-        $result = $CI->db->get('settings')->row('value');
+        if (!array_key_exists($key, $memo)) {
+            $CI    = &get_instance();
+            $CI->load->database();
+
+            $CI->db->where('key', $key);
+            $memo[$key] = $CI->db->get('settings')->row('value');
+        }
+
+        $result = $memo[$key];
 
         if($type){
             return json_decode($result, true);
@@ -306,17 +312,20 @@ if (!function_exists('get_settings')) {
 if (!function_exists('currency')) {
     function currency($price = "")
     {
+        static $symbols = array();
+
         $CI    = &get_instance();
         $CI->load->database();
-        if ($price != "") {
-            $CI->db->where('key', 'system_currency');
-            $currency_code = $CI->db->get('settings')->row('value');
+        $currency_code = get_settings('system_currency');
 
+        if (!array_key_exists($currency_code, $symbols)) {
             $CI->db->where('code', $currency_code);
-            $symbol = $CI->db->get('currency')->row('symbol');
+            $symbols[$currency_code] = $CI->db->get('currency')->row('symbol');
+        }
+        $symbol = $symbols[$currency_code];
 
-            $CI->db->where('key', 'currency_position');
-            $position = $CI->db->get('settings')->row('value');
+        if ($price != "") {
+            $position = get_settings('currency_position');
 
             if ($position == 'right') {
                 return $price . $symbol;
@@ -328,11 +337,7 @@ if (!function_exists('currency')) {
                 return $symbol . ' ' . $price;
             }
         }else{
-            $CI->db->where('key', 'system_currency');
-            $currency_code = $CI->db->get('settings')->row('value');
-
-            $CI->db->where('code', $currency_code);
-            return $CI->db->get('currency')->row()->symbol;
+            return $symbol;
         }
     }
 }
@@ -358,13 +363,17 @@ if (!function_exists('currency_code_and_symbol')) {
 if (!function_exists('get_frontend_settings')) {
     function get_frontend_settings($key = '')
     {
-        $CI    = &get_instance();
-        $CI->load->database();
+        static $memo = array();
 
-        $CI->db->where('key', $key);
-        $result = $CI->db->get('frontend_settings')->row('value');
+        if (!array_key_exists($key, $memo)) {
+            $CI    = &get_instance();
+            $CI->load->database();
 
+            $CI->db->where('key', $key);
+            $memo[$key] = $CI->db->get('frontend_settings')->row('value');
+        }
 
+        $result = $memo[$key];
 
         if($key == 'banner_image'){
             $banner_images = json_decode($result, true);

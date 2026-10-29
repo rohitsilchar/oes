@@ -1265,7 +1265,9 @@ class User_model extends CI_Model
 
         if($user_type == 'admin'){
             if($this->session->userdata('custom_session_limit') >= time()){
-                $this->session->set_userdata('custom_session_limit', (time()+864000));
+                if($this->session->userdata('custom_session_limit') - time() < 86400){
+                    $this->session->set_userdata('custom_session_limit', (time()+864000));
+                }
             }else{
                 $this->session_destroy();
                 redirect(site_url('login'), 'refresh');
@@ -1276,7 +1278,9 @@ class User_model extends CI_Model
             }
         }elseif($user_type == 'user'){
             if($this->session->userdata('custom_session_limit') >= time()){
-                $this->session->set_userdata('custom_session_limit', (time()+864000));
+                if($this->session->userdata('custom_session_limit') - time() < 86400){
+                    $this->session->set_userdata('custom_session_limit', (time()+864000));
+                }
             }else{
                 $this->session_destroy();
                 redirect(site_url('login'), 'refresh');

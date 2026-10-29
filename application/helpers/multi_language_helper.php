@@ -67,6 +67,31 @@
 // }
 
 //All common helper functions
+
+// Loads every phrase of a language once per request. get_phrase() and site_phrase() read from
+// this map instead of querying the language table once per phrase. Returned by reference so
+// phrases created on the fly can be written back into it.
+if (!function_exists('cached_phrase_map')) {
+    function &cached_phrase_map($language_code)
+    {
+        static $phrase_map = array();
+
+        if (!isset($phrase_map[$language_code])) {
+            $phrase_map[$language_code] = array();
+            $CI = get_instance();
+            if ($CI->db->field_exists($language_code, 'language')) {
+                $column = str_replace('`', '', $language_code);
+                $query  = $CI->db->query("SELECT `phrase`, `$column` AS translation FROM `language`");
+                foreach ($query->result_array() as $row) {
+                    $phrase_map[$language_code][$row['phrase']] = $row['translation'];
+                }
+            }
+        }
+
+        return $phrase_map[$language_code];
+    }
+}
+
 if (!function_exists('get_phrase')) {
     function get_phrase_($phrase = "", $replaces = array())
     {
@@ -91,11 +116,17 @@ if (!function_exists('get_phrase')) {
         if($CI->session->userdata('language')){
             $language_code = $CI->session->userdata('language');
         }else{
-            $language_code = $CI->db->get_where('settings', array('key' => 'language'))->row()->value;
+            $language_code = get_settings('language');
         }
 
         $key = strtolower(preg_replace('/\s+/', '_', $phrase));
 
+        $phrase_map = &cached_phrase_map($language_code);
+        if (!empty($phrase_map[$key])) {
+            return $phrase_map[$key];
+        }
+
+        // Only phrases missing from the language table reach the code below.
         /**LANGUAGE HANDLING USING DATABASE**/
         // CHECK IF A COLUMN EXISTS IN LANGUAGE TABLE
         if (!$CI->db->field_exists($language_code, 'language')) {
@@ -114,6 +145,7 @@ if (!function_exists('get_phrase')) {
 
         if (is_array($phrase_query) && count($phrase_query) > 0) {
             if (!empty($phrase_query[$language_code])) {
+                $phrase_map[$key] = $phrase_query[$language_code];
                 return $phrase_query[$language_code];
             } else {
                 $phrase = ucfirst(str_replace('_', ' ', $key));
@@ -121,11 +153,13 @@ if (!function_exists('get_phrase')) {
                 $updater = array($language_code => $phrase);
                 $CI->db->where($checker);
                 $CI->db->update('language', $updater);
+                $phrase_map[$key] = $phrase;
                 return $phrase;
             }
         } else {
             $phrase = ucfirst(str_replace('_', ' ', $key));
             $CI->db->insert('language', array('phrase' => $key, $language_code => $phrase));
+            $phrase_map[$key] = $phrase;
             return $phrase;
         }
     }
@@ -189,6 +223,12 @@ if (!function_exists('site_phrase')) {
         $language_code = $CI->session->userdata('language');
         $key = strtolower(preg_replace('/\s+/', '_', $phrase));
 
+        $phrase_map = &cached_phrase_map($language_code);
+        if (!empty($phrase_map[$key])) {
+            return $phrase_map[$key];
+        }
+
+        // Only phrases missing from the language table reach the code below.
         /**LANGUAGE HANDLING USING DATABASE**/
         // CHECK IF A COLUMN EXISTS IN LANGUAGE TABLE
         if (!$CI->db->field_exists($language_code, 'language')) {
@@ -207,6 +247,7 @@ if (!function_exists('site_phrase')) {
 
         if (is_array($phrase_query) && count($phrase_query) > 0) {
             if (!empty($phrase_query[$language_code])) {
+                $phrase_map[$key] = $phrase_query[$language_code];
                 return $phrase_query[$language_code];
             } else {
                 $phrase = ucfirst(str_replace('_', ' ', $key));
@@ -214,11 +255,13 @@ if (!function_exists('site_phrase')) {
                 $updater = array($language_code => $phrase);
                 $CI->db->where($checker);
                 $CI->db->update('language', $updater);
+                $phrase_map[$key] = $phrase;
                 return $phrase;
             }
         } else {
             $phrase = ucfirst(str_replace('_', ' ', $key));
             $CI->db->insert('language', array('phrase' => $key, $language_code => $phrase));
+            $phrase_map[$key] = $phrase;
             return $phrase;
         }
     }
