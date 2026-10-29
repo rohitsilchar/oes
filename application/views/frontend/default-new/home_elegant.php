@@ -29,8 +29,9 @@
                     </div>
 
                     <?php
-                        $total_number_of_ratings = $this->db->get('rating')->num_rows();
-                        $summation_of_ratings    = $this->db->select_sum('rating')->get('rating')->row()->rating;
+                        $rating_summary          = $this->db->select('COUNT(*) AS total, SUM(rating) AS summation', false)->get('rating')->row();
+                        $total_number_of_ratings = (int) $rating_summary->total;
+                        $summation_of_ratings    = (float) $rating_summary->summation;
                         $latest_5_ratings        = $this->db->order_by('id', 'desc')->get('rating', 5)->result_array();
                         if ($total_number_of_ratings > 0) {
                             $average_ceil_rating = ceil($summation_of_ratings / $total_number_of_ratings);
@@ -483,14 +484,9 @@
 
 <!-- Why Choose Area Start -->
 <?php
-    $total_students    = $this->db->where('role_id', 2)->get('users');
-    $total_instructors = $this->db->where('is_instructor', 1)->get('users');
-    $free_courses      = $this->db->where('is_free_course', 1)->get('course');
-    $premium_courses   = $this->db->where('is_free_course', 0)->get('course');
-
-    $stat_pharmacists  = max(450, $total_students->num_rows());
-    $stat_educators    = max(15, $total_instructors->num_rows());
-    $stat_modules      = max(85, $premium_courses->num_rows() + $free_courses->num_rows());
+    $stat_pharmacists  = max(450, $this->db->where('role_id', 2)->count_all_results('users'));
+    $stat_educators    = max(15, $this->db->where('is_instructor', 1)->count_all_results('users'));
+    $stat_modules      = max(85, $this->db->where_in('is_free_course', [0, 1])->count_all_results('course'));
     $stat_stores       = 1000;
 ?>
 <section class="why-choose-section1 mb-80">
@@ -652,6 +648,13 @@
 
 <!-- Review Area 3 Start -->
 <?php if (get_frontend_settings('review_section') == 1): ?>
+<?php
+    $reviews = $this->db->select('rating.rating, rating.review, users.id AS user_id, users.first_name, users.last_name, users.image')
+                        ->join('users', 'users.id = rating.user_id', 'left')
+                        ->where('rating.ratable_type', null)
+                        ->where('rating.ratable_id', null)
+                        ->get('rating')->result();
+?>
 <section class="mb-100px">
     <div class="container">
         <div class="row wow  animate__animated animate__fadeInUp opacityOnUp" data-wow-duration="1000" data-wow-delay="500">
@@ -669,11 +672,7 @@
                     <div class="lms3-reviewSlider-content mb-12px">
 
                         <!-- No 1 -->
-                        <?php
-                            $reviews = $this->db->where('ratable_type', null)->where('ratable_id', null)->get('rating')->result();
-                            foreach ($reviews as $review):
-                                $user_data = $this->db->get_where('users', ['id' => $review->user_id])->row_array();
-                            ?>
+                        <?php foreach ($reviews as $review): ?>
                         <div class="lms3-review-content-slide">
                             <div class="lms3-review-stars">
                                 <?php for ($i = 1; $i <= 5; $i++): ?>
@@ -686,7 +685,7 @@
                             </div>
                             <p class="lms3-review-comment mb-4"><?php echo $review->review; ?></p>
                             <div>
-                                <h4 class="lms3-reviewer-name"><?php echo $user_data['first_name'] . ' ' . $user_data['last_name']; ?></h4>
+                                <h4 class="lms3-reviewer-name"><?php echo $review->first_name . ' ' . $review->last_name; ?></h4>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -696,14 +695,10 @@
                     <div class="reviewSlider3-author-wrap">
                         <div class="lms3-reviewSlider-author">
                             <!-- No 1 -->
-                            <?php
-                                $reviews = $this->db->where('ratable_type', null)->where('ratable_id', null)->get('rating')->result();
-                                foreach ($reviews as $review):
-                                    $user_data = $this->db->get_where('users', ['id' => $review->user_id])->row_array();
-                                ?>
+                            <?php foreach ($reviews as $review): ?>
                             <div class="lms3-review-profile-slide">
                                 <div class="lms3-review-profile">
-                                    <img src="<?php echo $this->user_model->get_user_image_url($user_data['id']); ?>" alt="">
+                                    <img src="<?php echo $this->user_model->get_user_image_url($review->user_id, $review->image); ?>" alt="">
                                 </div>
                             </div>
                             <?php endforeach; ?>
