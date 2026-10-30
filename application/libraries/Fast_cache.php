@@ -2,10 +2,16 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /*
-| Small key/value cache used by the report endpoints.
-| Uses Redis (config/redis.php) when the phpredis extension is loaded and the
-| server is reachable, otherwise falls back to CodeIgniter's file cache.
+| -------------------------------------------------------------------
+| Fast_cache
+| -------------------------------------------------------------------
+| Small key/value cache shared by all web servers.
+| Uses Redis/Valkey (config/redis.php) when the phpredis extension is loaded
+| and the server is reachable, otherwise falls back to CodeIgniter's file cache.
 | Every call fails soft: a cache problem never breaks the calling request.
+|
+| 2026-10-30: persistent connection (one TLS connection per PHP-FPM worker
+| instead of one per request) and gzip for values larger than 8 KB.
 */
 class Fast_cache
 {
@@ -24,22 +30,29 @@ class Fast_cache
 
         if (extension_loaded('redis')) {
             try {
-                $redis = new Redis();
-                $host = $this->CI->config->item('host', 'redis') ?: '127.0.0.1';
-                $port = (int)($this->CI->config->item('port', 'redis') ?: 6379);
-                $timeout = (float)($this->CI->config->item('timeout', 'redis') ?: 1);
-                $connected = $this->CI->config->item('socket_type', 'redis') === 'unix'
-                    ? $redis->connect($host)
-                    : $redis->connect($host, $port, $timeout);
+                $redis      = new Redis();
+                $host       = $this->CI->config->item('host', 'redis') ?: '127.0.0.1';
+                $port       = (int)($this->CI->config->item('port', 'redis') ?: 6379);
+                $timeout    = (float)($this->CI->config->item('timeout', 'redis') ?: 1);
+                $persistent = (bool)$this->CI->config->item('persistent', 'redis');
+
+                if ($this->CI->config->item('socket_type', 'redis') === 'unix') {
+                    $connected = $redis->connect($host);
+                } elseif ($persistent) {
+                    $connected = $redis->pconnect($host, $port, $timeout, 'oes');
+                } else {
+                    $connected = $redis->connect($host, $port, $timeout);
+                }
 
                 $password = $this->CI->config->item('password', 'redis');
                 if ($connected && !empty($password)) {
                     $connected = $redis->auth($password);
                 }
                 if ($connected) {
+                    $redis->setOption(Redis::OPT_READ_TIMEOUT, $timeout);
                     $this->redis = $redis;
                 }
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 log_message('debug', 'Fast_cache: Redis unavailable, using file cache. ' . $e->getMessage());
             }
         }
@@ -49,15 +62,21 @@ class Fast_cache
         }
     }
 
+    /** True when values are going to Redis/Valkey (not the local file cache). */
+    public function using_redis()
+    {
+        return $this->redis !== null;
+    }
+
     public function get($key)
     {
         try {
             if ($this->redis !== null) {
                 $value = $this->redis->get($this->prefix . $key);
-                return $value === false ? false : unserialize($value);
+                return $value === false ? false : $this->decode($value);
             }
             return $this->CI->cache->get($this->prefix . $key);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return false;
         }
     }
@@ -67,10 +86,10 @@ class Fast_cache
         $ttl = $ttl ? (int)$ttl : $this->default_ttl;
         try {
             if ($this->redis !== null) {
-                return $this->redis->setex($this->prefix . $key, $ttl, serialize($value));
+                return $this->redis->setex($this->prefix . $key, $ttl, $this->encode($value));
             }
             return @$this->CI->cache->save($this->prefix . $key, $value, $ttl);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return false;
         }
     }
@@ -82,8 +101,31 @@ class Fast_cache
                 return (bool)$this->redis->del($this->prefix . $key);
             }
             return $this->CI->cache->delete($this->prefix . $key);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return false;
         }
+    }
+
+    // Large values (the translation table) are gzipped: less network and
+    // fewer ElastiCache Serverless ECPUs, which are billed per KB transferred.
+    private function encode($value)
+    {
+        $s = serialize($value);
+        if (strlen($s) > 8192 && function_exists('gzcompress')) {
+            return 'z:' . gzcompress($s, 6);
+        }
+        return $s;
+    }
+
+    private function decode($raw)
+    {
+        if (strncmp($raw, 'z:', 2) === 0) {
+            $raw = @gzuncompress(substr($raw, 2));
+            if ($raw === false) {
+                return false;
+            }
+        }
+        $v = @unserialize($raw);
+        return ($v === false && $raw !== 'b:0;') ? false : $v;
     }
 }

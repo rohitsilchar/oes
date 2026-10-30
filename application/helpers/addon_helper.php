@@ -16,15 +16,24 @@
 /* CHECK THE ADDON STATUS */
 if (! function_exists('addon_status')) {
     function addon_status($unique_identifier = '') {
-        $CI	=&	get_instance();
-        $CI->load->database();
-        $result = $CI->db->get_where('addons', array('unique_identifier' => $unique_identifier));
-        if ($result->num_rows() > 0) {
-            $result = $result->row_array();
-            return $result['status'];
-        }else{
-            return 0;
+        // Whole `addons` table (identifier => status) from the shared cache.
+        static $all = null;
+        if ($all === null) {
+            $cache_key = 'addons_all_' . app_cache_version();
+            $all = app_cache()->get($cache_key);
+            if (!is_array($all)) {
+                $CI =& get_instance();
+                $CI->load->database();
+                $all = array();
+                foreach ($CI->db->select('unique_identifier, status')->get('addons')->result_array() as $r) {
+                    if (!array_key_exists($r['unique_identifier'], $all)) {
+                        $all[$r['unique_identifier']] = $r['status'];
+                    }
+                }
+                app_cache()->set($cache_key, $all, 300);
+            }
         }
+        return array_key_exists($unique_identifier, $all) ? $all[$unique_identifier] : 0;
     }
 }
 

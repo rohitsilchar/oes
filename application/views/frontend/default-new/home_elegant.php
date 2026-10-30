@@ -484,9 +484,18 @@
 
 <!-- Why Choose Area Start -->
 <?php
-    $stat_pharmacists  = max(450, $this->db->where('role_id', 2)->count_all_results('users'));
-    $stat_educators    = max(15, $this->db->where('is_instructor', 1)->count_all_results('users'));
-    $stat_modules      = max(85, $this->db->where_in('is_free_course', [0, 1])->count_all_results('course'));
+    $home_stats = app_cache()->get('home_stats');
+    if (!is_array($home_stats)) {
+        $home_stats = array(
+            'pharmacists' => max(450, $this->db->where('role_id', 2)->count_all_results('users')),
+            'educators'   => max(15,  $this->db->where('is_instructor', 1)->count_all_results('users')),
+            'modules'     => max(85,  $this->db->where_in('is_free_course', [0, 1])->count_all_results('course')),
+        );
+        app_cache()->set('home_stats', $home_stats, 300);
+    }
+    $stat_pharmacists = $home_stats['pharmacists'];
+    $stat_educators   = $home_stats['educators'];
+    $stat_modules     = $home_stats['modules'];
     $stat_stores       = 1000;
 ?>
 <section class="why-choose-section1 mb-80">

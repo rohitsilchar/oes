@@ -289,18 +289,17 @@ if (! function_exists('resizeImage')) {
 if (!function_exists('get_settings')) {
     function get_settings($key = '', $type = "")
     {
-        static $memo = array();
-
-        if (!array_key_exists($key, $memo)) {
-            $CI    = &get_instance();
-            $CI->load->database();
-
-            $CI->db->where('key', $key);
-            $memo[$key] = $CI->db->get('settings')->row('value');
+        static $all = null;
+        if ($all === null) {
+            $all = app_settings_table('settings');
         }
-
-        $result = $memo[$key];
-
+        if (!array_key_exists($key, $all)) {
+            $CI = &get_instance();
+            $CI->load->database();
+            $CI->db->where('key', $key);
+            $all[$key] = $CI->db->get('settings')->row('value');
+        }
+        $result = $all[$key];
         if($type){
             return json_decode($result, true);
         }else{
@@ -363,18 +362,17 @@ if (!function_exists('currency_code_and_symbol')) {
 if (!function_exists('get_frontend_settings')) {
     function get_frontend_settings($key = '')
     {
-        static $memo = array();
-
-        if (!array_key_exists($key, $memo)) {
-            $CI    = &get_instance();
-            $CI->load->database();
-
-            $CI->db->where('key', $key);
-            $memo[$key] = $CI->db->get('frontend_settings')->row('value');
+        static $all = null;
+        if ($all === null) {
+            $all = app_settings_table('frontend_settings');
         }
-
-        $result = $memo[$key];
-
+        if (!array_key_exists($key, $all)) {
+            $CI = &get_instance();
+            $CI->load->database();
+            $CI->db->where('key', $key);
+            $all[$key] = $CI->db->get('frontend_settings')->row('value');
+        }
+        $result = $all[$key];
         if($key == 'banner_image'){
             $banner_images = json_decode($result, true);
             return $banner_images[get_frontend_settings('home_page')];
@@ -843,3 +841,68 @@ if (!function_exists('validate_cart_items')) {
 // ------------------------------------------------------------------------
 /* End of file common_helper.php */
 /* Location: ./system/helpers/common.php */
+
+
+/*
+| -------------------------------------------------------------------
+| Shared cache helpers (Redis/Valkey via Fast_cache), added 2026-10-30
+| -------------------------------------------------------------------
+| Settings, frontend settings and translations are read from the shared cache
+| instead of MySQL on every page. Any admin POST bumps the cache version
+| (see Admin::__construct), so admin changes show on the next page load;
+| otherwise entries expire after 2-5 minutes.
+*/
+if (!function_exists('app_cache')) {
+    function app_cache()
+    {
+        $CI = &get_instance();
+        if (!isset($CI->fast_cache)) {
+            $CI->load->library('fast_cache');
+        }
+        return $CI->fast_cache;
+    }
+}
+
+if (!function_exists('app_cache_version')) {
+    function app_cache_version()
+    {
+        static $ver = null;
+        if ($ver === null) {
+            $ver = (int)app_cache()->get('cfg_ver');
+            if ($ver < 1) {
+                $ver = 1;
+            }
+        }
+        return $ver;
+    }
+}
+
+if (!function_exists('app_cache_flush')) {
+    function app_cache_flush()
+    {
+        $ver = (int)app_cache()->get('cfg_ver');
+        app_cache()->set('cfg_ver', max(1, $ver) + 1, 2592000);
+    }
+}
+
+if (!function_exists('app_settings_table')) {
+    // Whole `settings` / `frontend_settings` table as key => value, cached 2 minutes.
+    function app_settings_table($table)
+    {
+        $cache_key = $table . '_all_' . app_cache_version();
+        $rows = app_cache()->get($cache_key);
+        if (!is_array($rows)) {
+            $CI = &get_instance();
+            $CI->load->database();
+            $rows = array();
+            $sql = 'SELECT `key`, `value` FROM `' . $CI->db->dbprefix($table) . '`';
+            foreach ($CI->db->query($sql)->result_array() as $r) {
+                if (!array_key_exists($r['key'], $rows)) {
+                    $rows[$r['key']] = $r['value'];
+                }
+            }
+            app_cache()->set($cache_key, $rows, 120);
+        }
+        return $rows;
+    }
+}

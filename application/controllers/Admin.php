@@ -7,6 +7,12 @@ class Admin extends CI_Controller
     {
         parent::__construct();
 
+        // Admin changes (settings, translations, etc.) must show immediately on
+        // every server: after any admin POST, bump the shared cache version.
+        if ($this->input->method() === 'post') {
+            register_shutdown_function('app_cache_flush');
+        }
+
         date_default_timezone_set(get_settings('timezone'));
 
         $this->load->database();

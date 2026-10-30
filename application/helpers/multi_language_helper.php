@@ -75,19 +75,27 @@ if (!function_exists('cached_phrase_map')) {
     function &cached_phrase_map($language_code)
     {
         static $phrase_map = array();
-
         if (!isset($phrase_map[$language_code])) {
-            $phrase_map[$language_code] = array();
-            $CI = get_instance();
-            if ($CI->db->field_exists($language_code, 'language')) {
-                $column = str_replace('`', '', $language_code);
-                $query  = $CI->db->query("SELECT `phrase`, `$column` AS translation FROM `language`");
-                foreach ($query->result_array() as $row) {
-                    $phrase_map[$language_code][$row['phrase']] = $row['translation'];
+            // Shared cache first (all web servers), MySQL only on a miss.
+            $cache_key = 'phrases_' . app_cache_version() . '_' . $language_code;
+            $cached = app_cache()->get($cache_key);
+            if (is_array($cached) && count($cached) > 0) {
+                $phrase_map[$language_code] = $cached;
+            } else {
+                $phrase_map[$language_code] = array();
+                $CI = get_instance();
+                if ($CI->db->field_exists($language_code, 'language')) {
+                    $column = str_replace('`', '', $language_code);
+                    $query = $CI->db->query("SELECT `phrase`, `$column` AS translation FROM `language`");
+                    foreach ($query->result_array() as $row) {
+                        $phrase_map[$language_code][$row['phrase']] = $row['translation'];
+                    }
+                }
+                if (count($phrase_map[$language_code]) > 0) {
+                    app_cache()->set($cache_key, $phrase_map[$language_code], 300);
                 }
             }
         }
-
         return $phrase_map[$language_code];
     }
 }
