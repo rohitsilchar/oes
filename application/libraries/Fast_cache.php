@@ -12,6 +12,11 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 |
 | 2026-10-30: persistent connection (one TLS connection per PHP-FPM worker
 | instead of one per request) and gzip for values larger than 8 KB.
+| 2026-10-30 (v2): two-level cache. Each server keeps a short-lived local copy
+| in APCu (shared memory, default 30 s), so most pages never call Redis.
+| Load test run 9 showed every page pulling ~40 KB from Redis, which hit the
+| serverless ECPU limit at ~1,000 users. 'cfg_ver' is never kept locally, so
+| admin changes still show immediately on every server.
 */
 class Fast_cache
 {
@@ -19,6 +24,9 @@ class Fast_cache
     private $redis = null;
     private $prefix = 'oes_';
     private $default_ttl = 300;
+    private $local = false;             // APCu available?
+    private $local_ttl = 30;            // seconds a server keeps its local copy
+    private $local_skip = array('cfg_ver' => true);
 
     public function __construct()
     {
@@ -26,7 +34,12 @@ class Fast_cache
 
         if ($this->CI->config->load('redis', TRUE, TRUE)) {
             $this->default_ttl = (int)($this->CI->config->item('default_ttl', 'redis') ?: 300);
+            $lt = $this->CI->config->item('local_ttl', 'redis');
+            if ($lt !== NULL && $lt !== FALSE) {
+                $this->local_ttl = (int)$lt;
+            }
         }
+        $this->local = $this->local_ttl > 0 && function_exists('apcu_fetch') && (bool)ini_get('apc.enabled');
 
         if (extension_loaded('redis')) {
             try {
@@ -68,22 +81,44 @@ class Fast_cache
         return $this->redis !== null;
     }
 
+    /** True when the per-server APCu layer is active. */
+    public function using_local()
+    {
+        return $this->local;
+    }
+
     public function get($key)
     {
+        $use_local = $this->local && !isset($this->local_skip[$key]);
+        if ($use_local) {
+            $hit = false;
+            $value = apcu_fetch($this->prefix . $key, $hit);
+            if ($hit) {
+                return $value;
+            }
+        }
         try {
             if ($this->redis !== null) {
-                $value = $this->redis->get($this->prefix . $key);
-                return $value === false ? false : $this->decode($value);
+                $raw = $this->redis->get($this->prefix . $key);
+                $value = $raw === false ? false : $this->decode($raw);
+            } else {
+                $value = $this->CI->cache->get($this->prefix . $key);
             }
-            return $this->CI->cache->get($this->prefix . $key);
         } catch (Throwable $e) {
             return false;
         }
+        if ($use_local && $value !== false) {
+            apcu_store($this->prefix . $key, $value, $this->local_ttl);
+        }
+        return $value;
     }
 
     public function set($key, $value, $ttl = null)
     {
         $ttl = $ttl ? (int)$ttl : $this->default_ttl;
+        if ($this->local && !isset($this->local_skip[$key])) {
+            apcu_store($this->prefix . $key, $value, min($ttl, $this->local_ttl));
+        }
         try {
             if ($this->redis !== null) {
                 return $this->redis->setex($this->prefix . $key, $ttl, $this->encode($value));
@@ -96,6 +131,9 @@ class Fast_cache
 
     public function delete($key)
     {
+        if ($this->local) {
+            apcu_delete($this->prefix . $key);
+        }
         try {
             if ($this->redis !== null) {
                 return (bool)$this->redis->del($this->prefix . $key);
