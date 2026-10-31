@@ -9,7 +9,14 @@
     $total_p = isset($total_pharmacists) ? (int)$total_pharmacists : 0;
     $lic_p = isset($licensed_pharmacists) ? (int)$licensed_pharmacists : 0;
     $unlic_p = isset($pending_pharmacists) ? (int)$pending_pharmacists : max(0, $total_p - $lic_p);
-    $lic_ratio = ($total_p > 0) ? round(($lic_p / $total_p) * 100) : 0;
+    $lic_ratio_raw = ($total_p > 0) ? (($lic_p / $total_p) * 100) : 0;
+    if ($lic_ratio_raw > 0 && $lic_ratio_raw < 1) {
+        $lic_ratio = number_format($lic_ratio_raw, 2);
+    } elseif ($lic_ratio_raw > 0 && $lic_ratio_raw < 10) {
+        $lic_ratio = number_format($lic_ratio_raw, 1);
+    } else {
+        $lic_ratio = round($lic_ratio_raw);
+    }
 
     $total_c = isset($total_courses) ? (int)$total_courses : 0;
     $active_c = isset($active_courses_count) ? (int)$active_courses_count : 0;
@@ -572,8 +579,18 @@
                 </div>
             </div>
             <div class="card-body p-3">
+                <?php
+                    $chart_total = $lic_p + $unlic_p + $active_c;
+                    $lic_p_pct = ($chart_total > 0 && $lic_p > 0) ? (($lic_p / $chart_total) * 100 < 1 ? number_format(($lic_p / $chart_total) * 100, 2) : number_format(($lic_p / $chart_total) * 100, 1)) : '0';
+                    $unlic_p_pct = ($chart_total > 0 && $unlic_p > 0) ? number_format(($unlic_p / $chart_total) * 100, 1) : '0';
+                    $active_c_pct = ($chart_total > 0 && $active_c > 0) ? (($active_c / $chart_total) * 100 < 1 ? number_format(($active_c / $chart_total) * 100, 2) : number_format(($active_c / $chart_total) * 100, 1)) : '0';
+                ?>
                 <div class="chartjs-chart my-2" style="height: 195px; position: relative;">
                     <canvas id="compliance-status-chart"></canvas>
+                    <div class="donut-centre-label text-center" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 5;">
+                        <span class="font-20 font-weight-bold text-dark d-block" style="line-height: 1.1;"><?php echo $lic_ratio; ?>%</span>
+                        <small class="text-muted font-10 text-uppercase font-weight-bold" style="letter-spacing: 0.5px;"><?php echo get_phrase('compliant'); ?></small>
+                    </div>
                 </div>
                 <div class="mt-3">
                     <div class="d-flex align-items-center justify-content-between p-2 mb-1 rounded bg-light">
@@ -581,21 +598,30 @@
                             <span class="mr-2" style="width: 12px; height: 12px; border-radius: 3px; background: #0acf97;"></span>
                             <span class="font-12 font-weight-semibold text-dark"><?php echo get_phrase('licensed_pharmacists'); ?></span>
                         </div>
-                        <span class="badge badge-success font-12 font-weight-bold"><?php echo $lic_p; ?></span>
+                        <div class="d-flex align-items-center">
+                            <span class="font-12 font-weight-bold text-dark mr-2"><?php echo number_format($lic_p); ?></span>
+                            <span class="badge badge-success font-11 font-weight-bold"><?php echo $lic_p_pct; ?>%</span>
+                        </div>
                     </div>
                     <div class="d-flex align-items-center justify-content-between p-2 mb-1 rounded bg-light">
                         <div class="d-flex align-items-center">
                             <span class="mr-2" style="width: 12px; height: 12px; border-radius: 3px; background: #fa5c7c;"></span>
                             <span class="font-12 font-weight-semibold text-dark"><?php echo get_phrase('licence_pending_upload'); ?></span>
                         </div>
-                        <span class="badge badge-danger font-12 font-weight-bold"><?php echo $unlic_p; ?></span>
+                        <div class="d-flex align-items-center">
+                            <span class="font-12 font-weight-bold text-dark mr-2"><?php echo number_format($unlic_p); ?></span>
+                            <span class="badge badge-danger font-11 font-weight-bold"><?php echo $unlic_p_pct; ?>%</span>
+                        </div>
                     </div>
                     <div class="d-flex align-items-center justify-content-between p-2 rounded bg-light">
                         <div class="d-flex align-items-center">
                             <span class="mr-2" style="width: 12px; height: 12px; border-radius: 3px; background: #727cf5;"></span>
                             <span class="font-12 font-weight-semibold text-dark"><?php echo get_phrase('active_training_courses'); ?></span>
                         </div>
-                        <span class="badge badge-primary font-12 font-weight-bold"><?php echo $active_c; ?></span>
+                        <div class="d-flex align-items-center">
+                            <span class="font-12 font-weight-bold text-dark mr-2"><?php echo number_format($active_c); ?></span>
+                            <span class="badge badge-primary font-11 font-weight-bold"><?php echo $active_c_pct; ?>%</span>
+                        </div>
                     </div>
                 </div>
             </div>
