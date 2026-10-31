@@ -2717,17 +2717,16 @@ class Crud_model extends CI_Model
                 }
                 $data['gifted_by'] = 0;
 
-                if ($this->db->get_where('enrol', ['user_id' => $user_id, 'course_id' => $course_id])->num_rows() == 0) {
+                $existing_enrol = $this->db->get_where('enrol', ['user_id' => $user_id, 'course_id' => $course_id])->row_array();
+                if (!$existing_enrol) {
                     $data['user_id'] = $user_id;
                     $data['course_id'] = $course_id;
                     $data['date_added'] = time();
                     $data['last_modified'] = time();
                     $this->db->insert('enrol', $data);
                 } else {
-                    $data['date_added'] = time();
                     $data['last_modified'] = time();
-                    $this->db->where('course_id', $course_id);
-                    $this->db->where('user_id', $user_id);
+                    $this->db->where('id', $existing_enrol['id']);
                     $this->db->update('enrol', $data);
                 }
                 $enrolled_count++;
@@ -2815,15 +2814,23 @@ class Crud_model extends CI_Model
                 $data_expiry = null;
             }
 
-            $insert_data = [
-                'user_id'       => $user_id,
-                'course_id'     => $course_id,
-                'expiry_date'   => $data_expiry,
-                'gifted_by'     => 0,
-                'date_added'    => time(),
-                'last_modified' => time()
-            ];
-            $this->db->insert('enrol', $insert_data);
+            $existing_row = $this->db->get_where('enrol', ['user_id' => $user_id, 'course_id' => $course_id])->row_array();
+            if ($existing_row) {
+                $this->db->where('id', $existing_row['id'])->update('enrol', [
+                    'expiry_date'   => $data_expiry,
+                    'last_modified' => time()
+                ]);
+            } else {
+                $insert_data = [
+                    'user_id'       => $user_id,
+                    'course_id'     => $course_id,
+                    'expiry_date'   => $data_expiry,
+                    'gifted_by'     => 0,
+                    'date_added'    => time(),
+                    'last_modified' => time()
+                ];
+                $this->db->insert('enrol', $insert_data);
+            }
         }
 
         $this->session->set_flashdata('flash_message', get_phrase('course_enrolment_updated_successfully'));

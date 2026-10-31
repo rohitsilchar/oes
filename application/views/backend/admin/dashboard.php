@@ -8,7 +8,7 @@
 
     $total_p = isset($total_pharmacists) ? (int)$total_pharmacists : 0;
     $lic_p = isset($licensed_pharmacists) ? (int)$licensed_pharmacists : 0;
-    $unlic_p = max(0, $total_p - $lic_p);
+    $unlic_p = isset($pending_pharmacists) ? (int)$pending_pharmacists : max(0, $total_p - $lic_p);
     $lic_ratio = ($total_p > 0) ? round(($lic_p / $total_p) * 100) : 0;
 
     $total_c = isset($total_courses) ? (int)$total_courses : 0;

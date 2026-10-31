@@ -1,72 +1,28 @@
 <style>
-  .buttons-csv {
-    margin-bottom: 20px;
-  }
-  .table-responsive {
-    overflow-x: auto !important;
-    width: 100%;
-  }
-  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12 {
-    overflow-x: auto !important;
-    width: 100%;
-    padding-bottom: 10px;
-  }
-  #licence_validity_table {
-    min-width: 1250px;
-    width: 100% !important;
-  }
-  #licence_validity_table th, 
-  #licence_validity_table td {
-    white-space: nowrap;
-    vertical-align: middle;
-  }
-  .table-responsive::-webkit-scrollbar,
-  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar {
-    height: 8px;
-  }
-  .table-responsive::-webkit-scrollbar-track,
-  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-track {
-    background: #f1f3fa;
-    border-radius: 4px;
-  }
-  .table-responsive::-webkit-scrollbar-thumb,
-  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-thumb {
-    background: #727cf5;
-    border-radius: 4px;
-  }
-  .table-responsive::-webkit-scrollbar-thumb:hover,
-  .dataTables_wrapper .row:nth-child(2) > div.col-sm-12::-webkit-scrollbar-thumb:hover {
-    background: #5b66d4;
-  }
-
-  .stat-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-    border-radius: 8px;
+  .kpi-card {
+    transition: all 0.2s ease-in-out;
     cursor: pointer;
+    border-radius: 6px;
   }
-  .stat-card:hover {
+  .kpi-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   }
-  .stat-card.active-filter {
-    border: 2px solid #727cf5 !important;
+  .kpi-card.active-filter {
+    background-color: #f8f9fa;
+    border-left: 4px solid #727cf5 !important;
   }
-
-  .nav-pills-validity .nav-link {
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 6px 16px;
-    color: #6c757d;
-    background: #f1f3fa;
-    margin-right: 8px;
-    margin-bottom: 8px;
-    transition: all 0.2s;
+  .kpi-card.active-filter#card_valid {
+    border-left-color: #0acf97 !important;
   }
-  .nav-pills-validity .nav-link.active {
-    background-color: #727cf5;
-    color: #fff;
-    box-shadow: 0 2px 6px rgba(114, 124, 245, 0.4);
+  .kpi-card.active-filter#card_expiring_soon {
+    border-left-color: #ffbc00 !important;
+  }
+  .kpi-card.active-filter#card_expired {
+    border-left-color: #fa5c7c !important;
+  }
+  .kpi-card.active-filter#card_pending {
+    border-left-color: #6c757d !important;
   }
 </style>
 
@@ -76,126 +32,166 @@
         <div class="card">
             <div class="card-body">
                 <h4 class="page-title">
-                    <i class="mdi mdi-certificate title_icon"></i> <?php echo get_phrase('pharmacist_licence_validity'); ?>
-                    <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle">
-                        <i class="mdi mdi-plus"></i> <?php echo get_phrase('add_pharmacist'); ?>
-                    </a>
-                    <a href="<?php echo site_url('admin/users'); ?>" class="btn btn-outline-secondary btn-rounded alignToTitle mr-1">
-                        <i class="mdi mdi-account-group"></i> <?php echo get_phrase('manage_pharmacists'); ?>
-                    </a>
+                    <i class="mdi mdi-certificate-outline title_icon"></i> <?php echo get_phrase('licence_validity'); ?>
+                    <div class="float-right">
+                        <button type="button" onclick="exportLicenceCsv()" class="btn btn-outline-success btn-rounded alignToTitle mr-1">
+                            <i class="mdi mdi-file-excel mr-1"></i> <?php echo get_phrase('export_csv'); ?>
+                        </button>
+                        <button type="button" onclick="window.print()" class="btn btn-outline-secondary btn-rounded alignToTitle mr-1">
+                            <i class="mdi mdi-printer mr-1"></i> <?php echo get_phrase('print_report'); ?>
+                        </button>
+                        <a href="<?php echo site_url('admin/user_form/add_user_form'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle mr-1">
+                            <i class="mdi mdi-account-plus mr-1"></i> <?php echo get_phrase('add_pharmacist'); ?>
+                        </a>
+                        <a href="<?php echo site_url('admin/users'); ?>" class="btn btn-primary btn-rounded alignToTitle">
+                            <i class="mdi mdi-account-group mr-1"></i> <?php echo get_phrase('manage_pharmacists'); ?>
+                        </a>
+                    </div>
                 </h4>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Overview Stats Cards -->
+<!-- Overview KPI Filter Cards -->
 <div class="row">
-    <!-- Total Pharmacists -->
-    <div class="col-md-6 col-xl">
-        <div class="card stat-card active-filter" id="card_all" onclick="setValidityFilter('all')">
-            <div class="card-body p-3">
-                <div class="row align-items-center">
-                    <div class="col-6">
-                        <h6 class="text-muted text-uppercase font-11 mt-0 mb-1"><?php echo get_phrase('total_pharmacists'); ?></h6>
-                        <h3 class="my-1 font-20 text-dark"><?php echo number_format($stats['total'] ?? 0); ?></h3>
+    <div class="col-12">
+        <div class="card widget-inline">
+            <div class="card-body p-0">
+                <div class="row no-gutters">
+                    <!-- Total Pharmacists -->
+                    <div class="col-sm-6 col-xl">
+                        <a href="javascript:void(0);" onclick="setValidityFilter('all')" class="text-secondary kpi-card <?php if (($filter_status ?? 'all') == 'all') echo 'active-filter'; ?>" id="card_all">
+                            <div class="card shadow-none m-0">
+                                <div class="card-body text-center">
+                                    <i class="dripicons-user-group text-primary" style="font-size: 24px;"></i>
+                                    <h3><span id="stat_total"><?php echo number_format($stats['total']); ?></span></h3>
+                                    <p class="text-muted font-15 mb-0"><?php echo get_phrase('total_pharmacists'); ?></p>
+                                </div>
+                            </div>
+                        </a>
                     </div>
-                    <div class="col-6 text-right">
-                        <div class="avatar-sm ml-auto">
-                            <span class="avatar-title bg-primary-lighten text-primary rounded-circle font-20">
-                                <i class="mdi mdi-account-multiple"></i>
-                            </span>
-                        </div>
+
+                    <!-- Valid Licences -->
+                    <div class="col-sm-6 col-xl">
+                        <a href="javascript:void(0);" onclick="setValidityFilter('valid')" class="text-secondary kpi-card <?php if (($filter_status ?? '') == 'valid') echo 'active-filter'; ?>" id="card_valid">
+                            <div class="card shadow-none m-0 border-left">
+                                <div class="card-body text-center">
+                                    <i class="dripicons-checkmark text-success" style="font-size: 24px;"></i>
+                                    <h3><span id="stat_valid" class="text-success"><?php echo number_format($stats['valid_count']); ?></span></h3>
+                                    <p class="text-muted font-15 mb-0"><?php echo get_phrase('valid_licences'); ?></p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Expiring Soon -->
+                    <div class="col-sm-6 col-xl">
+                        <a href="javascript:void(0);" onclick="setValidityFilter('expiring_soon')" class="text-secondary kpi-card <?php if (($filter_status ?? '') == 'expiring_soon') echo 'active-filter'; ?>" id="card_expiring_soon">
+                            <div class="card shadow-none m-0 border-left">
+                                <div class="card-body text-center">
+                                    <i class="dripicons-warning text-warning" style="font-size: 24px;"></i>
+                                    <h3><span id="stat_expiring_soon" class="text-warning"><?php echo number_format($stats['expiring_soon_count']); ?></span></h3>
+                                    <p class="text-muted font-15 mb-0"><?php echo get_phrase('expiring_soon'); ?></p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Expired -->
+                    <div class="col-sm-6 col-xl">
+                        <a href="javascript:void(0);" onclick="setValidityFilter('expired')" class="text-secondary kpi-card <?php if (($filter_status ?? '') == 'expired') echo 'active-filter'; ?>" id="card_expired">
+                            <div class="card shadow-none m-0 border-left">
+                                <div class="card-body text-center">
+                                    <i class="dripicons-cross text-danger" style="font-size: 24px;"></i>
+                                    <h3><span id="stat_expired" class="text-danger"><?php echo number_format($stats['expired_count']); ?></span></h3>
+                                    <p class="text-muted font-15 mb-0"><?php echo get_phrase('expired'); ?></p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Missing Date -->
+                    <div class="col-sm-6 col-xl">
+                        <a href="javascript:void(0);" onclick="setValidityFilter('pending')" class="text-secondary kpi-card <?php if (($filter_status ?? '') == 'pending') echo 'active-filter'; ?>" id="card_pending">
+                            <div class="card shadow-none m-0 border-left">
+                                <div class="card-body text-center">
+                                    <i class="mdi mdi-calendar-question text-secondary" style="font-size: 24px;"></i>
+                                    <h3><span id="stat_pending"><?php echo number_format($stats['pending_count']); ?></span></h3>
+                                    <p class="text-muted font-15 mb-0"><?php echo get_phrase('missing_date'); ?></p>
+                                </div>
+                            </div>
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Valid / Active Licences -->
-    <div class="col-md-6 col-xl">
-        <div class="card stat-card" id="card_valid" onclick="setValidityFilter('valid')">
+<!-- Filters Toolbar Card -->
+<div class="row">
+    <div class="col-xl-12">
+        <div class="card mb-3">
             <div class="card-body p-3">
-                <div class="row align-items-center">
-                    <div class="col-6">
-                        <h6 class="text-muted text-uppercase font-11 mt-0 mb-1"><?php echo get_phrase('valid_licences'); ?></h6>
-                        <h3 class="my-1 font-20 text-success"><?php echo number_format($stats['valid_count'] ?? 0); ?></h3>
-                        <small class="text-success font-11">> 90 <?php echo get_phrase('days_left'); ?></small>
-                    </div>
-                    <div class="col-6 text-right">
-                        <div class="avatar-sm ml-auto">
-                            <span class="avatar-title bg-success-lighten text-success rounded-circle font-20">
-                                <i class="mdi mdi-check-decagram"></i>
-                            </span>
+                <form id="licence_filter_form" class="form-inline d-flex flex-wrap align-items-center justify-content-between">
+                    <div class="d-flex flex-wrap align-items-center">
+                        <!-- Store Filter -->
+                        <div class="form-group mr-3 my-1">
+                            <label for="filter_store_id" class="mr-2 font-weight-bold text-dark font-13">
+                                <i class="mdi mdi-store text-primary mr-1"></i> <?php echo get_phrase('filter_by_store'); ?>:
+                            </label>
+                            <select class="form-control form-control-sm select2" id="filter_store_id" style="min-width: 220px;" onchange="applyFilters()">
+                                <option value="all" <?php if (($selected_store_id ?? 'all') == 'all') echo 'selected'; ?>><?php echo get_phrase('all_stores'); ?></option>
+                                <option value="no_store" <?php if (($selected_store_id ?? '') == 'no_store') echo 'selected'; ?>><?php echo get_phrase('no_store_assigned'); ?></option>
+                                <?php if (!empty($stores)): ?>
+                                    <?php foreach ($stores as $st): ?>
+                                        <option value="<?php echo $st['id']; ?>" <?php if (($selected_store_id ?? '') == $st['id']) echo 'selected'; ?>>
+                                            <?php echo html_escape($st['store_name']); ?> <?php echo !empty($st['store_code']) ? '(' . html_escape($st['store_code']) . ')' : ''; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+
+                        <!-- Status Filter -->
+                        <div class="form-group mr-3 my-1">
+                            <label for="filter_status_select" class="mr-2 font-weight-bold text-dark font-13">
+                                <i class="mdi mdi-filter-variant text-info mr-1"></i> <?php echo get_phrase('filter_by_status'); ?>:
+                            </label>
+                            <select class="form-control form-control-sm select2" id="filter_status_select" style="min-width: 180px;" onchange="syncStatusFilter(this.value)">
+                                <option value="all" <?php if (($filter_status ?? 'all') == 'all') echo 'selected'; ?>><?php echo get_phrase('all_statuses'); ?></option>
+                                <option value="valid" <?php if (($filter_status ?? '') == 'valid') echo 'selected'; ?>><?php echo get_phrase('active_valid'); ?> (> 90 days)</option>
+                                <option value="expiring_soon" <?php if (($filter_status ?? '') == 'expiring_soon') echo 'selected'; ?>><?php echo get_phrase('expiring_soon'); ?> (&le; 90 days)</option>
+                                <option value="expired" <?php if (($filter_status ?? '') == 'expired') echo 'selected'; ?>><?php echo get_phrase('expired'); ?></option>
+                                <option value="pending" <?php if (($filter_status ?? '') == 'pending') echo 'selected'; ?>><?php echo get_phrase('missing_date'); ?></option>
+                            </select>
+                        </div>
+
+                        <!-- Date Range: From -->
+                        <div class="form-group mr-2 my-1">
+                            <label for="filter_date_from" class="mr-2 font-weight-bold text-dark font-13">
+                                <i class="mdi mdi-calendar mr-1"></i> <?php echo get_phrase('from'); ?>:
+                            </label>
+                            <input type="date" class="form-control form-control-sm" id="filter_date_from" onchange="applyFilters()">
+                        </div>
+
+                        <!-- Date Range: To -->
+                        <div class="form-group mr-3 my-1">
+                            <label for="filter_date_to" class="mr-2 font-weight-bold text-dark font-13">
+                                <?php echo get_phrase('to'); ?>:
+                            </label>
+                            <input type="date" class="form-control form-control-sm" id="filter_date_to" onchange="applyFilters()">
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Expiring Soon -->
-    <div class="col-md-6 col-xl">
-        <div class="card stat-card" id="card_expiring_soon" onclick="setValidityFilter('expiring_soon')">
-            <div class="card-body p-3">
-                <div class="row align-items-center">
-                    <div class="col-6">
-                        <h6 class="text-muted text-uppercase font-11 mt-0 mb-1"><?php echo get_phrase('expiring_soon'); ?></h6>
-                        <h3 class="my-1 font-20 text-warning"><?php echo number_format($stats['expiring_soon_count'] ?? 0); ?></h3>
-                        <small class="text-warning font-11">≤ 90 <?php echo get_phrase('days_left'); ?></small>
+                    <!-- Reset Button -->
+                    <div class="my-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
+                            <i class="mdi mdi-refresh mr-1"></i> <?php echo get_phrase('reset_filters'); ?>
+                        </button>
                     </div>
-                    <div class="col-6 text-right">
-                        <div class="avatar-sm ml-auto">
-                            <span class="avatar-title bg-warning-lighten text-warning rounded-circle font-20">
-                                <i class="mdi mdi-clock-alert-outline"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Expired Licences -->
-    <div class="col-md-6 col-xl">
-        <div class="card stat-card" id="card_expired" onclick="setValidityFilter('expired')">
-            <div class="card-body p-3">
-                <div class="row align-items-center">
-                    <div class="col-6">
-                        <h6 class="text-muted text-uppercase font-11 mt-0 mb-1"><?php echo get_phrase('expired'); ?></h6>
-                        <h3 class="my-1 font-20 text-danger"><?php echo number_format($stats['expired_count'] ?? 0); ?></h3>
-                        <small class="text-danger font-11"><?php echo get_phrase('requires_renewal'); ?></small>
-                    </div>
-                    <div class="col-6 text-right">
-                        <div class="avatar-sm ml-auto">
-                            <span class="avatar-title bg-danger-lighten text-danger rounded-circle font-20">
-                                <i class="mdi mdi-alert-octagon"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Missing End Date / Pending -->
-    <div class="col-md-6 col-xl">
-        <div class="card stat-card" id="card_pending" onclick="setValidityFilter('pending')">
-            <div class="card-body p-3">
-                <div class="row align-items-center">
-                    <div class="col-6">
-                        <h6 class="text-muted text-uppercase font-11 mt-0 mb-1"><?php echo get_phrase('missing_date'); ?></h6>
-                        <h3 class="my-1 font-20 text-secondary"><?php echo number_format($stats['pending_count'] ?? 0); ?></h3>
-                        <small class="text-muted font-11"><?php echo get_phrase('date_not_set'); ?></small>
-                    </div>
-                    <div class="col-6 text-right">
-                        <div class="avatar-sm ml-auto">
-                            <span class="avatar-title bg-secondary-lighten text-secondary rounded-circle font-20">
-                                <i class="mdi mdi-help-circle-outline"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                </form>
             </div>
         </div>
     </div>
@@ -203,43 +199,14 @@
 
 <!-- Main Table Card -->
 <div class="row">
-    <div class="col-12">
+    <div class="col-xl-12">
         <div class="card">
             <div class="card-body">
-                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-                    <div>
-                        <h4 class="header-title mb-1"><?php echo get_phrase('pharmacist_licence_validity_records'); ?></h4>
-                        <p class="text-muted font-13 mb-0"><?php echo get_phrase('monitor_licence_start_dates_expiry_dates_and_remaining_validity_days'); ?></p>
-                    </div>
-
-                    <!-- Filter Navigation Pills -->
-                    <ul class="nav nav-pills nav-pills-validity mt-2 mt-sm-0" id="validityFilterPills" role="tablist">
-                        <li class="nav-item">
-                            <a class="nav-link active" href="javascript:void(0)" onclick="setValidityFilter('all')">
-                                <?php echo get_phrase('all'); ?> <span class="badge badge-light ml-1"><?php echo $stats['total'] ?? 0; ?></span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="javascript:void(0)" onclick="setValidityFilter('valid')">
-                                <i class="mdi mdi-check-circle text-success mr-1"></i><?php echo get_phrase('valid'); ?> <span class="badge badge-success-lighten ml-1"><?php echo $stats['valid_count'] ?? 0; ?></span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="javascript:void(0)" onclick="setValidityFilter('expiring_soon')">
-                                <i class="mdi mdi-alert-circle text-warning mr-1"></i><?php echo get_phrase('expiring_soon'); ?> <span class="badge badge-warning-lighten ml-1"><?php echo $stats['expiring_soon_count'] ?? 0; ?></span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="javascript:void(0)" onclick="setValidityFilter('expired')">
-                                <i class="mdi mdi-close-circle text-danger mr-1"></i><?php echo get_phrase('expired'); ?> <span class="badge badge-danger-lighten ml-1"><?php echo $stats['expired_count'] ?? 0; ?></span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="javascript:void(0)" onclick="setValidityFilter('pending')">
-                                <i class="mdi mdi-help-circle-outline text-secondary mr-1"></i><?php echo get_phrase('pending'); ?> <span class="badge badge-secondary-lighten ml-1"><?php echo $stats['pending_count'] ?? 0; ?></span>
-                            </a>
-                        </li>
-                    </ul>
+                <div class="mb-3">
+                    <h4 class="header-title mb-1">
+                        <i class="mdi mdi-format-list-bulleted text-primary mr-1"></i> <?php echo get_phrase('licence_validity_records'); ?>
+                    </h4>
+                    <p class="text-muted font-13 mb-0"><?php echo get_phrase('monitor_licence_start_dates_expiry_dates_and_remaining_validity_days'); ?></p>
                 </div>
 
                 <div class="table-responsive">
@@ -247,14 +214,14 @@
                         <thead class="thead-light">
                             <tr>
                                 <th>#</th>
-                                <th><?php echo get_phrase('pharmacist_name'); ?></th>
                                 <th><?php echo get_phrase('pharmacist_info'); ?></th>
+                                <th><?php echo get_phrase('assigned_store'); ?></th>
                                 <th><?php echo get_phrase('licence_no'); ?></th>
-                                <th><?php echo get_phrase('start_date'); ?></th>
-                                <th><?php echo get_phrase('end_date'); ?></th>
+                                <th><?php echo get_phrase('licence_start_date'); ?></th>
+                                <th><?php echo get_phrase('licence_end_date'); ?></th>
                                 <th><?php echo get_phrase('validity_days'); ?></th>
                                 <th><?php echo get_phrase('status'); ?></th>
-                                <th><?php echo get_phrase('action'); ?></th>
+                                <th><?php echo get_phrase('actions'); ?></th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -265,72 +232,119 @@
     </div>
 </div>
 
-<script>
-    var currentValidityFilter = 'all';
-    var validityTable = null;
+<script type="text/javascript">
+    var currentValidityFilter = '<?php echo html_escape($filter_status ?? "all"); ?>';
+    var licenceValidityTable;
 
     $(document).ready(function() {
-        validityTable = $('#licence_validity_table').DataTable({
-            responsive: false,
+        if ($.fn.select2) {
+            $('.select2').select2();
+        }
+
+        licenceValidityTable = $('#licence_validity_table').DataTable({
             processing: true,
             serverSide: true,
-            order: [[0, 'desc']],
+            responsive: false,
+            autoWidth: false,
+            pageLength: 10,
             ajax: {
                 url: "<?php echo site_url('admin/server_side_licence_validity_data'); ?>",
                 type: "POST",
-                dataType: "json",
                 data: function(d) {
                     d.filter_status = currentValidityFilter;
-                    d.<?php echo $this->security->get_csrf_token_name(); ?> = '<?php echo $this->security->get_csrf_hash(); ?>';
+                    d.filter_store_id = $('#filter_store_id').val();
+                    d.filter_date_from = $('#filter_date_from').val();
+                    d.filter_date_to = $('#filter_date_to').val();
+                },
+                dataSrc: function(json) {
+                    if (json.stats) {
+                        $('#stat_total').text(Number(json.stats.total).toLocaleString());
+                        $('#stat_valid').text(Number(json.stats.valid_count).toLocaleString());
+                        $('#stat_expiring_soon').text(Number(json.stats.expiring_soon_count).toLocaleString());
+                        $('#stat_expired').text(Number(json.stats.expired_count).toLocaleString());
+                        $('#stat_pending').text(Number(json.stats.pending_count).toLocaleString());
+                    }
+                    return json.data;
                 }
             },
             columns: [
-                { data: "key" },
-                { data: "pharmacist_name" },
-                { data: "pharmacist_info" },
-                { data: "licence_no" },
-                { data: "licence_start_date" },
-                { data: "licence_end_date" },
-                { data: "validity_days" },
-                { data: "status" },
-                { data: "action" }
+                { data: 0, orderable: false, width: '4%' },
+                { data: 1, orderable: true, width: '22%' },
+                { data: 2, orderable: true, width: '18%' },
+                { data: 3, orderable: true, width: '12%' },
+                { data: 4, orderable: true, width: '10%' },
+                { data: 5, orderable: true, width: '10%' },
+                { data: 6, orderable: false, width: '12%' },
+                { data: 7, orderable: false, width: '8%' },
+                { data: 8, orderable: false, width: '4%' }
             ],
-            dom: 'Blfrtip',
-            lengthMenu: [[10, 25, 50, 100, 250, 500], [10, 25, 50, 100, 250, 500]],
-            buttons: [
-                {
-                    extend: 'csv',
-                    text: '<i class="mdi mdi-download mr-1"></i> ' + "<?php echo get_phrase('export_as_csv'); ?>",
-                    className: 'btn btn-sm btn-outline-secondary text-white',
-                    filename: function() {
-                        var d = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
-                        return 'pharmacist_licence_validity_' + currentValidityFilter + '_' + d;
-                    },
-                    exportOptions: {
-                        columns: ':not(:last-child)'
-                    }
+            order: [[1, 'asc']],
+            language: {
+                search: "<?php echo get_phrase('search'); ?>:",
+                lengthMenu: "<?php echo get_phrase('display'); ?> _MENU_ <?php echo get_phrase('records'); ?>",
+                info: "<?php echo get_phrase('showing'); ?> _START_ <?php echo get_phrase('to'); ?> _END_ <?php echo get_phrase('of'); ?> _TOTAL_ <?php echo get_phrase('pharmacists'); ?>",
+                infoEmpty: "<?php echo get_phrase('showing'); ?> 0 <?php echo get_phrase('to'); ?> 0 <?php echo get_phrase('of'); ?> 0 <?php echo get_phrase('pharmacists'); ?>",
+                emptyTable: "<?php echo get_phrase('no_matching_records_found'); ?>",
+                paginate: {
+                    previous: "<i class='mdi mdi-chevron-left'>",
+                    next: "<i class='mdi mdi-chevron-right'>"
                 }
-            ],
-            drawCallback: function() {
-                $('[data-toggle="tooltip"]').tooltip();
+            },
+            drawCallback: function () {
+                $('.dataTables_paginate > .pagination').addClass('pagination-rounded');
             }
         });
     });
 
     function setValidityFilter(status) {
         currentValidityFilter = status;
+        $('#filter_status_select').val(status).trigger('change.select2');
 
-        // Update pills
-        $('#validityFilterPills .nav-link').removeClass('active');
-        $('#validityFilterPills a[onclick*="\'' + status + '\'"]').addClass('active');
-
-        // Update stat cards
-        $('.stat-card').removeClass('active-filter');
+        $('.kpi-card').removeClass('active-filter');
         $('#card_' + status).addClass('active-filter');
 
-        // Reload data table
-        if (validityTable) {
-            validityTable.ajax.reload();
+        if (licenceValidityTable) {
+            licenceValidityTable.ajax.reload();
         }
+    }
+
+    function syncStatusFilter(status) {
+        currentValidityFilter = status;
+        $('.kpi-card').removeClass('active-filter');
+        $('#card_' + status).addClass('active-filter');
+
+        if (licenceValidityTable) {
+            licenceValidityTable.ajax.reload();
+        }
+    }
+
+    function applyFilters() {
+        if (licenceValidityTable) {
+            licenceValidityTable.ajax.reload();
+        }
+    }
+
+    function resetFilters() {
+        $('#filter_store_id').val('all').trigger('change.select2');
+        $('#filter_status_select').val('all').trigger('change.select2');
+        $('#filter_date_from').val('');
+        $('#filter_date_to').val('');
+        setValidityFilter('all');
+    }
+
+    function exportLicenceCsv() {
+        var storeId = $('#filter_store_id').val() || 'all';
+        var status = currentValidityFilter || 'all';
+        var dateFrom = $('#filter_date_from').val() || '';
+        var dateTo = $('#filter_date_to').val() || '';
+        var search = $('#licence_validity_table_filter input').val() || '';
+
+        var url = "<?php echo site_url('admin/export_licence_report_csv'); ?>?store_id=" + encodeURIComponent(storeId) +
+                  "&status=" + encodeURIComponent(status) +
+                  "&date_from=" + encodeURIComponent(dateFrom) +
+                  "&date_to=" + encodeURIComponent(dateTo) +
+                  "&search=" + encodeURIComponent(search);
+
+        window.location.href = url;
     }
 </script>

@@ -21,7 +21,15 @@ class Files extends CI_Controller
         //Check custom session data
         $this->user_model->check_session_data();
 
-        if (!$this->session->userdata('user_id')) {
+        $course_id = $this->input->get('course_id');
+        $lesson_id = $this->input->get('lesson_id');
+        $is_free = false;
+        if ($lesson_id) {
+            $lesson = $this->crud_model->get_lessons('lesson', $lesson_id)->row_array();
+            $is_free = ($lesson && !empty($lesson['is_free'])) ? true : false;
+        }
+
+        if (!$this->session->userdata('user_id') && !$is_free) {
             redirect(site_url('login'), 'refresh');
         }
     }
@@ -38,14 +46,15 @@ class Files extends CI_Controller
         $user_id = $this->session->userdata('user_id');
 
         //For video lesson
-        if (isset($_GET['course_id']) && isset($_GET['lesson_id']) && $user_id > 0) {
+        if (isset($_GET['course_id']) && isset($_GET['lesson_id'])) {
             $course_id = $this->input->get('course_id');
             $lesson_id = $this->input->get('lesson_id');
-            $multi_instructors = explode(',', $this->crud_model->get_course_by_id($course_id)->row('user_id'));
+            $multi_instructors = explode(',', (string)$this->crud_model->get_course_by_id($course_id)->row('user_id'));
             $lesson = $this->crud_model->get_lessons('lesson', $lesson_id)->row_array();
             $get_lesson_type = get_lesson_type($lesson_id);
+            $is_free = ($lesson && !empty($lesson['is_free'])) ? true : false;
 
-            if (enroll_status($course_id) == 'valid' || $this->session->userdata('admin_login') == '1' || in_array($user_id, $multi_instructors)) {
+            if ($is_free || enroll_status($course_id) == 'valid' || $this->session->userdata('admin_login') == '1' || ($user_id > 0 && in_array($user_id, $multi_instructors))) {
 
 
                 //Assign video url
