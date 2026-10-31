@@ -85,7 +85,8 @@
                         <div class="row">
                             <div class="col-md-6 form-group mb-3">
                                 <label for="phone"><?php echo get_phrase('mobile_/_phone'); ?></label>
-                                <input type="text" class="form-control" id="phone" name="phone" placeholder="e.g. 6358818453">
+                                <input type="tel" class="form-control" id="phone" name="phone" maxlength="10" pattern="[0-9]{10}" placeholder="e.g. 9876543210" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)">
+                                <small class="text-muted"><?php echo get_phrase('10-digit mobile number'); ?></small>
                             </div>
 
                             <div class="col-md-6 form-group mb-3">
@@ -134,7 +135,8 @@
 
                             <div class="col-md-4 form-group mb-3">
                                 <label for="pin_code"><?php echo get_phrase('pin_code'); ?></label>
-                                <input type="text" class="form-control" id="pin_code" name="pin_code" placeholder="e.g. 781325">
+                                <input type="text" class="form-control" id="pin_code" name="pin_code" maxlength="6" pattern="[1-9][0-9]{5}" placeholder="e.g. 781325" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6)">
+                                <small class="text-muted"><?php echo get_phrase('6-digit pin code'); ?></small>
                             </div>
                         </div>
 
@@ -156,3 +158,23 @@
         </div>
     </div>
 </div>
+
+
+<script>
+$('form.required-form').on('submit', function(e) {
+    var phone = $('#phone').val().trim();
+    if (phone && !/^[0-9]{10}$/.test(phone)) {
+        e.preventDefault();
+        error_notify('<?php echo get_phrase("mobile_number_must_be_10_digits"); ?>');
+        $('#phone').focus();
+        return false;
+    }
+    var pin = $('#pin_code').val().trim();
+    if (pin && !/^[1-9][0-9]{5}$/.test(pin)) {
+        e.preventDefault();
+        error_notify('<?php echo get_phrase("pin_code_must_be_6_digits"); ?>');
+        $('#pin_code').focus();
+        return false;
+    }
+});
+</script>

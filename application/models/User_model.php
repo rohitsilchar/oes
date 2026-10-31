@@ -55,6 +55,25 @@ class User_model extends CI_Model
 
             // 3. Clean up legacy formula error names
             $this->db->query("UPDATE users SET first_name = 'Pharmacist', last_name = '' WHERE first_name LIKE '%#VALUE!%' OR last_name LIKE '%#VALUE!%' OR first_name LIKE '#REF!%' OR last_name LIKE '#REF!%' OR first_name LIKE '#N/A%' OR last_name LIKE '#N/A%'");
+
+            // 4. Sanitize store codes and auto-assign missing codes
+            if ($this->db->table_exists('stores')) {
+                $this->db->query("UPDATE stores SET store_code = TRIM(BOTH '.' FROM TRIM(store_code)) WHERE store_code LIKE '%.%' OR store_code LIKE ' %' OR store_code LIKE '% '");
+                $this->db->query("UPDATE stores SET store_code = 'BRSTORE' WHERE (store_code IS NULL OR TRIM(store_code) = '') AND store_name = 'BR_Store'");
+                $this->db->query("UPDATE stores SET store_code = 'CKLALA0906' WHERE store_code = 'CKLALA906'");
+                $this->db->query("UPDATE stores SET store_code = CONCAT('STR', LPAD(id, 4, '0')) WHERE store_code IS NULL OR TRIM(store_code) = ''");
+                $this->db->query("UPDATE stores SET category_id = NULL, store_category = '' WHERE store_category LIKE '%#N/A%' OR store_category LIKE '%#VALUE!%' OR store_category LIKE '%#REF!%'");
+            }
+
+            // 5. Clean up invalid / formula error store categories
+            if ($this->db->table_exists('store_categories')) {
+                $this->db->query("DELETE FROM store_categories WHERE category_name LIKE '%#N/A%' OR category_name LIKE '%#VALUE!%' OR category_name LIKE '%#REF!%' OR code LIKE '%#N/A%' OR (code = 'NA' AND category_name LIKE '%#%')");
+            }
+
+            // 6. Fix website top bar phone number to valid Indian format
+            if ($this->db->table_exists('settings')) {
+                $this->db->query("UPDATE settings SET value = '+91 98765 43210' WHERE `key` = 'phone' AND (value = '+143-52-9933631' OR value LIKE '+143%')");
+            }
         } catch (\Throwable $e) {
             log_message('error', 'check_pharmacist_data_integrity error: ' . $e->getMessage());
         }
@@ -84,13 +103,47 @@ class User_model extends CI_Model
 
     public function add_user($is_instructor = false, $is_admin = false)
     {
-        $email = trim($this->input->post('email') ?? '');
-        $validity = true;
-        if (!empty($email)) {
-            $validity = $this->check_duplication('on_create', $email);
+        $first_name    = trim($this->input->post('first_name') ?? '');
+        $email         = trim($this->input->post('email') ?? '');
+        $password      = $this->input->post('password');
+        $phone         = trim($this->input->post('phone') ?? '');
+        $licence_start = trim($this->input->post('licence_start_date') ?? '');
+        $licence_end   = trim($this->input->post('licence_end_date') ?? '');
+
+        if (empty($first_name)) {
+            $this->session->set_flashdata('error_message', get_phrase('first_name_is_required'));
+            return false;
         }
+
+        if (empty($email)) {
+            $this->session->set_flashdata('error_message', get_phrase('email_is_required'));
+            return false;
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->session->set_flashdata('error_message', get_phrase('invalid_email_format'));
+            return false;
+        }
+
+        if (empty($password)) {
+            $this->session->set_flashdata('error_message', get_phrase('password_is_required'));
+            return false;
+        }
+
+        if (!empty($phone) && !preg_match('/^[0-9]{10}$/', $phone)) {
+            $this->session->set_flashdata('error_message', get_phrase('phone_number_must_be_10_digits'));
+            return false;
+        }
+
+        if (!empty($licence_start) && !empty($licence_end) && strtotime($licence_end) < strtotime($licence_start)) {
+            $this->session->set_flashdata('error_message', get_phrase('licence_end_date_cannot_be_earlier_than_start_date'));
+            return false;
+        }
+
+        $validity = $this->check_duplication('on_create', $email);
         if ($validity == false) {
             $this->session->set_flashdata('error_message', get_phrase('email_duplication'));
+            return false;
         } else {
           //  $data['unique_identifier'] = 0;
             $data['first_name'] = html_escape($this->input->post('first_name'));
@@ -274,7 +327,21 @@ class User_model extends CI_Model
 
     public function edit_user($user_id = "")
     { // Admin does this editing
-        $email = trim($this->input->post('email') ?? '');
+        $email         = trim($this->input->post('email') ?? '');
+        $phone         = trim($this->input->post('phone') ?? '');
+        $licence_start = trim($this->input->post('licence_start_date') ?? '');
+        $licence_end   = trim($this->input->post('licence_end_date') ?? '');
+
+        if (!empty($phone) && !preg_match('/^[0-9]{10}$/', $phone)) {
+            $this->session->set_flashdata('error_message', get_phrase('phone_number_must_be_10_digits'));
+            return false;
+        }
+
+        if (!empty($licence_start) && !empty($licence_end) && strtotime($licence_end) < strtotime($licence_start)) {
+            $this->session->set_flashdata('error_message', get_phrase('licence_end_date_cannot_be_earlier_than_start_date'));
+            return false;
+        }
+
         $validity = true;
         if (!empty($email)) {
             $validity = $this->check_duplication('on_update', $email, $user_id);

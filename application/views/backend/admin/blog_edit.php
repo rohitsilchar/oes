@@ -17,12 +17,12 @@
     			<h4 class='mb-3'><?php echo get_phrase('edit_your_blog'); ?></h4>
 		    	<form action="<?php echo site_url('admin/blog/update/'.$blog['blog_id']); ?>" method="post" enctype="multipart/form-data">
 		    		<div class="form-group">
-		    			<label for="title"><?php echo get_phrase('title'); ?></label>
+		    			<label for="title"><?php echo get_phrase('title'); ?> <span class="required text-danger">*</span></label>
 		    			<input type="text" class="form-control" value="<?php echo $blog['title']; ?>" name="title" id="title" placeholder="<?php echo get_phrase('enter_blog_title'); ?>" required>
 		    		</div>
 
 		    		<div class="form-group">
-		    			<label for="blog_category_id"><?php echo get_phrase('category'); ?></label>
+		    			<label for="blog_category_id"><?php echo get_phrase('category'); ?> <span class="required text-danger">*</span></label>
 		    			<select class="form-control select2" data-toggle="select2" name="blog_category_id" id="blog_category_id" required>
 		    				<option value=""><?php echo get_phrase('select_a_category'); ?></option>
 		    				<?php foreach($this->crud_model->get_blog_categories()->result_array() as $category): ?>
@@ -38,7 +38,7 @@
                     </div>
 
 		    		<div class="form-group">
-		    			<label for="summernote-basic"><?php echo get_phrase('description'); ?></label>
+		    			<label for="summernote-basic"><?php echo get_phrase('description'); ?> <span class="required text-danger">*</span></label>
 		    			<textarea name="description" id="summernote-basic"><?php echo htmlspecialchars_decode_($blog['description']); ?></textarea>
 		    		</div>
 

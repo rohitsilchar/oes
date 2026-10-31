@@ -133,7 +133,8 @@
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="phone"><?php echo get_phrase('Phone'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" class="form-control" id="phone" name="phone">
+                                                <input type="tel" class="form-control" id="phone" name="phone" maxlength="10" pattern="[0-9]{10}" placeholder="e.g. 9876543210" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)">
+                                                <small class="text-muted"><?php echo get_phrase('10-digit mobile number'); ?></small>
                                             </div>
                                         </div>
 
@@ -152,7 +153,7 @@
                                                     <?php 
                                                     $all_stores = $this->db->where('status', 1)->get('stores')->result_array();
                                                     foreach ($all_stores as $store): ?>
-                                                        <option value="<?php echo $store['id']; ?>" data-name="<?php echo htmlspecialchars($store['store_name']); ?>" data-state="<?php echo htmlspecialchars($store['state'] ?? ''); ?>" data-zone="<?php echo htmlspecialchars($store['zone'] ?? ''); ?>"><?php echo htmlspecialchars($store['store_name']); ?> <?php echo !empty($store['store_code']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
+                                                        <option value="<?php echo $store['id']; ?>" data-name="<?php echo htmlspecialchars($store['store_name']); ?>" data-state="<?php echo htmlspecialchars($store['state'] ?? ''); ?>" data-zone="<?php echo htmlspecialchars($store['zone'] ?? ''); ?>"><?php echo htmlspecialchars($store['store_name']); ?> <?php echo (!empty($store['store_code']) && $store['store_code'] !== $store['store_name']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -227,9 +228,9 @@
                                 <div class="row">
                                     <div class="col-12">
                                         <div class="form-group row mb-3">
-                                            <label class="col-md-3 col-form-label" for="email"><?php echo get_phrase('email'); ?></label>
+                                            <label class="col-md-3 col-form-label" for="email"><?php echo get_phrase('email'); ?><span class="required text-danger">*</span></label>
                                             <div class="col-md-9">
-                                                <input type="email" id="email" name="email" class="form-control">
+                                                <input type="email" id="email" name="email" class="form-control" required placeholder="e.g. pharmacist@example.com">
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
@@ -259,7 +260,7 @@
                                             <p class="w-75 mb-2 mx-auto"><?php echo get_phrase('you_are_just_one_click_away'); ?></p>
 
                                             <div class="mb-3">
-                                                <button type="button" class="btn btn-primary" onclick="checkRequiredFields()" name="button"><?php echo get_phrase('submit'); ?></button>
+                                                <button type="button" class="btn btn-primary" onclick="checkPharmacistForm()" name="button"><?php echo get_phrase('submit'); ?></button>
                                             </div>
                                         </div>
                                     </div> <!-- end col -->
@@ -303,10 +304,16 @@
     text-align: right !important;
 }
 
-/* Hide Next button on finish tab (last step) */
+/* Hide Next button on finish tab (last step) and hide Previous button on basic info (first step) */
 #finish.active ~ .wizard .next,
 #finish.active + .wizard .next,
 #progressbarwizard .wizard li.next.disabled {
+    display: none !important;
+}
+
+#basic_info.active ~ .wizard .previous,
+#basic_info.active + .wizard .previous,
+#progressbarwizard .wizard li.previous.disabled {
     display: none !important;
 }
 </style>
@@ -324,8 +331,85 @@ function togglePasswordVisibility() {
     }
 }
 
+function validatePharmacistStep(tabId) {
+    if (!tabId || tabId === '#basic_info') {
+        var firstName = $('#first_name').val().trim();
+        if (!firstName) {
+            error_notify('<?php echo get_phrase("please_enter_first_name"); ?>');
+            $('#first_name').addClass('is-invalid').focus();
+            return false;
+        } else {
+            $('#first_name').removeClass('is-invalid');
+        }
+
+        var phone = $('#phone').val().trim();
+        if (phone && !/^[0-9]{10}$/.test(phone)) {
+            error_notify('<?php echo get_phrase("phone_number_must_be_10_digits_without_special_characters"); ?>');
+            $('#phone').addClass('is-invalid').focus();
+            return false;
+        } else {
+            $('#phone').removeClass('is-invalid');
+        }
+
+        var lStart = $('#licence_start_date').val();
+        var lEnd = $('#licence_end_date').val();
+        if (lStart && lEnd && lEnd < lStart) {
+            error_notify('<?php echo get_phrase("licence_end_date_cannot_be_earlier_than_start_date"); ?>');
+            $('#licence_end_date').addClass('is-invalid').focus();
+            return false;
+        } else {
+            $('#licence_end_date').removeClass('is-invalid');
+        }
+    }
+    if (!tabId || tabId === '#login_credentials') {
+        var email = $('#email').val().trim();
+        var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email) {
+            error_notify('<?php echo get_phrase("please_enter_an_email_address"); ?>');
+            $('#email').addClass('is-invalid').focus();
+            return false;
+        } else if (!emailRegex.test(email)) {
+            error_notify('<?php echo get_phrase("invalid_email_format"); ?>');
+            $('#email').addClass('is-invalid').focus();
+            return false;
+        } else {
+            $('#email').removeClass('is-invalid');
+        }
+
+        var password = $('#password').val();
+        if (!password) {
+            error_notify('<?php echo get_phrase("please_enter_a_password"); ?>');
+            $('#password').addClass('is-invalid').focus();
+            return false;
+        } else {
+            $('#password').removeClass('is-invalid');
+        }
+    }
+    return true;
+}
+
+function checkPharmacistForm() {
+    // Validate Step 1
+    if (!validatePharmacistStep('#basic_info')) {
+        $('#progressbarwizard').bootstrapWizard('show', 0);
+        return false;
+    }
+    // Validate Step 2
+    if (!validatePharmacistStep('#login_credentials')) {
+        $('#progressbarwizard').bootstrapWizard('show', 1);
+        return false;
+    }
+    $('form.required-form').submit();
+}
+
 $(document).ready(function() {
-    function toggleWizardNextBtn() {
+    function toggleWizardNavBtns() {
+        if ($('#basic_info').hasClass('active')) {
+            $('#progressbarwizard .wizard .previous').hide();
+        } else {
+            $('#progressbarwizard .wizard .previous').show();
+        }
+
         if ($('#finish').hasClass('active')) {
             $('#progressbarwizard .wizard .next').hide();
         } else {
@@ -333,19 +417,51 @@ $(document).ready(function() {
         }
     }
 
-    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
-        if ($(e.target).attr('href') === '#finish') {
-            $('#progressbarwizard .wizard .next').hide();
-        } else {
-            $('#progressbarwizard .wizard .next').show();
+    // Reconfigure bootstrapWizard with step-by-step validation
+    $('#progressbarwizard').bootstrapWizard({
+        onNext: function(tab, navigation, index) {
+            var currentTabId = tab.find('a').attr('href');
+            var valid = validatePharmacistStep(currentTabId);
+            if (!valid) {
+                return false;
+            }
+        },
+        onTabClick: function(tab, navigation, currentIndex, clickedIndex) {
+            if (clickedIndex > currentIndex) {
+                var currentTabId = navigation.find('li:eq(' + currentIndex + ') a').attr('href');
+                return validatePharmacistStep(currentTabId);
+            }
+            return true;
+        },
+        onTabShow: function(tab, navigation, index) {
+            var total = navigation.find('li').length;
+            var current = index + 1;
+            var percent = (current / total) * 100;
+            $('#progressbarwizard').find('.bar').css({width: percent + '%'});
+            toggleWizardNavBtns();
         }
     });
 
-    $('#progressbarwizard .wizard li a').on('click', function() {
-        setTimeout(toggleWizardNextBtn, 50);
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+        toggleWizardNavBtns();
     });
 
-    toggleWizardNextBtn();
+    $('#progressbarwizard .wizard li a').on('click', function() {
+        setTimeout(toggleWizardNavBtns, 50);
+    });
+
+    toggleWizardNavBtns();
+
+    // Licence start date dynamically sets min attribute on licence end date
+    $('#licence_start_date').on('change', function() {
+        var startVal = $(this).val();
+        if (startVal) {
+            $('#licence_end_date').attr('min', startVal);
+            if ($('#licence_end_date').val() && $('#licence_end_date').val() < startVal) {
+                $('#licence_end_date').val(startVal);
+            }
+        }
+    });
 
     $('#store_id').on('change', function() {
         var selected = $(this).find('option:selected');

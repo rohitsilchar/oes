@@ -151,7 +151,7 @@
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="phone"><?php echo get_phrase('Phone'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" class="form-control" value="<?php echo $user_data['phone']; ?>" id="phone" name="phone">
+                                                <input type="tel" class="form-control" value="<?php echo $user_data['phone']; ?>" id="phone" name="phone" maxlength="10" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)">
                                             </div>
                                         </div>
 
@@ -170,7 +170,7 @@
                                                     <?php 
                                                     $all_stores = $this->db->where('status', 1)->get('stores')->result_array();
                                                     foreach ($all_stores as $store): ?>
-                                                        <option value="<?php echo $store['id']; ?>" data-name="<?php echo htmlspecialchars($store['store_name']); ?>" data-state="<?php echo htmlspecialchars($store['state'] ?? ''); ?>" data-zone="<?php echo htmlspecialchars($store['zone'] ?? ''); ?>" <?php if (isset($user_data['store_id']) && $user_data['store_id'] == $store['id']) echo 'selected'; ?>><?php echo htmlspecialchars($store['store_name']); ?> <?php echo !empty($store['store_code']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
+                                                        <option value="<?php echo $store['id']; ?>" data-name="<?php echo htmlspecialchars($store['store_name']); ?>" data-state="<?php echo htmlspecialchars($store['state'] ?? ''); ?>" data-zone="<?php echo htmlspecialchars($store['zone'] ?? ''); ?>" <?php if (isset($user_data['store_id']) && $user_data['store_id'] == $store['id']) echo 'selected'; ?>><?php echo htmlspecialchars($store['store_name']); ?> <?php echo (!empty($store['store_code']) && $store['store_code'] !== $store['store_name']) ? '('.htmlspecialchars($store['store_code']).')' : ''; ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>

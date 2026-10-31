@@ -13,22 +13,38 @@
 
         <ul class="list-unstyled topbar-right-menu float-right mb-0">
 
+            <?php 
+            $current_lang = $this->session->userdata('language') ? strtolower($this->session->userdata('language')) : 'english';
+            $languages = $this->crud_model->get_all_languages();
+            $langs_lower = array_map('strtolower', $languages);
+            if (!in_array('english', $langs_lower)) {
+                array_unshift($languages, 'english');
+            }
+            ?>
             <li class="dropdown notification-list topbar-dropdown">
-                <a class="nav-link dropdown-toggle arrow-none" data-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
-                    <span class="align-middle text-18"><i class="fas fa-language"></i></span> <i class="mdi mdi-chevron-down"></i>
+                <a class="nav-link dropdown-toggle arrow-none" data-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="<?php echo get_phrase('change_language'); ?>">
+                    <span class="align-middle text-18"><i class="fas fa-language"></i></span>
+                    <span class="d-none d-sm-inline-block font-12 font-weight-bold text-uppercase ml-1"><?php echo $current_lang; ?></span>
+                    <i class="mdi mdi-chevron-down"></i>
                 </a>
                 <div class="dropdown-menu dropdown-menu-right dropdown-menu-animated topbar-dropdown-menu" x-placement="bottom-end" style="position: absolute; will-change: transform; top: 0px; left: 0px; transform: translate3d(-59px, 72px, 0px);">
 
-                    <?php $languages = $this->crud_model->get_all_languages();
-                    foreach ($languages as $language) : ?>
-                        <?php if (trim($language) != "" && $this->session->userdata('language') != strtolower($language)) : ?>
-                            <a href="javascript:void(0);" onclick="switch_language('<?php echo strtolower($language); ?>')" class="dropdown-item notify-item">
-                                <span class="align-middle"><?php echo ucwords($language); ?></span>
-                            </a>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                    <!-- item-->
+                    <div class="dropdown-header noti-title">
+                        <h6 class="text-overflow m-0"><?php echo get_phrase('select_language'); ?></h6>
+                    </div>
 
+                    <?php foreach ($languages as $language) : 
+                        $lang_clean = strtolower(trim($language));
+                        if (empty($lang_clean)) continue;
+                        $is_active = ($current_lang === $lang_clean);
+                    ?>
+                        <a href="javascript:void(0);" onclick="switch_language('<?php echo $lang_clean; ?>')" class="dropdown-item notify-item <?php echo $is_active ? 'active font-weight-bold bg-light' : ''; ?>">
+                            <span class="align-middle"><?php echo ucwords($language); ?></span>
+                            <?php if ($is_active): ?>
+                                <i class="mdi mdi-check text-success float-right ml-2"></i>
+                            <?php endif; ?>
+                        </a>
+                    <?php endforeach; ?>
                 </div>
             </li>
 
@@ -108,7 +124,7 @@
                             <h6 class="text-overflow m-0"><?php echo get_phrase('help_center'); ?></h6>
                         </div>
 
-                        <a href="https://gitcservices.com" target="_blank" class="dropdown-item notify-item">
+                        <a href="https://creativeitem.com/docs/academy-lms" target="_blank" class="dropdown-item notify-item">
                             <i class="mdi mdi-file-document-box-outline"></i>
                             <span><?php echo get_phrase('read_documentation'); ?></span>
                         </a>
@@ -118,22 +134,22 @@
                             <span><?php echo get_phrase('watch_video_tutorial'); ?></span>
                         </a>
 
-                        <a href="https://gitcservices.com" target="_blank" class="dropdown-item notify-item">
+                        <a href="https://gitcservices.com/contact-us" target="_blank" class="dropdown-item notify-item">
                             <i class="far fa-life-ring"></i>
                             <span><?php echo get_phrase('get_customer_support'); ?></span>
                         </a>
 
-                        <a href="https://gitcservices.com" target="_blank" class="dropdown-item notify-item">
+                        <a href="https://gitcservices.com/services" target="_blank" class="dropdown-item notify-item">
                             <i class="mdi mdi-arrow-right-bold-circle-outline"></i>
                             <span><?php echo get_phrase('order_customization'); ?></span>
                         </a>
 
-                        <a href="https://gitcservices.com" target="_blank" class="dropdown-item notify-item">
+                        <a href="https://gitcservices.com/contact-us" target="_blank" class="dropdown-item notify-item">
                             <i class="mdi mdi-tooltip-plus-outline"></i>
                             <span><?php echo get_phrase('request_a_new_feature'); ?></span>
                         </a>
 
-                        <a href="https://gitcservices.com" target="_blank" class="dropdown-item notify-item text-warning d-flex items-align-center">
+                        <a href="https://gitcservices.com/services" target="_blank" class="dropdown-item notify-item text-warning d-flex items-align-center">
                             <i class="text-11 dripicons-toggles mr-1"></i>
                             <span><?php echo get_phrase('Get Services'); ?></span>
                             <i class="mdi mdi-crown ml-auto"></i>

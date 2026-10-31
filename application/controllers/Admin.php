@@ -1812,43 +1812,10 @@ class Admin extends CI_Controller
             $total_passed_all += $passed_evals;
         }
 
-        // Add Unassigned Pharmacists row if any exist
+        // Include unassigned pharmacists in overall compliance KPI, while store_rows strictly contains actual stores
         $un_total = (int)$unassigned_stats['total_pharmacists'];
         if ($un_total > 0) {
             $un_valid = (int)$unassigned_stats['valid_licences'];
-            $un_exp_soon = (int)$unassigned_stats['expiring_soon'];
-            $un_exp = (int)$unassigned_stats['expired'];
-            $un_missing = (int)$unassigned_stats['missing_date'];
-            $un_comp_rate = $un_total > 0 ? round(($un_valid / $un_total) * 100, 1) : 0;
-
-            $store_rows[] = [
-                'id'                       => 'no_store',
-                'store_name'               => get_phrase('no_store_assigned'),
-                'store_code'               => 'N/A',
-                'store_category'           => '-',
-                'city'                     => '',
-                'state'                    => '',
-                'zone'                     => '',
-                'address'                  => get_phrase('unassigned_pharmacists'),
-                'total_pharmacists'        => $un_total,
-                'pharmacist_count'         => $un_total,
-                'valid_licences'           => $un_valid,
-                'valid_licence_count'      => $un_valid,
-                'expiring_soon'            => $un_exp_soon,
-                'expiring_soon_count'      => $un_exp_soon,
-                'expired'                  => $un_exp,
-                'expired_licence_count'    => $un_exp,
-                'missing_date'             => $un_missing,
-                'licence_compliance_rate'  => $un_comp_rate,
-                'licence_compliance_pct'   => $un_comp_rate,
-                'total_evaluations'        => 0,
-                'quiz_attempts'            => 0,
-                'passed_evaluations'       => 0,
-                'quiz_passed'              => 0,
-                'evaluation_pass_rate'     => 0,
-                'quiz_pass_rate'           => 0
-            ];
-
             $total_pharmacists_all += $un_total;
             $total_valid_all += $un_valid;
         }
@@ -1856,7 +1823,7 @@ class Admin extends CI_Controller
         $overview = [
             'total_stores'             => count($stores),
             'total_pharmacists'        => $total_pharmacists_all,
-            'assigned_pharmacists'     => $total_pharmacists_all,
+            'assigned_pharmacists'     => $total_pharmacists_all - $un_total,
             'licence_compliance_rate'  => $total_pharmacists_all > 0 ? round(($total_valid_all / $total_pharmacists_all) * 100, 1) : 0,
             'evaluation_pass_rate'     => $total_evals_all > 0 ? round(($total_passed_all / $total_evals_all) * 100, 1) : 0
         ];
@@ -3171,9 +3138,9 @@ class Admin extends CI_Controller
         }
         if (! empty($price) && $price != 'all') {
             if ($price == 'free') {
-                $this->db->where('is_free_course', 1);
+                $this->db->where("(is_free_course = 1 OR price = 0 OR price IS NULL)", null, false);
             } elseif ($price == 'paid') {
-                $this->db->where('is_free_course', null);
+                $this->db->where("(is_free_course != 1 OR is_free_course IS NULL) AND price > 0", null, false);
             }
         }
 
@@ -3205,9 +3172,9 @@ class Admin extends CI_Controller
         }
         if (! empty($price) && $price != 'all') {
             if ($price == 'free') {
-                $this->db->where('is_free_course', 1);
+                $this->db->where("(is_free_course = 1 OR price = 0 OR price IS NULL)", null, false);
             } elseif ($price == 'paid') {
-                $this->db->where('is_free_course', null);
+                $this->db->where("(is_free_course != 1 OR is_free_course IS NULL) AND price > 0", null, false);
             }
         }
         if (! empty($status) && $status != 'all') {
@@ -6789,7 +6756,18 @@ $developer_html
 
         if ($param1 == "add") {
             $data['store_name']         = html_escape($this->input->post('store_name'));
-            $data['store_code']         = html_escape($this->input->post('store_code'));
+            $raw_code                   = html_escape($this->input->post('store_code'));
+            if (!empty($raw_code)) {
+                $raw_code = trim($raw_code, " .\t\n\r\0\x0B");
+                if (preg_match('/^([A-Za-z]+)(\d{3})$/', $raw_code, $scm)) {
+                    $raw_code = strtoupper($scm[1]) . '0' . $scm[2];
+                }
+            } else if (!empty($data['store_name'])) {
+                if (strtolower($data['store_name']) === 'br_store') {
+                    $raw_code = 'BRSTORE';
+                }
+            }
+            $data['store_code']         = $raw_code;
             $data['category_id']        = $this->input->post('category_id') ? (int)$this->input->post('category_id') : null;
             if (!empty($data['category_id'])) {
                 $cat = $this->db->get_where('store_categories', ['id' => $data['category_id']])->row_array();
@@ -6800,8 +6778,24 @@ $developer_html
             $data['zone']               = html_escape(strtoupper($this->input->post('zone')));
             $data['contact_person']     = html_escape($this->input->post('contact_person'));
             $data['live_date']          = html_escape($this->input->post('live_date'));
-            $phone                      = html_escape($this->input->post('phone'));
-            $mobile                     = html_escape($this->input->post('mobile'));
+            $phone                      = trim(html_escape($this->input->post('phone')));
+            $mobile                     = trim(html_escape($this->input->post('mobile')));
+            $pin_code                   = trim(html_escape($this->input->post('pin_code')));
+
+            // Format validation for 10-digit mobile and 6-digit pin code
+            if (!empty($phone) && !preg_match('/^[0-9]{10}$/', $phone)) {
+                $this->session->set_flashdata('error_message', get_phrase('mobile_number_must_be_10_digits'));
+                redirect(site_url('admin/store_form/add_store_form'), 'refresh');
+            }
+            if (!empty($mobile) && !preg_match('/^[0-9]{10}$/', $mobile)) {
+                $this->session->set_flashdata('error_message', get_phrase('mobile_number_must_be_10_digits'));
+                redirect(site_url('admin/store_form/add_store_form'), 'refresh');
+            }
+            if (!empty($pin_code) && !preg_match('/^[1-9][0-9]{5}$/', $pin_code)) {
+                $this->session->set_flashdata('error_message', get_phrase('pin_code_must_be_6_digits'));
+                redirect(site_url('admin/store_form/add_store_form'), 'refresh');
+            }
+
             $data['phone']              = !empty($phone) ? $phone : $mobile;
             $data['mobile']             = !empty($mobile) ? $mobile : $phone;
             $data['email']              = html_escape($this->input->post('email'));
@@ -6811,7 +6805,7 @@ $developer_html
             $data['address']            = html_escape($this->input->post('address'));
             $data['city']               = html_escape($this->input->post('city'));
             $data['state']              = html_escape($this->input->post('state'));
-            $data['pin_code']           = html_escape($this->input->post('pin_code'));
+            $data['pin_code']           = $pin_code;
             $data['status']             = html_escape($this->input->post('status'));
             $data['created_at']         = time();
             $data['updated_at']         = time();
@@ -6820,7 +6814,18 @@ $developer_html
             redirect(site_url('admin/stores'), 'refresh');
         } elseif ($param1 == "edit") {
             $data['store_name']         = html_escape($this->input->post('store_name'));
-            $data['store_code']         = html_escape($this->input->post('store_code'));
+            $raw_code                   = html_escape($this->input->post('store_code'));
+            if (!empty($raw_code)) {
+                $raw_code = trim($raw_code, " .\t\n\r\0\x0B");
+                if (preg_match('/^([A-Za-z]+)(\d{3})$/', $raw_code, $scm)) {
+                    $raw_code = strtoupper($scm[1]) . '0' . $scm[2];
+                }
+            } else if (!empty($data['store_name'])) {
+                if (strtolower($data['store_name']) === 'br_store') {
+                    $raw_code = 'BRSTORE';
+                }
+            }
+            $data['store_code']         = $raw_code;
             $data['category_id']        = $this->input->post('category_id') ? (int)$this->input->post('category_id') : null;
             if (!empty($data['category_id'])) {
                 $cat = $this->db->get_where('store_categories', ['id' => $data['category_id']])->row_array();
@@ -6831,8 +6836,24 @@ $developer_html
             $data['zone']               = html_escape(strtoupper($this->input->post('zone')));
             $data['contact_person']     = html_escape($this->input->post('contact_person'));
             $data['live_date']          = html_escape($this->input->post('live_date'));
-            $phone                      = html_escape($this->input->post('phone'));
-            $mobile                     = html_escape($this->input->post('mobile'));
+            $phone                      = trim(html_escape($this->input->post('phone')));
+            $mobile                     = trim(html_escape($this->input->post('mobile')));
+            $pin_code                   = trim(html_escape($this->input->post('pin_code')));
+
+            // Format validation for 10-digit mobile and 6-digit pin code
+            if (!empty($phone) && !preg_match('/^[0-9]{10}$/', $phone)) {
+                $this->session->set_flashdata('error_message', get_phrase('mobile_number_must_be_10_digits'));
+                redirect(site_url('admin/store_form/edit_store_form/' . $param2), 'refresh');
+            }
+            if (!empty($mobile) && !preg_match('/^[0-9]{10}$/', $mobile)) {
+                $this->session->set_flashdata('error_message', get_phrase('mobile_number_must_be_10_digits'));
+                redirect(site_url('admin/store_form/edit_store_form/' . $param2), 'refresh');
+            }
+            if (!empty($pin_code) && !preg_match('/^[1-9][0-9]{5}$/', $pin_code)) {
+                $this->session->set_flashdata('error_message', get_phrase('pin_code_must_be_6_digits'));
+                redirect(site_url('admin/store_form/edit_store_form/' . $param2), 'refresh');
+            }
+
             $data['phone']              = !empty($phone) ? $phone : $mobile;
             $data['mobile']             = !empty($mobile) ? $mobile : $phone;
             $data['email']              = html_escape($this->input->post('email'));
@@ -6842,7 +6863,7 @@ $developer_html
             $data['address']            = html_escape($this->input->post('address'));
             $data['city']               = html_escape($this->input->post('city'));
             $data['state']              = html_escape($this->input->post('state'));
-            $data['pin_code']           = html_escape($this->input->post('pin_code'));
+            $data['pin_code']           = $pin_code;
             $data['status']             = html_escape($this->input->post('status'));
             $data['updated_at']         = time();
             $this->db->where('id', $param2);
@@ -7883,6 +7904,19 @@ $developer_html
                 ['store_code', 'stores_code']
             );
 
+            if (!empty($store_code)) {
+                $store_code = trim($store_code, " .\t\n\r\0\x0B");
+                if (preg_match('/^([A-Za-z]+)(\d{3})$/', $store_code, $scm)) {
+                    $store_code = strtoupper($scm[1]) . '0' . $scm[2];
+                }
+            }
+
+            if (empty($store_code) && !empty($store_name)) {
+                if (strtolower($store_name) === 'br_store') {
+                    $store_code = 'BRSTORE';
+                }
+            }
+
             // Fallback for store name if store_code exists
             if (empty($store_name) && !empty($store_code)) {
                 $store_name = $store_code;
@@ -7947,6 +7981,9 @@ $developer_html
 
             if (!empty($cat_raw)) {
                 $clean_cat = trim(preg_replace('/\s+/', ' ', $cat_raw));
+                if (preg_match('/^#(N\/A|VALUE!|REF!|NAME\?|DIV\/0!|NUM!|NULL!)/i', $clean_cat) || strtoupper($clean_cat) === '#N/A' || strtoupper($clean_cat) === 'NA') {
+                    $clean_cat = '';
+                }
                 $cat_lower = strtolower($clean_cat);
 
                 // 1. Check if numeric category ID
@@ -8098,9 +8135,10 @@ $developer_html
             $line = $index + 2;
             $cat_name = !empty($row['category_name']) ? trim($row['category_name']) : (!empty($row['name']) ? trim($row['name']) : '');
 
-            if (empty($cat_name)) {
+            // Reject formula error names
+            if (empty($cat_name) || preg_match('/^#(N\/A|VALUE!|REF!|NAME\?|DIV\/0!|NUM!|NULL!)/i', $cat_name) || strtoupper($cat_name) === '#N/A' || strtoupper($cat_name) === 'NA') {
                 $skipped++;
-                $errors[] = "Row {$line}: Missing category name";
+                $errors[] = "Row {$line}: Invalid or formula error category name";
                 continue;
             }
 
