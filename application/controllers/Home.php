@@ -1047,9 +1047,12 @@ class Home extends CI_Controller
     {
         $is_admin = $this->session->userdata('admin_login');
         $is_course_instructor = $this->crud_model->is_course_instructor($course_id, $this->session->userdata('user_id'));
-        if (enroll_status($course_id) == 'valid' || $is_course_instructor || $is_admin || get_bundle_validity($bundle_id) == 'valid') {
+        $lesson = $this->crud_model->get_lessons('lesson', $lesson_id)->row_array();
+        $is_free = ($lesson && !empty($lesson['is_free'])) ? true : false;
+
+        if ($is_free || enroll_status($course_id) == 'valid' || $is_course_instructor || $is_admin || get_bundle_validity($bundle_id) == 'valid') {
             $user_id = $this->session->userdata('user_id');
-            $user_details = $this->user_model->get_all_user($user_id)->row_array();
+            $user_details = $user_id ? $this->user_model->get_all_user($user_id)->row_array() : null;
             $user_name = $user_details ? trim($user_details['first_name'] . ' ' . $user_details['last_name']) : ($this->session->userdata('name') ? $this->session->userdata('name') : 'Student');
             $user_email = $user_details ? $user_details['email'] : ($this->session->userdata('email') ? $this->session->userdata('email') : '');
             $user_ip = $this->input->ip_address();
@@ -1057,6 +1060,8 @@ class Home extends CI_Controller
             $page_data['course_id'] = $course_id;
             $page_data['lesson_id'] = $lesson_id;
             $page_data['bundle_id'] = $bundle_id;
+            $page_data['lesson_type'] = get_lesson_type($lesson_id);
+            $page_data['attachment'] = isset($lesson['attachment']) ? $lesson['attachment'] : '';
             $page_data['user_name'] = $user_name;
             $page_data['user_email'] = $user_email;
             $page_data['user_ip'] = $user_ip;

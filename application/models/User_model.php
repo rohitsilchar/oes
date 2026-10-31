@@ -28,6 +28,38 @@ class User_model extends CI_Model
         }
     }
 
+    /**
+     * Self-healing integrity check:
+     * 1. Synchronizes store assignment from store_users to users.store_id
+     * 2. Cleans up duplicate enrollments in enrol table and adds UNIQUE constraint
+     * 3. Sanitizes any legacy formula error names (#VALUE!)
+     */
+    public function check_pharmacist_data_integrity()
+    {
+        try {
+            $this->check_licence_end_date_column();
+
+            // 1. Sync store assignment from store_users
+            if ($this->db->table_exists('store_users')) {
+                $this->db->query("UPDATE users u JOIN store_users su ON su.pharmacist_id = u.id SET u.store_id = su.store_id WHERE (u.store_id IS NULL OR u.store_id = 0) AND su.store_id > 0");
+            }
+
+            // 2. Clean up duplicate enrollments and add UNIQUE constraint
+            if ($this->db->table_exists('enrol')) {
+                $this->db->query("DELETE e1 FROM enrol e1 INNER JOIN enrol e2 WHERE e1.id < e2.id AND e1.user_id = e2.user_id AND e1.course_id = e2.course_id");
+                $idx_check = $this->db->query("SHOW INDEX FROM enrol WHERE Key_name = 'unique_user_course'");
+                if ($idx_check && $idx_check->num_rows() == 0) {
+                    $this->db->query("ALTER TABLE enrol ADD UNIQUE KEY `unique_user_course` (`user_id`, `course_id`)");
+                }
+            }
+
+            // 3. Clean up legacy formula error names
+            $this->db->query("UPDATE users SET first_name = 'Pharmacist', last_name = '' WHERE first_name LIKE '%#VALUE!%' OR last_name LIKE '%#VALUE!%' OR first_name LIKE '#REF!%' OR last_name LIKE '#REF!%' OR first_name LIKE '#N/A%' OR last_name LIKE '#N/A%'");
+        } catch (\Throwable $e) {
+            log_message('error', 'check_pharmacist_data_integrity error: ' . $e->getMessage());
+        }
+    }
+
     public function get_admin_details()
     {
         return $this->db->get_where('users', array('role_id' => 1));
@@ -288,6 +320,12 @@ class User_model extends CI_Model
             $data['address'] = html_escape($this->input->post('address'));
             if ($this->input->post('store_id') !== null) {
                 $data['store_id'] = html_escape($this->input->post('store_id'));
+                if ($this->db->table_exists('store_users') && !empty($data['store_id'])) {
+                    $this->db->where('pharmacist_id', $user_id)->update('store_users', [
+                        'store_id'   => $data['store_id'],
+                        'updated_at' => time()
+                    ]);
+                }
             }
             if ($this->input->post('employee_id') !== null) {
                 $data['employee_id'] = html_escape($this->input->post('employee_id'));

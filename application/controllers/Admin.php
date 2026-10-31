@@ -41,10 +41,28 @@ class Admin extends CI_Controller
             redirect(site_url('login'), 'refresh');
         }
 
-        // Pharmacist counts & license stats
-        $total_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->count_all_results('users');
-        $licensed_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->where("licence_no IS NOT NULL AND licence_no != ''", null, false)->count_all_results('users');
-        $total_instructors = $this->db->where('is_instructor', 1)->count_all_results('users');
+        // Run self-healing database integrity check
+        $this->user_model->check_pharmacist_data_integrity();
+
+        // Pharmacist counts & license stats (Synchronized 1:1 with Reports -> Licence Report)
+        $licence_stats_query = $this->db->query("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) > DATE_ADD(CURDATE(), INTERVAL 90 DAY)) THEN 1 ELSE 0 END) as valid_count,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) >= CURDATE() AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)) THEN 1 ELSE 0 END) as expiring_soon_count,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) < CURDATE()) THEN 1 ELSE 0 END) as expired_count,
+                SUM(CASE WHEN (licence_end_date IS NULL OR licence_end_date = '' OR COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) IS NULL) THEN 1 ELSE 0 END) as pending_count
+            FROM users 
+            WHERE role_id = 2 AND is_instructor = 0
+        ");
+        $lic_stats = $licence_stats_query ? $licence_stats_query->row_array() : [
+            'total' => 0, 'valid_count' => 0, 'expiring_soon_count' => 0, 'expired_count' => 0, 'pending_count' => 0
+        ];
+
+        $total_pharmacists    = (int)($lic_stats['total'] ?? 0);
+        $licensed_pharmacists = (int)($lic_stats['valid_count'] ?? 0);
+        $pending_pharmacists  = (int)($lic_stats['pending_count'] ?? 0);
+        $total_instructors    = $this->db->where('is_instructor', 1)->count_all_results('users');
 
         // Stores count & staffing overview
         $total_stores = $this->db->table_exists('stores') ? $this->db->count_all_results('stores') : 0;
@@ -52,16 +70,30 @@ class Admin extends CI_Controller
         $unstaffed_stores = [];
         $store_distribution = [];
         if ($this->db->table_exists('stores')) {
-            // Unstaffed stores calculated via efficient join
-            $unstaffed_query = $this->db->query("SELECT stores.id, stores.store_name, stores.store_code, stores.state, stores.city FROM stores LEFT JOIN users ON users.store_id = stores.id AND users.role_id = 2 WHERE users.id IS NULL GROUP BY stores.id ORDER BY stores.id DESC");
+            // Unstaffed stores calculated via join checking both users.store_id AND store_users
+            $unstaffed_query = $this->db->query("
+                SELECT stores.id, stores.store_name, stores.store_code, stores.state, stores.city 
+                FROM stores 
+                LEFT JOIN users ON users.store_id = stores.id AND users.role_id = 2
+                LEFT JOIN store_users ON store_users.store_id = stores.id
+                WHERE users.id IS NULL AND store_users.id IS NULL
+                GROUP BY stores.id 
+                ORDER BY stores.id DESC
+            ");
             $unstaffed_stores = $unstaffed_query ? $unstaffed_query->result_array() : [];
 
-            // 10 Recent stores for Operational Command Hub
-            $this->db->select('stores.*, (SELECT COUNT(*) FROM users WHERE users.store_id = stores.id AND users.role_id = 2) as pharmacist_count');
-            $this->db->from('stores');
-            $this->db->order_by('stores.id', 'DESC');
-            $this->db->limit(10);
-            $stores_list = $this->db->get()->result_array();
+            // 10 Recent stores with pharmacist count considering both users.store_id and store_users
+            $stores_list = $this->db->query("
+                SELECT stores.*, 
+                       (SELECT COUNT(DISTINCT u.id) 
+                        FROM users u 
+                        LEFT JOIN store_users su ON su.pharmacist_id = u.id 
+                        WHERE (u.store_id = stores.id OR su.store_id = stores.id) 
+                          AND u.role_id = 2) as pharmacist_count
+                FROM stores
+                ORDER BY stores.id DESC
+                LIMIT 10
+            ")->result_array();
 
             $store_distribution = $stores_list;
         }
@@ -77,26 +109,44 @@ class Admin extends CI_Controller
         $month_start_ts = strtotime(date('Y-m-01 00:00:00'));
         $month_enrollments = $this->db->where('date_added >=', $month_start_ts)->count_all_results('enrol');
 
-        // Recent enrollments with user, course, and store details (10 recent)
-        $this->db->select('enrol.id as enrol_id, enrol.date_added as enrol_date, enrol.expiry_date, users.id as user_id, users.first_name, users.last_name, users.email, users.employee_id, users.licence_no, users.image, course.id as course_id, course.title as course_title, course.thumbnail as course_thumbnail, stores.store_name, stores.store_code');
-        $this->db->from('enrol');
-        $this->db->join('users', 'users.id = enrol.user_id', 'left');
-        $this->db->join('course', 'course.id = enrol.course_id', 'left');
-        $this->db->join('stores', 'stores.id = users.store_id', 'left');
-        $this->db->order_by('enrol.id', 'DESC');
-        $this->db->limit(10);
-        $recent_enrollments = $this->db->get()->result_array();
+        // Recent enrollments with user, course, and store details (deduplicated by user_id & course_id)
+        $recent_enrollments = $this->db->query("
+            SELECT enrol.id as enrol_id, enrol.date_added as enrol_date, enrol.expiry_date, 
+                   users.id as user_id, users.first_name, users.last_name, users.email, users.employee_id, users.licence_no, users.image, 
+                   course.id as course_id, course.title as course_title, course.thumbnail as course_thumbnail, 
+                   COALESCE(stores.store_name, su_stores.store_name, 'Unassigned') as store_name, 
+                   COALESCE(stores.store_code, su_stores.store_code, '') as store_code
+            FROM enrol
+            INNER JOIN (
+                SELECT MAX(id) as max_id 
+                FROM enrol 
+                GROUP BY user_id, course_id
+            ) latest_enrol ON latest_enrol.max_id = enrol.id
+            LEFT JOIN users ON users.id = enrol.user_id
+            LEFT JOIN course ON course.id = enrol.course_id
+            LEFT JOIN stores ON stores.id = users.store_id
+            LEFT JOIN store_users ON store_users.pharmacist_id = users.id
+            LEFT JOIN stores su_stores ON su_stores.id = store_users.store_id
+            ORDER BY enrol.id DESC
+            LIMIT 10
+        ")->result_array();
 
         // Non-compliant / Unlicensed Pharmacists needing immediate action (10 recent)
-        $this->db->select('users.id, users.first_name, users.last_name, users.email, users.employee_id, users.phone, users.image, stores.store_name, stores.store_code');
-        $this->db->from('users');
-        $this->db->join('stores', 'stores.id = users.store_id', 'left');
-        $this->db->where('users.role_id', 2);
-        $this->db->where('users.is_instructor', 0);
-        $this->db->where("(users.licence_no IS NULL OR users.licence_no = '')", null, false);
-        $this->db->order_by('users.id', 'DESC');
-        $this->db->limit(10);
-        $unlicensed_pharmacists = $this->db->get()->result_array();
+        $date_sql = "COALESCE(STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%Y-%m-%d'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d-%m-%Y'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d/%m/%Y'))";
+        $unlicensed_pharmacists = $this->db->query("
+            SELECT users.id, users.first_name, users.last_name, users.email, users.employee_id, users.phone, users.image, 
+                   COALESCE(stores.store_name, su_stores.store_name, 'Unassigned') as store_name, 
+                   COALESCE(stores.store_code, su_stores.store_code, '') as store_code
+            FROM users
+            LEFT JOIN stores ON stores.id = users.store_id
+            LEFT JOIN store_users ON store_users.pharmacist_id = users.id
+            LEFT JOIN stores su_stores ON su_stores.id = store_users.store_id
+            WHERE users.role_id = 2 
+              AND users.is_instructor = 0
+              AND (users.licence_end_date IS NULL OR users.licence_end_date = '' OR {$date_sql} IS NULL)
+            ORDER BY users.id DESC
+            LIMIT 10
+        ")->result_array();
 
         // Top popular courses (top 10)
         $this->db->select('course.id, course.title, course.thumbnail, course.status, (SELECT COUNT(*) FROM enrol WHERE enrol.course_id = course.id) as enrol_count');
@@ -105,8 +155,15 @@ class Admin extends CI_Controller
         $this->db->limit(10);
         $top_courses = $this->db->get()->result_array();
 
-        // Assigned vs Unassigned Pharmacists
-        $assigned_pharmacists = $this->db->where('role_id', 2)->where('is_instructor', 0)->where('store_id >', 0)->count_all_results('users');
+        // Assigned vs Unassigned Pharmacists (considering store_id and store_users)
+        $assigned_query = $this->db->query("
+            SELECT COUNT(DISTINCT users.id) as cnt
+            FROM users
+            LEFT JOIN store_users ON store_users.pharmacist_id = users.id
+            WHERE users.role_id = 2 AND users.is_instructor = 0 
+              AND (users.store_id > 0 OR store_users.store_id > 0)
+        ");
+        $assigned_pharmacists = $assigned_query ? (int)$assigned_query->row()->cnt : 0;
         $unassigned_pharmacists = max(0, $total_pharmacists - $assigned_pharmacists);
 
         // Active vs Inactive Pharmacists
@@ -117,6 +174,8 @@ class Admin extends CI_Controller
         $page_data['page_title']             = get_phrase('dashboard');
         $page_data['total_pharmacists']      = $total_pharmacists;
         $page_data['licensed_pharmacists']   = $licensed_pharmacists;
+        $page_data['pending_pharmacists']    = $pending_pharmacists;
+        $page_data['licence_stats']          = $lic_stats;
         $page_data['total_instructors']      = $total_instructors;
         $page_data['total_stores']           = $total_stores;
         $page_data['active_courses_count']   = $active_courses_count;
@@ -399,7 +458,53 @@ class Admin extends CI_Controller
 
     public function licence_validity()
     {
-        redirect(site_url('admin/licence_report'), 'refresh');
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        // CHECK ACCESS PERMISSION
+        if (!has_permission('user') && !has_permission('student') && !has_permission('report') && !has_permission('revenue')) {
+            check_permission('user');
+        }
+
+        $this->user_model->check_pharmacist_data_integrity();
+
+        $selected_store_id = $this->input->get('store_id') ?: 'all';
+        $filter_status     = $this->input->get('status') ?: 'all';
+
+        // Calculate summary statistics
+        $where_store = "";
+        if ($selected_store_id != 'all' && !empty($selected_store_id)) {
+            if ($selected_store_id == 'no_store') {
+                $where_store = " AND (users.store_id IS NULL OR users.store_id = 0)";
+            } else {
+                $where_store = " AND users.store_id = " . intval($selected_store_id);
+            }
+        }
+
+        $stats_query = $this->db->query("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) > DATE_ADD(CURDATE(), INTERVAL 90 DAY)) THEN 1 ELSE 0 END) as valid_count,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) >= CURDATE() AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)) THEN 1 ELSE 0 END) as expiring_soon_count,
+                SUM(CASE WHEN (licence_end_date IS NOT NULL AND licence_end_date != '' AND COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) < CURDATE()) THEN 1 ELSE 0 END) as expired_count,
+                SUM(CASE WHEN (licence_end_date IS NULL OR licence_end_date = '' OR COALESCE(STR_TO_DATE(licence_end_date, '%Y-%m-%d'), STR_TO_DATE(licence_end_date, '%d-%m-%Y'), STR_TO_DATE(licence_end_date, '%d/%m/%Y')) IS NULL) THEN 1 ELSE 0 END) as pending_count
+            FROM users 
+            WHERE role_id = 2 AND is_instructor = 0 {$where_store}
+        ");
+        $stats = $stats_query ? $stats_query->row_array() : [
+            'total' => 0, 'valid_count' => 0, 'expiring_soon_count' => 0, 'expired_count' => 0, 'pending_count' => 0
+        ];
+
+        $stores = $this->db->where('status', 1)->order_by('store_name', 'asc')->get('stores')->result_array();
+
+        $page_data['page_name']         = 'licence_validity';
+        $page_data['page_title']        = get_phrase('licence_validity');
+        $page_data['stats']             = $stats;
+        $page_data['stores']            = $stores;
+        $page_data['selected_store_id'] = $selected_store_id;
+        $page_data['filter_status']     = $filter_status;
+        $this->load->view('backend/index', $page_data);
     }
 
     public function server_side_licence_report_data()
@@ -523,10 +628,12 @@ class Admin extends CI_Controller
             $this->fast_cache->set($stats_cache_key, $stats, 120);
         }
 
-        // Fetch data
-        $this->db->select("users.*, stores.store_name, stores.store_code, {$date_sql} as parsed_end_date", FALSE);
+        // Fetch data with store join fallback to store_users
+        $this->db->select("users.*, COALESCE(stores.store_name, su_stores.store_name) as store_name, COALESCE(stores.store_code, su_stores.store_code) as store_code, {$date_sql} as parsed_end_date", FALSE);
         $this->db->from('users');
         $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->join('store_users', 'store_users.pharmacist_id = users.id', 'left');
+        $this->db->join('stores su_stores', 'su_stores.id = store_users.store_id', 'left');
         $this->db->where('users.role_id', 2);
         $apply_common_filters($this->db);
 
@@ -546,11 +653,22 @@ class Admin extends CI_Controller
             $key = $start + $k + 1;
             $user_image = $this->user_model->get_user_image_url($user['id'], $user['image'] ?? null);
 
+            $first_name = trim($user['first_name'] ?? '');
+            $last_name  = trim($user['last_name'] ?? '');
+            if (stripos($first_name, '#VALUE!') !== false || stripos($last_name, '#VALUE!') !== false || (str_starts_with($first_name, '#') && str_ends_with($first_name, '!'))) {
+                $display_name = 'Pharmacist #' . $user['id'];
+            } else {
+                $display_name = trim($first_name . ' ' . $last_name);
+                if (empty($display_name)) {
+                    $display_name = 'Pharmacist #' . $user['id'];
+                }
+            }
+
             $name_html = '
                 <div class="d-flex align-items-center">
                     <img src="' . $user_image . '" alt="" height="38" width="38" class="rounded-circle mr-2 shadow-sm">
                     <div>
-                        <a href="' . site_url('admin/user_form/edit_user_form/' . $user['id']) . '" class="text-body font-weight-bold font-13">' . html_escape(trim($user['first_name'] . ' ' . $user['last_name'])) . '</a>
+                        <a href="' . site_url('admin/user_form/edit_user_form/' . $user['id']) . '" class="text-body font-weight-bold font-13">' . html_escape($display_name) . '</a>
                         <br>
                         ' . (!empty($user['email']) ? '<small class="text-muted"><i class="mdi mdi-email-outline mr-1"></i>' . html_escape($user['email']) . '</small>' : '<small class="text-muted font-italic font-11"><i class="mdi mdi-email-off-outline mr-1"></i>' . get_phrase('no_email') . '</small>') . '
                         ' . (!empty($user['phone']) ? '<br><small class="text-muted"><i class="mdi mdi-phone mr-1"></i>' . html_escape($user['phone']) . '</small>' : '') . '
@@ -665,9 +783,11 @@ class Admin extends CI_Controller
 
         $date_sql = "COALESCE(STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%Y-%m-%d'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d-%m-%Y'), STR_TO_DATE(NULLIF(users.licence_end_date, ''), '%d/%m/%Y'))";
 
-        $this->db->select("users.*, stores.store_name, stores.store_code, {$date_sql} as parsed_end_date", FALSE);
+        $this->db->select("users.*, COALESCE(stores.store_name, su_stores.store_name) as store_name, COALESCE(stores.store_code, su_stores.store_code) as store_code, {$date_sql} as parsed_end_date", FALSE);
         $this->db->from('users');
         $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->join('store_users', 'store_users.pharmacist_id = users.id', 'left');
+        $this->db->join('stores su_stores', 'su_stores.id = store_users.store_id', 'left');
         $this->db->where('users.role_id', 2);
 
         if ($filter_store_id === 'no_store') {
@@ -759,9 +879,18 @@ class Admin extends CI_Controller
                 }
             }
 
+            $first_name = trim($r['first_name'] ?? '');
+            $last_name  = trim($r['last_name'] ?? '');
+            if (stripos($first_name, '#VALUE!') !== false || stripos($last_name, '#VALUE!') !== false || (str_starts_with($first_name, '#') && str_ends_with($first_name, '!'))) {
+                $full_name = 'Pharmacist #' . $r['id'];
+            } else {
+                $full_name = trim($first_name . ' ' . $last_name);
+                if (empty($full_name)) $full_name = 'Pharmacist #' . $r['id'];
+            }
+
             fputcsv($out, [
                 $idx + 1,
-                $r['first_name'] . ' ' . $r['last_name'],
+                $full_name,
                 $r['email'],
                 $r['phone'],
                 $r['store_name'] ?: 'No Store Assigned',
@@ -1244,17 +1373,21 @@ class Admin extends CI_Controller
         $filter_date_to = $this->input->post('filter_date_to') ? trim($this->input->post('filter_date_to')) : '';
         $search = isset($this->input->post('search')['value']) ? trim($this->input->post('search')['value']) : '';
 
-        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, users.image, stores.store_name, stores.store_code, course.title as course_title');
+        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, users.image, COALESCE(stores.store_name, su_stores.store_name) as store_name, COALESCE(stores.store_code, su_stores.store_code) as store_code, course.title as course_title', false);
         $this->db->from('enrol');
         $this->db->join('users', 'users.id = enrol.user_id');
         $this->db->join('course', 'course.id = enrol.course_id');
         $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->join('store_users', 'store_users.pharmacist_id = users.id', 'left');
+        $this->db->join('stores su_stores', 'su_stores.id = store_users.store_id', 'left');
         $this->db->where('users.role_id', 2);
 
         if ($filter_store_id === 'no_store') {
             $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+            $this->db->where('(store_users.store_id IS NULL OR store_users.store_id = 0)');
         } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
-            $this->db->where('users.store_id', (int)$filter_store_id);
+            $fsid = (int)$filter_store_id;
+            $this->db->where("(users.store_id = {$fsid} OR store_users.store_id = {$fsid})", null, false);
         }
 
         if (is_numeric($filter_course_id) && $filter_course_id > 0) {
@@ -1436,17 +1569,21 @@ class Admin extends CI_Controller
         $filter_date_to = $this->input->get('date_to') ? trim($this->input->get('date_to')) : '';
         $search = $this->input->get('search') ? trim($this->input->get('search')) : '';
 
-        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, stores.store_name, stores.store_code, course.title as course_title');
+        $this->db->select('enrol.*, users.first_name, users.last_name, users.email, users.phone, users.employee_id, users.store_id, COALESCE(stores.store_name, su_stores.store_name) as store_name, COALESCE(stores.store_code, su_stores.store_code) as store_code, course.title as course_title', false);
         $this->db->from('enrol');
         $this->db->join('users', 'users.id = enrol.user_id');
         $this->db->join('course', 'course.id = enrol.course_id');
         $this->db->join('stores', 'stores.id = users.store_id', 'left');
+        $this->db->join('store_users', 'store_users.pharmacist_id = users.id', 'left');
+        $this->db->join('stores su_stores', 'su_stores.id = store_users.store_id', 'left');
         $this->db->where('users.role_id', 2);
 
         if ($filter_store_id === 'no_store') {
             $this->db->where('(users.store_id IS NULL OR users.store_id = 0)');
+            $this->db->where('(store_users.store_id IS NULL OR store_users.store_id = 0)');
         } elseif (is_numeric($filter_store_id) && $filter_store_id > 0) {
-            $this->db->where('users.store_id', (int)$filter_store_id);
+            $fsid = (int)$filter_store_id;
+            $this->db->where("(users.store_id = {$fsid} OR store_users.store_id = {$fsid})", null, false);
         }
 
         if (is_numeric($filter_course_id) && $filter_course_id > 0) {
@@ -6817,11 +6954,18 @@ $developer_html
             $data['created_at']    = time();
             $data['updated_at']    = time();
             $this->db->insert('store_users', $data);
-            if (!empty($data['pharmacist_id']) && !empty($data['password'])) {
-                $this->db->where('id', $data['pharmacist_id'])->update('users', [
-                    'password'       => sha1($data['password']),
-                    'plain_password' => $data['password']
-                ]);
+            if (!empty($data['pharmacist_id'])) {
+                $user_up = [];
+                if (!empty($data['password'])) {
+                    $user_up['password']       = sha1($data['password']);
+                    $user_up['plain_password'] = $data['password'];
+                }
+                if (!empty($data['store_id'])) {
+                    $user_up['store_id'] = $data['store_id'];
+                }
+                if (!empty($user_up)) {
+                    $this->db->where('id', $data['pharmacist_id'])->update('users', $user_up);
+                }
             }
             $this->session->set_flashdata('flash_message', get_phrase('store_user_added_successfully'));
             redirect(site_url('admin/store_users'), 'refresh');
@@ -6871,17 +7015,33 @@ $developer_html
             $data['updated_at']    = time();
             $this->db->where('id', $param2);
             $this->db->update('store_users', $data);
-            if (!empty($data['pharmacist_id']) && !empty($data['password'])) {
-                $this->db->where('id', $data['pharmacist_id'])->update('users', [
-                    'password'       => sha1($data['password']),
-                    'plain_password' => $data['password']
-                ]);
+            if (!empty($data['pharmacist_id'])) {
+                $user_up = [];
+                if (!empty($data['password'])) {
+                    $user_up['password']       = sha1($data['password']);
+                    $user_up['plain_password'] = $data['password'];
+                }
+                if (!empty($data['store_id'])) {
+                    $user_up['store_id'] = $data['store_id'];
+                }
+                if (!empty($user_up)) {
+                    $this->db->where('id', $data['pharmacist_id'])->update('users', $user_up);
+                }
             }
             $this->session->set_flashdata('flash_message', get_phrase('store_user_updated_successfully'));
             redirect(site_url('admin/store_users'), 'refresh');
         } elseif ($param1 == "delete") {
+            $su_record = $this->db->get_where('store_users', ['id' => $param2])->row_array();
             $this->db->where('id', $param2);
             $this->db->delete('store_users');
+            if (!empty($su_record['pharmacist_id'])) {
+                $other_su = $this->db->get_where('store_users', ['pharmacist_id' => $su_record['pharmacist_id']])->row_array();
+                if ($other_su && !empty($other_su['store_id'])) {
+                    $this->db->where('id', $su_record['pharmacist_id'])->update('users', ['store_id' => $other_su['store_id']]);
+                } else {
+                    $this->db->where('id', $su_record['pharmacist_id'])->update('users', ['store_id' => 0]);
+                }
+            }
             $this->session->set_flashdata('flash_message', get_phrase('store_user_deleted_successfully'));
             redirect(site_url('admin/store_users'), 'refresh');
         }
@@ -7229,6 +7389,38 @@ $developer_html
             // First name & Last name (Last Name is optional)
             $first_name = !empty($row['first_name']) ? trim($row['first_name']) : (!empty($row['firstname']) ? trim($row['firstname']) : '');
             $last_name  = !empty($row['last_name']) ? trim($row['last_name']) : (!empty($row['lastname']) ? trim($row['lastname']) : '');
+
+            $is_formula_error = function($val) {
+                if (empty($val)) return false;
+                $val = trim((string)$val);
+                return (bool)preg_match('/^#(VALUE!|REF!|N\/A|NAME\?|DIV\/0!|NULL!|NUM!|ERROR!)/i', $val) || (stripos($val, '#VALUE!') !== false);
+            };
+
+            if ($is_formula_error($first_name) || $is_formula_error($last_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Rejected instructor with invalid name (Excel formula error detected)";
+                continue;
+            }
+
+            // Validate against Excel formula errors (#VALUE!, #REF!, #N/A, #NAME?, #DIV/0!, #NULL!, #NUM!, #ERROR!)
+            $is_formula_error = function($val) {
+                if (empty($val)) return false;
+                $val = trim((string)$val);
+                return (bool)preg_match('/^#(VALUE!|REF!|N\/A|NAME\?|DIV\/0!|NULL!|NUM!|ERROR!)/i', $val) || (stripos($val, '#VALUE!') !== false);
+            };
+
+            if ($is_formula_error($first_name) || $is_formula_error($last_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Rejected pharmacist with invalid name (Excel formula error detected: '{$first_name} {$last_name}')";
+                continue;
+            }
+
+            // Reject if first_name contains no letters
+            if (!empty($first_name) && !preg_match('/[a-zA-Z]/', $first_name)) {
+                $skipped++;
+                $errors[] = "Row {$line}: Rejected pharmacist with invalid name '{$first_name}' (must contain alphabetic characters)";
+                continue;
+            }
             $raw_email  = isset($row['email']) ? trim($row['email']) : '';
 
             // Clean & sanitize email (Email is optional)
@@ -8077,6 +8269,9 @@ $developer_html
             ];
 
             $this->db->insert('store_users', $store_user_data);
+            if (!empty($pharmacist_id) && !empty($store['id'])) {
+                $this->db->where('id', $pharmacist_id)->update('users', ['store_id' => $store['id']]);
+            }
             $success++;
         }
 
