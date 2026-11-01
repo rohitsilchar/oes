@@ -725,26 +725,11 @@ body.enlarged .btn-sidebar-toggle i {
     color: #727cf5 !important;
   }
 
-  /* 2. Flyout link text for items without submenus (e.g., Dashboard) */
+  /* 2. Collapsed mode 70px icon item styling */
   body.enlarged .wrapper .left-side-menu .side-nav .side-nav-item:hover > .side-nav-link {
     position: relative !important;
-    width: 250px !important;
-    background: #ffffff !important;
-    color: #313a46 !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
-    border-radius: 0 6px 6px 0 !important;
-    z-index: 1001 !important;
-  }
-
-  body.enlarged .wrapper .left-side-menu .side-nav .side-nav-item:hover > .side-nav-link span {
-    display: inline-block !important;
-    color: #313a46 !important;
-    font-size: 13.5px !important;
-    font-weight: 600 !important;
-    padding-left: 12px !important;
-  }
-
-  body.enlarged .wrapper .left-side-menu .side-nav .side-nav-item:hover > .side-nav-link:hover span {
+    width: 70px !important;
+    background: #f4f6fc !important;
     color: #727cf5 !important;
   }
 
@@ -754,15 +739,68 @@ body.enlarged .btn-sidebar-toggle i {
     position: absolute !important;
     left: 70px !important;
     top: 0 !important;
-    min-width: 220px !important;
+    min-width: 230px !important;
     width: auto !important;
     height: auto !important;
     background: #ffffff !important;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
     border: 1px solid #eef2f7 !important;
     border-radius: 0 8px 8px 8px !important;
-    padding: 8px 0 !important;
+    padding: 0 0 6px 0 !important;
     z-index: 1005 !important;
+    overflow: hidden !important;
+  }
+
+  /* Flyout Parent Menu Header - hidden in normal expanded mode */
+  .side-nav-flyout-header {
+    display: none !important;
+  }
+
+  /* Flyout Parent Menu Header - visible in collapsed enlarged mode */
+  body.enlarged .wrapper .left-side-menu .side-nav .side-nav-second-level .side-nav-flyout-header,
+  body.enlarged .left-side-menu .side-nav .side-nav-second-level .side-nav-flyout-header {
+    display: block !important;
+    padding: 12px 18px 10px 18px !important;
+    background: #f8f9fa !important;
+    border-bottom: 2px solid #e9ecef !important;
+    margin-bottom: 4px !important;
+    list-style: none !important;
+    user-select: none !important;
+  }
+
+  body.enlarged .wrapper .left-side-menu .side-nav .side-nav-second-level .side-nav-flyout-header .flyout-header-content,
+  body.enlarged .left-side-menu .side-nav .side-nav-second-level .side-nav-flyout-header .flyout-header-content {
+    display: flex !important;
+    align-items: center !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.6px !important;
+    color: #313a46 !important;
+    line-height: 1.2 !important;
+  }
+
+  body.enlarged .wrapper .left-side-menu .side-nav .side-nav-second-level .side-nav-flyout-header i,
+  body.enlarged .left-side-menu .side-nav .side-nav-second-level .side-nav-flyout-header i {
+    font-size: 15px !important;
+    margin-right: 8px !important;
+    color: #727cf5 !important;
+    display: inline-block !important;
+    line-height: 1 !important;
+  }
+
+  /* Tooltip styling for collapsed sidebar navigation */
+  .tooltip.bs-tooltip-right .tooltip-inner {
+    background-color: #313a46 !important;
+    color: #ffffff !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 6px 12px !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  }
+  .tooltip.bs-tooltip-right .arrow::before {
+    border-right-color: #313a46 !important;
   }
 
   /* 4. Submenu links - ALWAYS DARK TEXT, NEVER WHITE */

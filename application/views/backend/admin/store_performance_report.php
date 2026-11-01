@@ -166,16 +166,25 @@
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($st['expired_licence_count'] > 0): ?>
-                                            <span class="badge badge-danger font-11 mr-1" title="<?php echo get_phrase('expired'); ?>"><i class="mdi mdi-close-circle mr-1"></i><?php echo $st['expired_licence_count']; ?> <?php echo get_phrase('expired'); ?></span>
-                                        <?php endif; ?>
-                                        <?php if ($st['expiring_soon_count'] > 0): ?>
-                                            <span class="badge badge-warning font-11 text-dark mr-1" title="<?php echo get_phrase('expiring_soon'); ?>"><i class="mdi mdi-alert mr-1"></i><?php echo $st['expiring_soon_count']; ?> <?php echo get_phrase('expiring'); ?></span>
-                                        <?php endif; ?>
-                                        <?php if ($st['expired_licence_count'] == 0 && $st['expiring_soon_count'] == 0 && $st['pharmacist_count'] > 0): ?>
+                                        <?php if ($st['valid_licence_count'] == $st['pharmacist_count'] && $st['pharmacist_count'] > 0): ?>
                                             <span class="badge badge-success-lighten font-11"><i class="mdi mdi-check-circle mr-1 text-success"></i><?php echo get_phrase('all_valid'); ?></span>
                                         <?php elseif ($st['pharmacist_count'] == 0): ?>
                                             <span class="text-muted font-italic font-11">-</span>
+                                        <?php else: ?>
+                                            <?php if ($st['valid_licence_count'] > 0): ?>
+                                                <span class="badge badge-success-lighten font-11 mr-1" title="<?php echo get_phrase('valid_licences'); ?>"><i class="mdi mdi-check mr-1"></i><?php echo $st['valid_licence_count']; ?> <?php echo get_phrase('valid'); ?></span>
+                                            <?php endif; ?>
+                                            <?php if ($st['expired_licence_count'] > 0): ?>
+                                                <span class="badge badge-danger font-11 mr-1" title="<?php echo get_phrase('expired'); ?>"><i class="mdi mdi-close-circle mr-1"></i><?php echo $st['expired_licence_count']; ?> <?php echo get_phrase('expired'); ?></span>
+                                            <?php endif; ?>
+                                            <?php if ($st['expiring_soon_count'] > 0): ?>
+                                                <span class="badge badge-warning font-11 text-dark mr-1" title="<?php echo get_phrase('expiring_soon'); ?>"><i class="mdi mdi-alert mr-1"></i><?php echo $st['expiring_soon_count']; ?> <?php echo get_phrase('expiring'); ?></span>
+                                            <?php endif; ?>
+                                            <?php 
+                                            $missing = isset($st['missing_date']) ? (int)$st['missing_date'] : max(0, $st['pharmacist_count'] - $st['valid_licence_count'] - $st['expired_licence_count'] - $st['expiring_soon_count']);
+                                            if ($missing > 0): ?>
+                                                <span class="badge badge-secondary-lighten font-11 mr-1" title="<?php echo get_phrase('missing_licence_date'); ?>"><i class="mdi mdi-help-circle-outline mr-1"></i><?php echo $missing; ?> <?php echo get_phrase('missing_date'); ?></span>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -219,6 +228,16 @@
         $('#store_report_table').DataTable({
             pageLength: 25,
             order: [[4, 'desc']], // Order by total pharmacists desc
+            columnDefs: [
+                { orderable: false, targets: 0 }
+            ],
+            rowCallback: function (row, data, iDisplayIndex) {
+                var info = this.api().page.info();
+                var page = info.page;
+                var length = info.length;
+                var index = (page * length) + (iDisplayIndex + 1);
+                $('td:eq(0)', row).html(index);
+            },
             language: {
                 search: "<?php echo get_phrase('search'); ?>:",
                 paginate: {

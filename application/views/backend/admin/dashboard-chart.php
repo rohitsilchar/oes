@@ -38,6 +38,19 @@
     $total_p = isset($total_pharmacists) ? (int)$total_pharmacists : 0;
     $lic_no = max(0, $total_p - $lic_yes);
 
+    // Compute minimum visual floor for donut slices so small non-zero values (like 1 licensed pharmacist) are clearly visible
+    $chart_total = $lic_yes + $lic_no + $number_of_active_course;
+    if ($chart_total > 0) {
+        $min_visual_pct = 0.035; // at least 3.5% slice for clear visibility (~12.6 deg)
+        $visual_lic_yes = ($lic_yes > 0) ? max($lic_yes, round($chart_total * $min_visual_pct)) : 0;
+        $visual_active  = ($number_of_active_course > 0) ? max($number_of_active_course, round($chart_total * $min_visual_pct)) : 0;
+        $visual_lic_no  = max(0, $chart_total - $visual_lic_yes - $visual_active);
+    } else {
+        $visual_lic_yes = 0;
+        $visual_lic_no  = 0;
+        $visual_active  = 0;
+    }
+
     // Store staffing chart data
     $store_chart_labels = array();
     $store_chart_data = array();
@@ -228,6 +241,11 @@
                     ],
                     datasets: [{
                         data: [
+                            <?php echo $visual_lic_yes; ?>,
+                            <?php echo $visual_lic_no; ?>,
+                            <?php echo $visual_active; ?>
+                        ],
+                        realData: [
                             <?php echo max(0, $lic_yes); ?>,
                             <?php echo max(0, $lic_no); ?>,
                             <?php echo max(0, $number_of_active_course); ?>
@@ -238,7 +256,7 @@
                             '#727cf5'
                         ],
                         borderColor: '#ffffff',
-                        borderWidth: 3,
+                        borderWidth: 2,
                         hoverBorderColor: '#ffffff'
                     }]
                 },
@@ -255,7 +273,18 @@
                         bodyFontColor: '#ffffff',
                         xPadding: 12,
                         yPadding: 10,
-                        cornerRadius: 6
+                        cornerRadius: 6,
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                var idx = tooltipItem.index;
+                                var realVal = (data.datasets[0].realData) ? data.datasets[0].realData[idx] : data.datasets[0].data[idx];
+                                var label = data.labels[idx] || '';
+                                var total = <?php echo max(1, $chart_total); ?>;
+                                var pct = (realVal / total) * 100;
+                                var pctStr = (pct > 0 && pct < 1) ? pct.toFixed(2) + '%' : pct.toFixed(1) + '%';
+                                return ' ' + label + ': ' + Number(realVal).toLocaleString() + ' (' + pctStr + ')';
+                            }
+                        }
                     }
                 }
             });

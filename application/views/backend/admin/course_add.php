@@ -348,7 +348,7 @@
                                                     <label class="col-md-2 col-form-label" for="discounted_price"><?php echo get_phrase('discounted_price').' ('.currency_code_and_symbol().')'; ?></label>
                                                     <div class="col-md-10">
                                                         <input type="number" class="form-control" name="discounted_price" id="discounted_price" onkeyup="calculateDiscountPercentage(this.value)" min="0">
-                                                        <small class="text-muted"><?php echo get_phrase('this_course_has'); ?> <span id = "discounted_percentage" class="text-danger">0%</span> <?php echo get_phrase('discount'); ?></small>
+                                                        <small class="text-muted"><?php echo get_phrase('this_course_has'); ?> <span id = "discounted_percentage" class="text-danger"><?php echo currency_code_and_symbol(); ?>0</span> <?php echo get_phrase('discount'); ?></small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -529,18 +529,18 @@ function isFreeCourseChecked(elem) {
 }
 
 function calculateDiscountPercentage(discounted_price) {
+  var currencySymbol = '<?php echo currency_code_and_symbol(); ?>';
   if (discounted_price > 0) {
-    var actualPrice = jQuery('#price').val();
-    if ( actualPrice > 0) {
-      var reducedPrice = actualPrice - discounted_price;
-      var discountedPercentage = (reducedPrice / actualPrice) * 100;
-      if (discountedPercentage > 0) {
-        jQuery('#discounted_percentage').text(discountedPercentage.toFixed(2)+'%');
-
-      }else {
-        jQuery('#discounted_percentage').text('<?php echo '0%'; ?>');
-      }
+    var actualPrice = parseFloat(jQuery('#price').val()) || 0;
+    var discPrice = parseFloat(discounted_price) || 0;
+    if (actualPrice > 0 && actualPrice > discPrice) {
+      var reducedPrice = actualPrice - discPrice;
+      jQuery('#discounted_percentage').text(currencySymbol + reducedPrice.toFixed(2));
+    } else {
+      jQuery('#discounted_percentage').text(currencySymbol + '0');
     }
+  } else {
+    jQuery('#discounted_percentage').text(currencySymbol + '0');
   }
 }
 </script>
@@ -549,10 +549,34 @@ function calculateDiscountPercentage(discounted_price) {
 body {
   overflow-x: hidden;
 }
+/* Hide Next button on finish step */
+#finish.active ~ .wizard .next,
+#finish.active + .wizard .next,
+#basicwizard .wizard li.next.disabled {
+  display: none !important;
+}
 </style>
 
 <script type="text/javascript">
     $(document).ready(function() {
+        function toggleCourseWizardNavBtns() {
+            if ($('#finish').hasClass('active')) {
+                $('#basicwizard .wizard .next').hide();
+            } else {
+                $('#basicwizard .wizard .next').show();
+            }
+        }
+
+        $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+            toggleCourseWizardNavBtns();
+        });
+
+        $('#basicwizard .wizard li a').on('click', function() {
+            setTimeout(toggleCourseWizardNavBtns, 50);
+        });
+
+        toggleCourseWizardNavBtns();
+
         $('#thumbnail-picker-area').hide();
         $('#publish_date').hide();
 

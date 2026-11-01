@@ -3684,9 +3684,9 @@ class Crud_model extends CI_Model
     public function get_free_and_paid_courses($price_status = "", $instructor_id = "")
     {
         if ($price_status == 'free') {
-            $this->db->where('is_free_course', 1);
+            $this->db->where("(is_free_course = 1 OR price = 0 OR price IS NULL)", null, false);
         } else {
-            $this->db->where('is_free_course', null);
+            $this->db->where("(is_free_course != 1 OR is_free_course IS NULL) AND price > 0", null, false);
         }
 
 

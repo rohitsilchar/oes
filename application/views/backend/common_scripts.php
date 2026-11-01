@@ -380,6 +380,64 @@ if ($email_list > 0) :
 <!-- Navigation Sidebar Toggle Script -->
 <script type="text/javascript">
 (function() {
+    function initSidebarFlyoutHeaders() {
+        $('.side-nav-item').each(function() {
+            var $item = $(this);
+            var $link = $item.children('.side-nav-link');
+            var $submenu = $item.children('ul.side-nav-second-level');
+            if ($submenu.length && !$submenu.find('> .side-nav-flyout-header').length) {
+                var $icon = $link.children('i').clone();
+                var title = $link.children('span:not(.menu-arrow)').first().text().trim();
+                if (!title) {
+                    title = $link.text().trim();
+                }
+                if (title) {
+                    var $header = $('<li class="side-nav-flyout-header"><div class="flyout-header-content"></div></li>');
+                    if ($icon.length) {
+                        $header.find('.flyout-header-content').append($icon);
+                    }
+                    $header.find('.flyout-header-content').append($('<span></span>').text(title));
+                    $submenu.prepend($header);
+                }
+            }
+        });
+    }
+
+    function updateSidebarTooltips(isCollapsed) {
+        var $items = $('.side-nav-item');
+        if (isCollapsed) {
+            $items.each(function() {
+                var $item = $(this);
+                var $link = $item.children('.side-nav-link');
+                if (!$link.length) return;
+                var title = $link.children('span:not(.menu-arrow)').first().text().trim();
+                if (!title) title = $link.text().trim();
+                if (!title) return;
+
+                // Always set title attribute for native/accessibility support
+                $link.attr('title', title);
+
+                // Enable Bootstrap tooltip on items without submenu (standalone icons)
+                if ($item.children('ul').length === 0) {
+                    $link.tooltip({
+                        placement: 'right',
+                        trigger: 'hover',
+                        boundary: 'window',
+                        container: 'body'
+                    });
+                } else {
+                    // Items with submenu open flyout displaying the parent header; dispose tooltip to prevent overlap
+                    $link.tooltip('dispose');
+                }
+            });
+        } else {
+            // Expanded mode: remove tooltips
+            $('.side-nav-item > .side-nav-link').each(function() {
+                $(this).tooltip('dispose').removeAttr('title');
+            });
+        }
+    }
+
     function applySidebarState(isCollapsed) {
         var $body = $('body');
         if (isCollapsed) {
@@ -393,9 +451,19 @@ if ($email_list > 0) :
             $body.removeAttr('data-keep-enlarged');
             $('.btn-sidebar-toggle').attr('title', '<?php echo get_phrase('collapse_navigation'); ?>').attr('aria-label', '<?php echo get_phrase('collapse_navigation'); ?>');
         }
+        initSidebarFlyoutHeaders();
+        updateSidebarTooltips(isCollapsed);
     }
 
     $(document).ready(function() {
+        initSidebarFlyoutHeaders();
+        var initialCollapsed = $('body').hasClass('enlarged');
+        try {
+            var savedState = localStorage.getItem('qes_admin_sidebar_collapsed');
+            if (savedState === '1' && $(window).width() >= 768) initialCollapsed = true;
+            else if (savedState === '0' && $(window).width() >= 768) initialCollapsed = false;
+        } catch(e) {}
+        updateSidebarTooltips(initialCollapsed);
         // Prevent theme's App.initLayout from overriding our keep-enlarged state on resize
         if (window.jQuery && window.jQuery.App) {
             var origInitLayout = window.jQuery.App.initLayout;

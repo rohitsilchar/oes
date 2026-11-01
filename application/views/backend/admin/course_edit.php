@@ -825,18 +825,18 @@ $course_details = $this->crud_model->get_course_by_id($course_id)->row_array();
     }
 
     function calculateDiscountPercentage(discounted_price) {
+        var currencySymbol = '<?php echo currency_code_and_symbol(); ?>';
         if (discounted_price > 0) {
-            var actualPrice = jQuery('#price').val();
-            if (actualPrice > 0) {
-                var reducedPrice = actualPrice - discounted_price;
-                var discountedPercentage = (reducedPrice / actualPrice) * 100;
-                if (discountedPercentage > 0) {
-                    jQuery('#discounted_percentage').text(discountedPercentage.toFixed(2) + "%");
-
-                } else {
-                    jQuery('#discounted_percentage').text('<?php echo '0%'; ?>');
-                }
+            var actualPrice = parseFloat(jQuery('#price').val()) || 0;
+            var discPrice = parseFloat(discounted_price) || 0;
+            if (actualPrice > 0 && actualPrice > discPrice) {
+                var reducedPrice = actualPrice - discPrice;
+                jQuery('#discounted_percentage').text(currencySymbol + reducedPrice.toFixed(2));
+            } else {
+                jQuery('#discounted_percentage').text(currencySymbol + '0');
             }
+        } else {
+            jQuery('#discounted_percentage').text(currencySymbol + '0');
         }
     }
 
