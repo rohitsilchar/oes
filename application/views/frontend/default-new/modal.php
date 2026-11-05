@@ -98,6 +98,7 @@ function lesson_preview(url, title){
     </div>
 </div>
 
+<script src="<?php echo base_url('assets/global/content-protection/key-guard.js?v=1'); ?>"></script>
 <script type="text/javascript">
 (function() {
     var modal = document.getElementById('lesson_preview');
@@ -109,6 +110,9 @@ function lesson_preview(url, title){
     function isModalOpen() {
         return modal && (modal.classList.contains('show') || $(modal).is(':visible'));
     }
+
+    // Block Ctrl/Cmd+P, Ctrl/Cmd+S and PrintScreen while the lesson preview is open
+    if (window.OESKeyGuard) window.OESKeyGuard.add(isModalOpen);
 
     function getModalBody() {
         return modal ? modal.querySelector('.modal-body') : null;
