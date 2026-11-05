@@ -128,6 +128,19 @@
                                         </div>
 
                                         <div class="form-group row mb-3">
+                                            <label class="col-md-3 col-form-label"><?php echo get_phrase('licence_document'); ?></label>
+                                            <div class="col-md-9">
+                                                <?php if (!empty($user_data['licence_document'])): ?>
+                                                    <a href="<?php echo site_url('admin/licence_document/' . $user_data['id']); ?>" target="_blank" class="btn btn-outline-primary btn-sm mt-1">
+                                                        <i class="mdi mdi-file-document-outline mr-1"></i><?php echo get_phrase('view_uploaded_licence_document'); ?>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <p class="text-muted mt-2 mb-0"><?php echo get_phrase('no_licence_document_uploaded_by_the_pharmacist_yet'); ?></p>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="mac_address"><?php echo get_phrase('registered_mac_address'); ?></label>
                                             <div class="col-md-9">
                                                 <div class="input-group">

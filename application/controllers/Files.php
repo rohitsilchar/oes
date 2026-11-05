@@ -21,8 +21,8 @@ class Files extends CI_Controller
         //Check custom session data
         $this->user_model->check_session_data();
 
-        // FRONT WEBSITE TURNED OFF BY ADMIN
-        check_frontend_status();
+        // FRONT WEBSITE TURNED OFF BY ADMIN (lesson files stay available to logged-in users)
+        check_frontend_status([], ['index']);
 
         $course_id = $this->input->get('course_id');
         $lesson_id = $this->input->get('lesson_id');

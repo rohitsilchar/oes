@@ -1925,6 +1925,16 @@ class Admin extends CI_Controller
         $this->user_model->process_licence_ocr_request();
     }
 
+    // Licence document a pharmacist uploaded through the profile OCR scanner
+    public function licence_document($user_id = "")
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+        check_permission('student');
+        $this->user_model->output_licence_document($user_id);
+    }
+
     private function parse_date_parts_to_ymd($d, $m, $y)
     {
         $months = [
@@ -2152,6 +2162,9 @@ class Admin extends CI_Controller
             $nestedData['email']              = $email;
             $nestedData['phone']              = !empty($student['phone']) ? html_escape($student['phone']) : '-';
             $nestedData['licence_no']         = !empty($student['licence_no']) ? html_escape($student['licence_no']) : '-';
+            if (!empty($student['licence_document'])) {
+                $nestedData['licence_no'] .= ' <a href="' . site_url('admin/licence_document/' . $student['id']) . '" target="_blank" title="' . get_phrase('view_licence_document') . '"><i class="mdi mdi-file-document-outline"></i></a>';
+            }
             $nestedData['licence_start_date'] = !empty($student['licence_start_date']) ? html_escape($student['licence_start_date']) : '-';
             $nestedData['licence_end_date']   = !empty($student['licence_end_date']) ? html_escape($student['licence_end_date']) : '-';
             $nestedData['enrolled_courses']   = $enrolled_courses_title;

@@ -179,21 +179,21 @@
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text"><i class="fas fa-certificate text-primary"></i></span>
-                                                    <input type="text" class="form-control bg-white-2 text-14px" name="licence_no" id="licence_no" placeholder="<?php echo site_phrase('licence_no'); ?>" value="<?php echo htmlspecialchars($user_details['licence_no'] ?? ''); ?>">
+                                                    <input type="text" class="form-control bg-light text-14px" id="licence_no" placeholder="<?php echo site_phrase('scan_your_licence_document'); ?>" value="<?php echo htmlspecialchars($user_details['licence_no'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
                                             <div class="col-md-6 mt-3">
                                                 <label class="text-dark fw-600" for="licence_start_date"><?php echo site_phrase('licence_start_date'); ?></label>
                                                 <div class="input-group">
                                                     <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                                                    <input type="date" class="form-control bg-white-2 text-14px" name="licence_start_date" id="licence_start_date" value="<?php echo htmlspecialchars($user_details['licence_start_date'] ?? ''); ?>">
+                                                    <input type="date" class="form-control bg-light text-14px" id="licence_start_date" value="<?php echo htmlspecialchars($user_details['licence_start_date'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
                                             <div class="col-md-6 mt-3">
                                                 <label class="text-dark fw-600" for="licence_end_date"><?php echo site_phrase('licence_end_date'); ?></label>
                                                 <div class="input-group">
                                                     <span class="input-group-text"><i class="fas fa-calendar-check"></i></span>
-                                                    <input type="date" class="form-control bg-white-2 text-14px" name="licence_end_date" id="licence_end_date" value="<?php echo htmlspecialchars($user_details['licence_end_date'] ?? ''); ?>">
+                                                    <input type="date" class="form-control bg-light text-14px" id="licence_end_date" value="<?php echo htmlspecialchars($user_details['licence_end_date'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
 
@@ -290,6 +290,13 @@
                                                     <?php if(!empty($user_details['licence_start_date'])): ?> | <?php echo site_phrase('start_date'); ?>: <?php echo htmlspecialchars($user_details['licence_start_date']); ?><?php endif; ?>
                                                     <?php if(!empty($user_details['licence_end_date'])): ?> | <?php echo site_phrase('end_date'); ?>: <?php echo htmlspecialchars($user_details['licence_end_date']); ?><?php endif; ?>
                                                 </span>
+                                                <?php if(!empty($user_details['licence_document'])): ?>
+                                                    <div class="mt-2">
+                                                        <a href="<?php echo site_url('home/licence_document'); ?>" target="_blank" class="btn btn-sm btn-outline-success font-12 py-1 px-3">
+                                                            <i class="fas fa-file-alt me-1"></i> <?php echo site_phrase('view_uploaded_licence_document'); ?>
+                                                        </a>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                         <span class="badge bg-success-subtle text-success border border-success px-3 py-2 font-12 d-none d-md-inline">
@@ -430,7 +437,7 @@
                                         <h5 class="fw-bold text-dark mb-0 font-16">
                                             <i class="fas fa-edit me-2 text-primary"></i><?php echo site_phrase('review_and_save_licence_details'); ?>
                                         </h5>
-                                        <small class="text-muted"><?php echo site_phrase('verify_details_before_saving'); ?></small>
+                                        <small class="text-muted"><?php echo site_phrase('details_are_filled_automatically_from_your_scanned_licence_document'); ?></small>
                                     </div>
 
                                     <form action="<?php echo site_url('home/update_profile/update_licence'); ?>" method="post" id="form_save_licence_ocr">
@@ -441,7 +448,7 @@
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text bg-light"><i class="fas fa-certificate text-primary"></i></span>
-                                                    <input type="text" class="form-control text-14px font-monospace fw-bold" name="licence_no" id="ocr_licence_no" placeholder="<?php echo site_phrase('enter_or_scan_licence_number'); ?>" value="<?php echo htmlspecialchars($user_details['licence_no'] ?? ''); ?>" required>
+                                                    <input type="text" class="form-control bg-light text-14px font-monospace fw-bold" name="licence_no" id="ocr_licence_no" placeholder="<?php echo site_phrase('scan_your_licence_document'); ?>" value="<?php echo htmlspecialchars($user_details['licence_no'] ?? ''); ?>" readonly required>
                                                 </div>
                                                 <small class="text-muted font-11"><?php echo site_phrase('eg_KA98902_RLF21DL2024002287'); ?></small>
                                             </div>
@@ -452,7 +459,7 @@
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text bg-light"><i class="fas fa-calendar-alt text-secondary"></i></span>
-                                                    <input type="date" class="form-control text-14px" name="licence_start_date" id="ocr_licence_start_date" value="<?php echo htmlspecialchars($user_details['licence_start_date'] ?? ''); ?>">
+                                                    <input type="date" class="form-control bg-light text-14px" id="ocr_licence_start_date" value="<?php echo htmlspecialchars($user_details['licence_start_date'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
 
@@ -462,7 +469,7 @@
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text bg-light"><i class="fas fa-calendar-check text-secondary"></i></span>
-                                                    <input type="date" class="form-control text-14px" name="licence_end_date" id="ocr_licence_end_date" value="<?php echo htmlspecialchars($user_details['licence_end_date'] ?? ''); ?>">
+                                                    <input type="date" class="form-control bg-light text-14px" id="ocr_licence_end_date" value="<?php echo htmlspecialchars($user_details['licence_end_date'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
 
@@ -472,7 +479,7 @@
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text bg-light"><i class="fas fa-user text-secondary"></i></span>
-                                                    <input type="text" class="form-control text-14px" name="first_name" id="ocr_first_name" value="<?php echo htmlspecialchars($user_details['first_name'] ?? ''); ?>">
+                                                    <input type="text" class="form-control bg-light text-14px" id="ocr_first_name" value="<?php echo htmlspecialchars($user_details['first_name'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
 
@@ -482,12 +489,12 @@
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text bg-light"><i class="fas fa-user text-secondary"></i></span>
-                                                    <input type="text" class="form-control text-14px" name="last_name" id="ocr_last_name" value="<?php echo htmlspecialchars($user_details['last_name'] ?? ''); ?>">
+                                                    <input type="text" class="form-control bg-light text-14px" id="ocr_last_name" value="<?php echo htmlspecialchars($user_details['last_name'] ?? ''); ?>" readonly>
                                                 </div>
                                             </div>
 
                                             <div class="col-12 pt-3">
-                                                <button type="submit" class="btn btn-primary px-5 py-2 font-15 fw-600 shadow-sm" id="btn_submit_licence_ocr">
+                                                <button type="submit" class="btn btn-primary px-5 py-2 font-15 fw-600 shadow-sm" id="btn_submit_licence_ocr" disabled>
                                                     <i class="fas fa-check-circle me-2"></i> <?php echo site_phrase('save_and_verify_licence'); ?>
                                                 </button>
                                                 <button type="button" class="btn btn-light px-4 py-2 font-14 ms-2" onclick="$('#profile-info-tab').tab('show');">
@@ -735,14 +742,6 @@ $(document).ready(function() {
                     updateProgress(100, "<?php echo get_phrase('complete'); ?>!");
                     displayOcrResults(response);
                 } else {
-                    if (supplementaryText) {
-                        var clientData = parseLicenceTextInClient(supplementaryText);
-                        if (clientData && (clientData.licence_no || clientData.member_name || clientData.licence_start_date || clientData.licence_end_date)) {
-                            updateProgress(100, "<?php echo get_phrase('complete'); ?>!");
-                            displayOcrResults(clientData);
-                            return;
-                        }
-                    }
                     showOcrError(response && response.message ? response.message : "<?php echo get_phrase('no_drug_licence_numbers_found'); ?>");
                 }
             },
@@ -757,14 +756,6 @@ $(document).ready(function() {
                             return;
                         }
                     } catch (e) {}
-                }
-                if (supplementaryText) {
-                    var clientData = parseLicenceTextInClient(supplementaryText);
-                    if (clientData && (clientData.licence_no || clientData.member_name || clientData.licence_start_date || clientData.licence_end_date)) {
-                        updateProgress(100, "<?php echo get_phrase('complete'); ?>!");
-                        displayOcrResults(clientData);
-                        return;
-                    }
                 }
                 showOcrError("Google Vision OCR server request failed: " + (error || status));
             }
@@ -1463,7 +1454,8 @@ $(document).ready(function() {
 
     function showOcrError(msg) {
         $progressBox.hide();
-        $('#ocr_error_message').html(msg + " <br><small class='text-muted'><?php echo get_phrase('you_can_enter_the_licence_number_manually_in_the_review_form_below'); ?>.</small>");
+        $('#btn_submit_licence_ocr').prop('disabled', true);
+        $('#ocr_error_message').html(msg + " <br><small class='text-muted'><?php echo get_phrase('please_upload_a_clear_copy_of_your_licence_document'); ?>.</small>");
         $errorBox.slideDown();
     }
 
@@ -1474,6 +1466,12 @@ $(document).ready(function() {
 
         var primary = data.licence_no || (data.all_candidates && data.all_candidates[0]) || '';
         $primaryLicenceDisplay.text(primary || "<?php echo get_phrase('details_detected'); ?>");
+        // Saving is only possible once the server has detected a licence number and stored the document
+        $('#btn_submit_licence_ocr').prop('disabled', !primary || data.document_saved === false);
+        if (data.document_saved === false && data.document_message) {
+            $('#ocr_error_message').text(data.document_message);
+            $errorBox.show();
+        }
 
         // 1. Auto-populate Licence No in OCR Form and Main Form
         if (primary) {

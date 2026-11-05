@@ -309,9 +309,11 @@ if (!function_exists('get_settings')) {
 }
 
 // Stops the request with the "website unavailable" page when the admin has turned
-// the front website off. Methods in $allowed_methods stay reachable (login, admin ajax).
+// the front website off. Methods in $allowed_methods stay reachable for everyone
+// (login, admin ajax, mobile app views); methods in $user_methods stay reachable
+// for logged-in users (their courses, lessons, profile).
 if (!function_exists('check_frontend_status')) {
-    function check_frontend_status($allowed_methods = array())
+    function check_frontend_status($allowed_methods = array(), $user_methods = array())
     {
         if (get_settings('frontend_status') != 'disable') {
             return;
@@ -320,6 +322,9 @@ if (!function_exists('check_frontend_status')) {
         $CI = &get_instance();
         $current_method = strtolower($CI->router->fetch_method());
         if (in_array($current_method, array_map('strtolower', $allowed_methods))) {
+            return;
+        }
+        if ($CI->session->userdata('user_login') == 1 && in_array($current_method, array_map('strtolower', $user_methods))) {
             return;
         }
 

@@ -108,7 +108,7 @@
                                 <option value="enable" <?php if(get_settings('frontend_status') != "disable") echo 'selected'; ?>><?php echo get_phrase('enable'); ?></option>
                                 <option value="disable" <?php if(get_settings('frontend_status') == "disable") echo 'selected'; ?>><?php echo get_phrase('disable'); ?></option>
                             </select>
-                            <small><?php echo get_phrase('when_disabled_no_one_can_visit_the_front_website_and_only_admins_can_log_in'); ?></small>
+                            <small><?php echo get_phrase('when_disabled_public_pages_are_hidden_but_logged_in_users_can_still_access_their_courses_and_profile'); ?></small>
                         </div>
 
                         <div class="form-group">

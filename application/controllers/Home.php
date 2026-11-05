@@ -22,8 +22,25 @@ class Home extends CI_Controller
         // CHECK CUSTOM SESSION DATA
         $this->user_model->check_session_data();
 
-        // FRONT WEBSITE TURNED OFF BY ADMIN (ajax endpoints used by the admin panel stay open)
-        check_frontend_status(['set_flashdata_for_js', 'site_language', 'sendEmailToAssignedAddresses']);
+        // FRONT WEBSITE TURNED OFF BY ADMIN
+        if (get_settings('frontend_status') == 'disable' && $this->session->userdata('user_login') == 1 && in_array(strtolower($this->router->fetch_method()), ['index', 'home'])) {
+            // Logged-in users land on their own area instead of the public home page
+            redirect(site_url(is_pharmacist_licence_missing() ? 'home/profile/user_profile' : 'home/my_courses'), 'refresh');
+        }
+        check_frontend_status(
+            // Always open: admin panel ajax and the mobile app web views / payments
+            ['set_flashdata_for_js', 'site_language', 'sendEmailToAssignedAddresses',
+             'course_purchase', 'get_enrolled_to_free_course_mobile', 'payment_gateway_mobile', 'payment_success_mobile',
+             'paypal_checkout', 'paypal_payment', 'stripe_checkout', 'stripe_payment', 'razorpay_checkout', 'razorpay_payment',
+             'closed_back_to_mobile_ber', 'quiz_mobile_web_view', 'live_class_mobile_web_view', 'lesson_mobile_web_view_get', 'offline_video_for_mobile_app'],
+            // Open for logged-in users: their courses, lessons, quizzes and account pages
+            ['my_courses', 'my_courses_by_category', 'my_courses_by_search_string', 'my_messages', 'my_notifications', 'get_my_notification',
+             'my_wishlist', 'get_my_wishlists_by_search_string', 'reload_my_wishlists', 'purchase_history', 'invoice',
+             'profile', 'update_profile', 'extract_licence_ocr', 'licence_document', 'account_disable', 'instructor_following', 'badges', 'dashboard',
+             'lesson', 'pdf_canvas', 'go_course_playing_page', 'play_lesson', 'course_playing_page_layout', 'check_course_progress',
+             'update_watch_history_with_duration', 'update_watch_history_manually', 'submit_quiz', 'save_quiz_result', 'view_answer_sheet',
+             'rate_course', 'remove_rating', 'download', 'switch_language', 'dark_and_light_mode', 'isLoggedIn']
+        );
 
         //CHECKING COURSE ACCESSIBILITY STATUS
         if (get_settings('course_accessibility') != 'publicly' && !$this->session->userdata('user_id')) {
@@ -534,11 +551,17 @@ class Home extends CI_Controller
     public function update_profile($param1 = "", $is_profile_page = false)
     {
         if ($param1 == 'update_basics') {
+            // edit_user() is shared with the admin panel; users must not set these themselves
+            // (licence comes only from the OCR scan, the rest is managed by the admin)
+            foreach (['licence_no', 'licence_start_date', 'licence_end_date', 'mac_address', 'store_id', 'email', 'password', 'gateways', 'state', 'region', 'designation', 'pharmacy_name'] as $protected_field) {
+                unset($_POST[$protected_field]);
+            }
             $this->user_model->edit_user($this->session->userdata('user_id'));
             redirect(site_url('home/profile/user_profile'), 'refresh');
         } elseif ($param1 == 'update_licence') {
-            $this->user_model->update_pharmacist_licence($this->session->userdata('user_id'));
-            $this->session->set_flashdata('flash_message', site_phrase('licence_details_updated_successfully'));
+            if ($this->user_model->update_pharmacist_licence($this->session->userdata('user_id'))) {
+                $this->session->set_flashdata('flash_message', site_phrase('licence_details_updated_successfully'));
+            }
             redirect(site_url('home/profile/user_profile?tab=licence_ocr'), 'refresh');
         } elseif ($param1 == "update_credentials") {
             $this->user_model->update_account_settings($this->session->userdata('user_id'));
@@ -568,7 +591,16 @@ class Home extends CI_Controller
             return;
         }
 
-        $this->user_model->process_licence_ocr_request();
+        $this->user_model->process_licence_ocr_request(true);
+    }
+
+    // The logged-in pharmacist's own uploaded licence document
+    public function licence_document()
+    {
+        if ($this->session->userdata('user_login') != 1) {
+            redirect(site_url('login'), 'refresh');
+        }
+        $this->user_model->output_licence_document($this->session->userdata('user_id'));
     }
 
     public function handleWishList($return_number = "")

@@ -38,6 +38,7 @@ class User_model extends CI_Model
     {
         try {
             $this->check_licence_end_date_column();
+            $this->check_licence_document_column();
 
             // 1. Sync store assignment from store_users
             if ($this->db->table_exists('store_users')) {
@@ -1330,13 +1331,6 @@ class User_model extends CI_Model
 
         if ($query->num_rows() > 0) {
             $row = $query->row();
-
-            // Only admins can sign in while the front website is turned off
-            if ($row->role_id != 1 && get_settings('frontend_status') == 'disable') {
-                $this->session->set_flashdata('error_message', get_phrase('front_website_is_disabled_by_admin'));
-                redirect(site_url('login'), 'refresh');
-            }
-
             //604800s == 7 days
             $this->session->set_userdata('custom_session_limit', (time()+864000));
             $this->session->set_userdata('user_id', $row->id);
@@ -1554,26 +1548,265 @@ class User_model extends CI_Model
         if (!$user_id) {
             $user_id = $this->session->userdata('user_id');
         }
-        $licence_no = trim($this->input->post('licence_no') ?? '');
-        $data['licence_no'] = !empty($licence_no) ? html_escape($licence_no) : null;
 
-        if ($this->input->post('licence_start_date') !== null) {
-            $data['licence_start_date'] = html_escape($this->input->post('licence_start_date'));
+        // Only values detected by the server side OCR scan (see process_licence_ocr_request) are saved.
+        // The posted licence number just picks one of the detected candidates.
+        $ocr = $this->session->userdata('licence_ocr_result');
+        if (empty($ocr) || empty($ocr['licence_nos']) || time() - $ocr['scanned_at'] > 1800) {
+            $this->session->set_flashdata('error_message', site_phrase('please_scan_your_licence_document_before_saving'));
+            return false;
         }
-        if ($this->input->post('licence_end_date') !== null) {
-            $data['licence_end_date'] = html_escape($this->input->post('licence_end_date'));
+
+        $licence_no = trim($this->input->post('licence_no') ?? '');
+        if (!in_array($licence_no, $ocr['licence_nos'], true)) {
+            $this->session->set_flashdata('error_message', site_phrase('licence_number_must_match_the_scanned_document'));
+            return false;
         }
-        if (!empty($this->input->post('first_name'))) {
-            $data['first_name'] = html_escape($this->input->post('first_name'));
+
+        // The scanned document is kept with the licence so the user and admins can see it
+        $this->check_licence_document_column();
+        $document = $user_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . pathinfo((string) ($ocr['document'] ?? ''), PATHINFO_EXTENSION);
+        if (empty($ocr['document']) || !$this->move_licence_document($ocr['document'], $document)) {
+            $this->session->set_flashdata('error_message', site_phrase('please_scan_your_licence_document_again'));
+            return false;
         }
-        if ($this->input->post('last_name') !== null) {
-            $data['last_name'] = html_escape($this->input->post('last_name'));
+        $old_document = $this->db->get_where('users', ['id' => $user_id])->row('licence_document');
+
+        $data['licence_no'] = html_escape($licence_no);
+        $data['licence_start_date'] = !empty($ocr['licence_start_date']) ? html_escape($ocr['licence_start_date']) : null;
+        $data['licence_end_date'] = !empty($ocr['licence_end_date']) ? html_escape($ocr['licence_end_date']) : null;
+        if (!empty($ocr['first_name'])) {
+            $data['first_name'] = html_escape($ocr['first_name']);
+            $data['last_name'] = html_escape($ocr['last_name']);
         }
+        $data['licence_document'] = $document;
         $data['last_modified'] = strtotime(date("Y-m-d H:i:s"));
 
         $this->db->where('id', $user_id);
         $this->db->update('users', $data);
+        $this->session->unset_userdata('licence_ocr_result');
+
+        if (!empty($old_document) && $old_document != $document) {
+            $this->delete_licence_document($old_document);
+        }
         return true;
+    }
+
+    public function check_licence_document_column()
+    {
+        if (!$this->db->field_exists('licence_document', 'users')) {
+            $this->load->dbforge();
+            $this->dbforge->add_column('users', [
+                'licence_document' => [
+                    'type' => 'VARCHAR',
+                    'constraint' => '255',
+                    'null' => TRUE,
+                    'default' => NULL,
+                    'after' => 'licence_end_date'
+                ]
+            ]);
+        }
+    }
+
+    /*
+     * Licence document storage. Documents are personal records: they are stored as private
+     * objects in the Amazon S3 bucket from the S3 settings and only served through
+     * output_licence_document(). Without S3 settings (local development) a local folder
+     * that denies web access is used instead.
+     */
+    private function licence_document_s3()
+    {
+        static $s3 = null;
+        if ($s3 === null) {
+            $s3 = false;
+            $access_key = get_settings('amazon_s3_access_key');
+            $secret_key = get_settings('amazon_s3_secret_key');
+            $bucket = get_settings('amazon_s3_bucket_name');
+            $region = get_settings('amazon_s3_region_name');
+            if ($access_key && $secret_key && $bucket && $region) {
+                require_once APPPATH . 'libraries/s3-vendor/autoloader.php';
+                $s3 = [
+                    'client' => new Aws\S3\S3Client([
+                        'region'  => $region,
+                        'version' => 'latest',
+                        'credentials' => ['key' => $access_key, 'secret' => $secret_key]
+                    ]),
+                    'bucket' => $bucket
+                ];
+            }
+        }
+        return $s3;
+    }
+
+    private function licence_document_key($name)
+    {
+        return 'licence_documents/' . basename($name);
+    }
+
+    private function licence_document_dir()
+    {
+        static $dir = null;
+        if ($dir === null) {
+            $dir = FCPATH . 'uploads/licence_documents/';
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir) && is_writable($dir)) {
+                if (!is_file($dir . '.htaccess')) {
+                    @file_put_contents($dir . '.htaccess', "<IfModule authz_core_module>\n    Require all denied\n</IfModule>\n<IfModule !authz_core_module>\n    Deny from all\n</IfModule>\n");
+                }
+                if (!is_file($dir . 'index.html')) {
+                    @file_put_contents($dir . 'index.html', '');
+                }
+            } else {
+                // uploads/ not writable by the web server (e.g. a local setup): use a private temp folder
+                $dir = rtrim(sys_get_temp_dir(), '/') . '/oes_licence_documents/';
+                if (!is_dir($dir)) {
+                    @mkdir($dir, 0700, true);
+                }
+            }
+        }
+        return $dir;
+    }
+
+    private function put_licence_document($source_path, $name, $content_type)
+    {
+        if ($s3 = $this->licence_document_s3()) {
+            try {
+                $s3['client']->putObject([
+                    'Bucket'               => $s3['bucket'],
+                    'Key'                  => $this->licence_document_key($name),
+                    'SourceFile'           => $source_path,
+                    'ContentType'          => $content_type,
+                    'ServerSideEncryption' => 'AES256'
+                ]);
+                return true;
+            } catch (Exception $e) {
+                log_message('error', 'Licence document upload to S3 failed: ' . $e->getMessage());
+                return false;
+            }
+        }
+        return @copy($source_path, $this->licence_document_dir() . basename($name));
+    }
+
+    private function move_licence_document($from, $to)
+    {
+        if ($s3 = $this->licence_document_s3()) {
+            try {
+                $s3['client']->copyObject([
+                    'Bucket'               => $s3['bucket'],
+                    'Key'                  => $this->licence_document_key($to),
+                    'CopySource'           => $s3['bucket'] . '/' . $this->licence_document_key($from),
+                    'ServerSideEncryption' => 'AES256'
+                ]);
+                $s3['client']->deleteObject(['Bucket' => $s3['bucket'], 'Key' => $this->licence_document_key($from)]);
+                return true;
+            } catch (Exception $e) {
+                log_message('error', 'Licence document move on S3 failed: ' . $e->getMessage());
+                return false;
+            }
+        }
+        $dir = $this->licence_document_dir();
+        return is_file($dir . basename($from)) && rename($dir . basename($from), $dir . basename($to));
+    }
+
+    private function delete_licence_document($name)
+    {
+        if ($s3 = $this->licence_document_s3()) {
+            try {
+                $s3['client']->deleteObject(['Bucket' => $s3['bucket'], 'Key' => $this->licence_document_key($name)]);
+            } catch (Exception $e) {
+                log_message('error', 'Licence document delete on S3 failed: ' . $e->getMessage());
+            }
+            return;
+        }
+        $path = $this->licence_document_dir() . basename($name);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    // Returns the document contents, or null when it does not exist
+    private function read_licence_document($name)
+    {
+        if ($s3 = $this->licence_document_s3()) {
+            try {
+                $result = $s3['client']->getObject(['Bucket' => $s3['bucket'], 'Key' => $this->licence_document_key($name)]);
+                return (string) $result['Body'];
+            } catch (Exception $e) {
+                log_message('error', 'Licence document read from S3 failed: ' . $e->getMessage());
+                return null;
+            }
+        }
+        $path = $this->licence_document_dir() . basename($name);
+        return is_file($path) ? file_get_contents($path) : null;
+    }
+
+    // Drops scans that were never saved
+    private function delete_stale_pending_licence_documents()
+    {
+        $cutoff = time() - 86400;
+        if ($s3 = $this->licence_document_s3()) {
+            try {
+                $list = $s3['client']->listObjectsV2(['Bucket' => $s3['bucket'], 'Prefix' => $this->licence_document_key('pending_')]);
+                foreach ($list['Contents'] ?? [] as $object) {
+                    if ($object['LastModified']->getTimestamp() < $cutoff) {
+                        $s3['client']->deleteObject(['Bucket' => $s3['bucket'], 'Key' => $object['Key']]);
+                    }
+                }
+            } catch (Exception $e) {
+                log_message('error', 'Licence document cleanup on S3 failed: ' . $e->getMessage());
+            }
+            return;
+        }
+        foreach (glob($this->licence_document_dir() . 'pending_*') ?: [] as $stale) {
+            if (filemtime($stale) < $cutoff) {
+                @unlink($stale);
+            }
+        }
+    }
+
+    private function licence_document_types()
+    {
+        return ['pdf' => 'application/pdf', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'bmp' => 'image/bmp', 'tif' => 'image/tiff', 'tiff' => 'image/tiff', 'webp' => 'image/webp'];
+    }
+
+    // Stores a scanned document until the user saves the licence.
+    // Returns the stored file name, or '' when the file is not an accepted document.
+    private function store_pending_licence_document($source_path, $original_name)
+    {
+        $types = $this->licence_document_types();
+        $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+        if (!isset($types[$ext]) || !is_file($source_path) || filesize($source_path) > 10 * 1024 * 1024) {
+            return '';
+        }
+        $mime = function_exists('finfo_open') ? finfo_file(finfo_open(FILEINFO_MIME_TYPE), $source_path) : $types[$ext];
+        if ($mime !== 'application/pdf' && strpos($mime, 'image/') !== 0) {
+            return '';
+        }
+
+        $this->delete_stale_pending_licence_documents();
+        $file = 'pending_' . $this->session->userdata('user_id') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+        return $this->put_licence_document($source_path, $file, $types[$ext]) ? $file : '';
+    }
+
+    public function output_licence_document($user_id)
+    {
+        $document = $this->db->field_exists('licence_document', 'users') ? basename((string) $this->db->get_where('users', ['id' => $user_id])->row('licence_document')) : '';
+        $types = $this->licence_document_types();
+        $ext = strtolower(pathinfo($document, PATHINFO_EXTENSION));
+        $contents = (!empty($document) && isset($types[$ext])) ? $this->read_licence_document($document) : null;
+        if ($contents === null) {
+            show_404();
+        }
+
+        header('Content-Type: ' . $types[$ext]);
+        header('Content-Length: ' . strlen($contents));
+        header('Content-Disposition: inline; filename="licence_document.' . $ext . '"');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-store');
+        echo $contents;
+        exit;
     }
 
     public function parse_date_parts_to_ymd($d, $m, $y)
@@ -2444,15 +2677,22 @@ class User_model extends CI_Model
         return ['status' => true, 'text' => $extractedText, 'provider' => 'google_vision'];
     }
 
-    public function process_licence_ocr_request()
+    // $verified_mode: pharmacist self-service. Only text read from the uploaded file is
+    // used (client supplied text is ignored) and the result is kept in the session so
+    // update_pharmacist_licence() can save exactly what the OCR detected.
+    public function process_licence_ocr_request($verified_mode = false)
     {
         $raw_text = '';
         $ocr_provider = 'none';
+        $scanned_file = null; // the document the text was read from
 
         // 1. Process uploaded file using Google Cloud Vision OCR and/or PDF Digital Layer
         $file_key = isset($_FILES['licence_doc']) ? 'licence_doc' : (isset($_FILES['document']) ? 'document' : null);
         if ($file_key && !empty($_FILES[$file_key]['name']) && !empty($_FILES[$file_key]['tmp_name'])) {
             $file = $_FILES[$file_key];
+            if (is_uploaded_file($file['tmp_name'])) {
+                $scanned_file = ['path' => $file['tmp_name'], 'name' => $file['name']];
+            }
             $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             $pdf_digital_text = '';
             if ($ext === 'pdf' && file_exists($file['tmp_name'])) {
@@ -2485,7 +2725,7 @@ class User_model extends CI_Model
             }
 
             $ocr_res = $this->call_google_vision_ocr($tmpFile, $fileName);
-            @unlink($tmpFile);
+            $scanned_file = ['path' => $tmpFile, 'name' => $fileName, 'temp' => true];
             if (!empty($ocr_res['status']) && !empty($ocr_res['text'])) {
                 $raw_text = !empty($pdf_digital_text) ? ($pdf_digital_text . "\n\n" . $ocr_res['text']) : $ocr_res['text'];
                 $ocr_provider = 'google_vision';
@@ -2496,7 +2736,9 @@ class User_model extends CI_Model
         }
 
         // 3. Merge or fallback to client-provided text layer (e.g. from pdf.js)
-        if (!empty($this->input->post('client_extracted_text'))) {
+        if ($verified_mode) {
+            // Client text can be typed by hand, so it is never trusted for self-service
+        } elseif (!empty($this->input->post('client_extracted_text'))) {
             $c_text = trim($this->input->post('client_extracted_text'));
             if (!empty($c_text)) {
                 $raw_text = !empty($raw_text) ? ($c_text . "\n\n" . $raw_text) : $c_text;
@@ -2523,8 +2765,19 @@ class User_model extends CI_Model
             $first_name = !empty($name_parts) ? $name_parts[0] : '';
             $last_name = count($name_parts) > 1 ? implode(' ', array_slice($name_parts, 1)) : '';
         }
+        // Same clean-up the profile page applies, so the saved name is the one shown
+        if (empty($last_name) && strpos(trim($first_name), ' ') !== false) {
+            $name_parts = preg_split('/\s+/', trim($first_name));
+            $first_name = $name_parts[0];
+            $last_name = implode(' ', array_slice($name_parts, 1));
+        }
+        if (in_array(strtolower($first_name), ['mr', 'mrs', 'ms', 'miss', 'shri', 'sri', 'smt', 'dr', 'name'])) {
+            $name_parts = preg_split('/\s+/', trim($last_name), -1, PREG_SPLIT_NO_EMPTY);
+            $first_name = !empty($name_parts) ? $name_parts[0] : '';
+            $last_name = implode(' ', array_slice($name_parts, 1));
+        }
 
-        $has_any = !empty($candidates) || !empty($extracted['member_name']) || !empty($extracted['start_date']) || !empty($extracted['end_date']);
+        $has_any =!empty($candidates) || !empty($extracted['member_name']) || !empty($extracted['start_date']) || !empty($extracted['end_date']);
 
         $err_msg = !empty($ocr_res['message']) ? $ocr_res['message'] : get_phrase('no_drug_licence_numbers_found_in_document');
 
@@ -2555,6 +2808,38 @@ class User_model extends CI_Model
                 $item = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $item);
             }
         });
+
+        if ($verified_mode) {
+            $previous = $this->session->userdata('licence_ocr_result');
+            if (!empty($previous['document'])) {
+                $this->delete_licence_document($previous['document']);
+            }
+            $this->session->unset_userdata('licence_ocr_result');
+
+            $licence_nos = array_values(array_filter(array_unique(array_merge([$response_data['primary_licence']], $response_data['licence_nos']))));
+            if (!empty($licence_nos)) {
+                $document = $scanned_file ? $this->store_pending_licence_document($scanned_file['path'], $scanned_file['name']) : '';
+                if ($document) {
+                    $this->session->set_userdata('licence_ocr_result', [
+                        'licence_nos'        => $licence_nos,
+                        'licence_start_date' => $response_data['licence_start_date'],
+                        'licence_end_date'   => $response_data['licence_end_date'],
+                        'first_name'         => $response_data['first_name'],
+                        'last_name'          => $response_data['last_name'],
+                        'document'           => $document,
+                        'scanned_at'         => time()
+                    ]);
+                } else {
+                    // Still show what was read, but the licence cannot be saved without its document
+                    log_message('error', 'Licence document could not be stored for user ' . $this->session->userdata('user_id'));
+                    $response_data['document_saved'] = false;
+                    $response_data['document_message'] = get_phrase('licence_details_were_read_but_the_document_could_not_be_stored_please_upload_a_pdf_or_image_up_to_10mb_or_contact_the_admin');
+                }
+            }
+        }
+        if (!empty($scanned_file['temp'])) {
+            @unlink($scanned_file['path']);
+        }
 
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
