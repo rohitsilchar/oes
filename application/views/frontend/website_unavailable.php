@@ -74,7 +74,7 @@ $is_user = $this->session->userdata('user_login') == 1;
         <?php elseif ($is_user): ?>
             <a class="btn" href="<?php echo site_url('home/my_courses'); ?>"><?php echo site_phrase('go_to_my_courses'); ?></a>
         <?php else: ?>
-            <a class="btn" href="<?php echo site_url('login'); ?>"><?php echo site_phrase('admin_login'); ?></a>
+            <a class="btn" href="<?php echo site_url('login'); ?>"><?php echo site_phrase('login'); ?></a>
         <?php endif; ?>
 
         <div class="site"><?php echo html_escape($system_name); ?></div>
