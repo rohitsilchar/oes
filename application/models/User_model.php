@@ -348,8 +348,12 @@ class User_model extends CI_Model
             $validity = $this->check_duplication('on_update', $email, $user_id);
         }
         if ($validity) {
-            $data['first_name'] = html_escape($this->input->post('first_name'));
-            $data['last_name'] = html_escape($this->input->post('last_name'));
+            if (isset($_POST['first_name'])) {
+                $data['first_name'] = html_escape($this->input->post('first_name'));
+            }
+            if (isset($_POST['last_name'])) {
+                $data['last_name'] = html_escape($this->input->post('last_name'));
+            }
 
             if (isset($_POST['email'])) {
                 $data['email'] = html_escape($this->input->post('email'));

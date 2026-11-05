@@ -58,17 +58,27 @@
                                 <div class="row">
                                     <div class="col-12">
                                         <?php include 'licence_ocr_scanner.php'; ?>
+                                        <?php $name_locked = !empty($user_data['licence_document']); ?>
 
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="first_name"><?php echo get_phrase('first_name'); ?> <span class="required">*</span> </label>
                                             <div class="col-md-9">
-                                                <input type="text" class="form-control" id="first_name" name="first_name" value="<?php echo $user_data['first_name']; ?>" required>
+                                                <?php if ($name_locked): ?>
+                                                    <input type="text" class="form-control" id="first_name" value="<?php echo $user_data['first_name']; ?>" readonly data-licence-locked>
+                                                <?php else: ?>
+                                                    <input type="text" class="form-control" id="first_name" name="first_name" value="<?php echo $user_data['first_name']; ?>" required>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                         <div class="form-group row mb-3">
                                             <label class="col-md-3 col-form-label" for="last_name"><?php echo get_phrase('last_name'); ?></label>
                                             <div class="col-md-9">
-                                                <input type="text" class="form-control" id="last_name" name="last_name" value="<?php echo $user_data['last_name']; ?>">
+                                                <?php if ($name_locked): ?>
+                                                    <input type="text" class="form-control" id="last_name" value="<?php echo $user_data['last_name']; ?>" readonly data-licence-locked>
+                                                    <small class="form-text text-muted"><?php echo get_phrase('name_is_taken_from_the_uploaded_licence_document_and_cannot_be_edited'); ?></small>
+                                                <?php else: ?>
+                                                    <input type="text" class="form-control" id="last_name" name="last_name" value="<?php echo $user_data['last_name']; ?>">
+                                                <?php endif; ?>
                                             </div>
                                         </div>
 

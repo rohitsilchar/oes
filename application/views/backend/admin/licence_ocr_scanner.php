@@ -221,6 +221,8 @@ $(document).ready(function() {
         $resultsBox.hide();
         $errorBox.hide();
         currentExtractedData = null;
+        // No document any more: let the admin type the name again
+        $('#first_name, #last_name').not('[data-licence-locked]').prop('readonly', false);
     }
 
     function updateProgress(percent, statusText) {
@@ -1108,13 +1110,15 @@ $(document).ready(function() {
                     fName = '';
                 }
             }
-            if ($('#first_name').length) {
-                $('#first_name').val(fName).addClass('is-valid border-success')
+            if ($('#first_name').length && !$('#first_name').is('[data-licence-locked]')) {
+                // The name comes from the licence document, so it cannot be edited after a scan
+                $('#first_name').prop('readonly', fName !== '').val(fName).addClass('is-valid border-success')
                                .css({'background-color': '#e8f5e9', 'transition': 'background-color 0.4s ease'});
                 setTimeout(function() { $('#first_name').css('background-color', ''); }, 1800);
             }
-            if ($('#last_name').length) {
-                $('#last_name').val(lName).addClass('is-valid border-success')
+            if ($('#last_name').length && !$('#last_name').is('[data-licence-locked]')) {
+                // The name comes from the licence document, so it cannot be edited after a scan
+                $('#last_name').prop('readonly', fName !== '').val(lName).addClass('is-valid border-success')
                               .css({'background-color': '#e8f5e9', 'transition': 'background-color 0.4s ease'});
                 setTimeout(function() { $('#last_name').css('background-color', ''); }, 1800);
             }

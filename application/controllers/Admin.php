@@ -359,6 +359,11 @@ class Admin extends CI_Controller
             $this->user_model->add_user();
             redirect(site_url('admin/users'), 'refresh');
         } elseif ($param1 == "edit") {
+            // The name comes from the uploaded licence document and cannot be changed afterwards
+            $licence_document = $this->db->get_where('users', array('id' => $param2))->row('licence_document');
+            if (!empty($licence_document)) {
+                unset($_POST['first_name'], $_POST['last_name']);
+            }
             $this->user_model->edit_user($param2);
             redirect(site_url('admin/users'), 'refresh');
         } elseif ($param1 == "delete") {
