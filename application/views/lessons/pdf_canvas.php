@@ -240,6 +240,7 @@
   <script src="<?php echo site_url('assets/global/pdf-canvas/'); ?>pdf.min.js"></script>
   <script src="<?php echo site_url('assets/global/pdf-canvas/'); ?>pdf.worker.min.js"></script>
   <?php endif; ?>
+  <script src="<?php echo base_url('assets/global/content-protection/key-guard.js?v=1'); ?>" data-always="1"></script>
 </head>
 <body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
 

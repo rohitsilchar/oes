@@ -1,4 +1,5 @@
 <!-- Script -->
+<script src="<?php echo base_url('assets/global/content-protection/key-guard.js?v=1'); ?>" data-always="1"></script>
 <script src="<?php echo site_url('assets/playing-page/') ?>js/jquery.min.js"></script>
 <script src="<?php echo site_url('assets/playing-page/') ?>js/bootstrap.bundle.min.js"></script>
 <script src="<?php echo site_url('assets/playing-page/') ?>js/script.js"></script>
