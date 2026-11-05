@@ -25,6 +25,9 @@ class User extends CI_Controller
 
         // CHECK CUSTOM SESSION DATA
         $this->user_model->check_session_data('user');
+
+        // FRONT WEBSITE TURNED OFF BY ADMIN
+        check_frontend_status();
     }
 
     function instructor_approval()

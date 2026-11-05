@@ -1330,6 +1330,13 @@ class User_model extends CI_Model
 
         if ($query->num_rows() > 0) {
             $row = $query->row();
+
+            // Only admins can sign in while the front website is turned off
+            if ($row->role_id != 1 && get_settings('frontend_status') == 'disable') {
+                $this->session->set_flashdata('error_message', get_phrase('front_website_is_disabled_by_admin'));
+                redirect(site_url('login'), 'refresh');
+            }
+
             //604800s == 7 days
             $this->session->set_userdata('custom_session_limit', (time()+864000));
             $this->session->set_userdata('user_id', $row->id);

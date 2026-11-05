@@ -263,7 +263,9 @@
         </ul>
         <div class="visit_website">
             <h4 style="color: #fff; float: left;" class="d-none d-md-inline-block"> <?php echo $this->db->get_where('settings', array('key' => 'system_name'))->row()->value; ?></h4>
-            <a href="<?php echo site_url('home'); ?>" target="" class="btn btn-outline-light ml-3 d-none d-md-inline-block"><?php echo get_phrase('visit_website'); ?></a>
+            <?php if (get_settings('frontend_status') != 'disable'): ?>
+                <a href="<?php echo site_url('home'); ?>" target="" class="btn btn-outline-light ml-3 d-none d-md-inline-block"><?php echo get_phrase('visit_website'); ?></a>
+            <?php endif; ?>
         </div>
     </div>
 </div>

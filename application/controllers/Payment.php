@@ -19,6 +19,9 @@ class Payment extends CI_Controller
         $this->output->set_header('Pragma: no-cache');
 
 
+        // FRONT WEBSITE TURNED OFF BY ADMIN
+        check_frontend_status();
+
         if (isset($_GET['i']) && !empty($_GET['i'])) {
             $this->payment_model->checkLogin($_GET['i']);
         }

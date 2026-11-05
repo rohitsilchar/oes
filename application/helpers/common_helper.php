@@ -308,6 +308,29 @@ if (!function_exists('get_settings')) {
     }
 }
 
+// Stops the request with the "website unavailable" page when the admin has turned
+// the front website off. Methods in $allowed_methods stay reachable (login, admin ajax).
+if (!function_exists('check_frontend_status')) {
+    function check_frontend_status($allowed_methods = array())
+    {
+        if (get_settings('frontend_status') != 'disable') {
+            return;
+        }
+
+        $CI = &get_instance();
+        $current_method = strtolower($CI->router->fetch_method());
+        if (in_array($current_method, array_map('strtolower', $allowed_methods))) {
+            return;
+        }
+
+        set_status_header(503);
+        header('Retry-After: 3600');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        echo $CI->load->view('frontend/website_unavailable', array(), true);
+        exit;
+    }
+}
+
 if (!function_exists('currency')) {
     function currency($price = "")
     {

@@ -20,6 +20,9 @@ class Login extends CI_Controller
 
         //Check custom session data
         $this->user_model->check_session_data();
+
+        // FRONT WEBSITE TURNED OFF BY ADMIN (keep login open so admins can still sign in)
+        check_frontend_status(['index', 'validate_login', 'new_login_confirmation', 'fb_validate_login', 'logout', 'forgot_password_request', 'forgot_password', 'change_password', 'check_recaptcha_with_ajax']);
     }
 
     public function index()
@@ -61,6 +64,12 @@ class Login extends CI_Controller
 
         if ($query->num_rows() > 0) {
             $row = $query->row();
+
+            // Only admins can sign in while the front website is turned off
+            if ($row->role_id != 1 && get_settings('frontend_status') == 'disable') {
+                $this->session->set_flashdata('error_message', get_phrase('front_website_is_disabled_by_admin'));
+                redirect(site_url('login'), 'refresh');
+            }
 
             // Verify and check client MAC address
             try {

@@ -103,6 +103,15 @@
                         </div>
 
                         <div class="form-group">
+                            <label for="frontend_status"><?php echo get_phrase('front_website'); ?></label>
+                            <select class="form-control select2" data-toggle="select2" name="frontend_status" id="frontend_status">
+                                <option value="enable" <?php if(get_settings('frontend_status') != "disable") echo 'selected'; ?>><?php echo get_phrase('enable'); ?></option>
+                                <option value="disable" <?php if(get_settings('frontend_status') == "disable") echo 'selected'; ?>><?php echo get_phrase('disable'); ?></option>
+                            </select>
+                            <small><?php echo get_phrase('when_disabled_no_one_can_visit_the_front_website_and_only_admins_can_log_in'); ?></small>
+                        </div>
+
+                        <div class="form-group">
                             <label for="allowed_device_number_of_loging"><?php echo get_phrase('number_of_authorized_devices'); ?><span class="required">*</span></label>
                             <input type="number" name = "allowed_device_number_of_loging" id = "allowed_device_number_of_loging" class="form-control" value="<?php echo get_settings('allowed_device_number_of_loging');  ?>" min="1" required>
                             <small><?php echo get_phrase('how_many_devices_do_you_want_to_allow_for_logging_in_using_a_single_account'); ?>?</small>

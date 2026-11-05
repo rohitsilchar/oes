@@ -18,6 +18,9 @@ class Sitemap extends CI_Controller {
 
         //Check custom session data
         $this->user_model->check_session_data();
+
+        // FRONT WEBSITE TURNED OFF BY ADMIN
+        check_frontend_status();
     }
 
     public function index()

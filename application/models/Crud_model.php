@@ -516,6 +516,16 @@ class Crud_model extends CI_Model
         } else {
             $this->db->insert('settings', ['key' => 'timezone', 'value' => $this->input->post('timezone')]);
         }
+
+        $frontend_status = $this->input->post('frontend_status') == 'disable' ? 'disable' : 'enable';
+        $this->db->where('key', 'frontend_status');
+        $row = $this->db->get('settings');
+        if ($row->num_rows() > 0) {
+            $this->db->where('key', 'frontend_status');
+            $this->db->update('settings', ['value' => $frontend_status]);
+        } else {
+            $this->db->insert('settings', ['key' => 'frontend_status', 'value' => $frontend_status]);
+        }
     }
 
     public function update_smtp_settings()

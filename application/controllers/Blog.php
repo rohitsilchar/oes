@@ -19,6 +19,9 @@ class Blog extends CI_Controller
 
 
         $this->user_model->check_session_data();       
+
+        // FRONT WEBSITE TURNED OFF BY ADMIN
+        check_frontend_status();
     }
 
     function index(){

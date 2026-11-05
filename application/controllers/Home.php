@@ -22,6 +22,8 @@ class Home extends CI_Controller
         // CHECK CUSTOM SESSION DATA
         $this->user_model->check_session_data();
 
+        // FRONT WEBSITE TURNED OFF BY ADMIN (ajax endpoints used by the admin panel stay open)
+        check_frontend_status(['set_flashdata_for_js', 'site_language', 'sendEmailToAssignedAddresses']);
 
         //CHECKING COURSE ACCESSIBILITY STATUS
         if (get_settings('course_accessibility') != 'publicly' && !$this->session->userdata('user_id')) {

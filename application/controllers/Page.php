@@ -18,6 +18,9 @@ class Page extends CI_Controller
         $this->output->set_header('Pragma: no-cache');
 
         $this->user_model->check_session_data();       
+
+        // FRONT WEBSITE TURNED OFF BY ADMIN
+        check_frontend_status();
     }
 
     function index($page_suffix = ""){
