@@ -1707,7 +1707,17 @@ class User_model extends CI_Model
             }
         }
         $dir = $this->licence_document_dir();
-        return is_file($dir . basename($from)) && rename($dir . basename($from), $dir . basename($to));
+        $from_path = $dir . basename($from);
+        $to_path = $dir . basename($to);
+        if (!is_file($from_path)) {
+            return false;
+        }
+        // rename() is not supported on the S3-mounted uploads folder: copy, then delete
+        if (!@copy($from_path, $to_path)) {
+            return false;
+        }
+        @unlink($from_path);
+        return true;
     }
 
     private function delete_licence_document($name)
