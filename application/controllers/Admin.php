@@ -2339,56 +2339,51 @@ class Admin extends CI_Controller
             return;
         }
 
-        // Fetch template settings for 'signup' (New user registration template in settings)
-        $notification = $this->db->where('type', 'signup')->get('notification_settings')->row_array();
-        $template_name = $notification ? ($notification['setting_title'] ?: 'New user registration') : 'New user registration';
+        $notification = $this->email_model->pharmacist_login_details_notification();
+        $email_settings = json_decode($notification['email_notification'], true);
+        if (empty($email_settings['user'])) {
+            echo json_encode(['status' => 'error', 'message' => get_phrase('the_pharmacist_login_details_email_is_turned_off_in_notification_settings')]);
+            return;
+        }
 
-        $updated_count = 0;
+        $sent_count = 0;
+        $failed_count = 0;
 
-        if ($type == 'store_user') {
-            foreach ($clean_ids as $su_id) {
-                $store_user = $this->db->get_where('store_users', ['id' => $su_id])->row_array();
-                if ($store_user) {
-                    $this->db->where('id', $su_id)->update('store_users', ['email_sent' => 1]);
-                    if (!empty($store_user['pharmacist_id'])) {
-                        $this->db->where('id', $store_user['pharmacist_id'])->update('users', ['email_sent' => 1]);
-                        
-                        // In-system notification using new user registration template
-                        if ($notification && method_exists($this->email_model, 'notify')) {
-                            $subjects = json_decode($notification['subject'], true);
-                            $subject = isset($subjects['user']) ? $subjects['user'] : 'Registered successfully';
-                            $this->email_model->notify('signup', $store_user['pharmacist_id'], $subject, 'You have been registered with access to store portal.');
-                        }
-                    }
-                    $updated_count++;
-                }
+        foreach ($clean_ids as $id) {
+            // Store users get the login details of the pharmacist they are linked to
+            if ($type == 'store_user') {
+                $store_user = $this->db->get_where('store_users', ['id' => $id])->row_array();
+                $user_id = $store_user ? (int) $store_user['pharmacist_id'] : 0;
+            } else {
+                $user_id = $id;
             }
-        } else {
-            // Type is 'user' (pharmacist or instructor)
-            foreach ($clean_ids as $user_id) {
-                $user = $this->db->get_where('users', ['id' => $user_id])->row_array();
-                if ($user) {
-                    $this->db->where('id', $user_id)->update('users', ['email_sent' => 1]);
-                    
-                    // Also update linked store_users if any
-                    $this->db->where('pharmacist_id', $user_id)->update('store_users', ['email_sent' => 1]);
 
-                    // In-system notification using new user registration template
-                    if ($notification && method_exists($this->email_model, 'notify')) {
-                        $subjects = json_decode($notification['subject'], true);
-                        $subject = isset($subjects['user']) ? $subjects['user'] : 'Registered successfully';
-                        $this->email_model->notify('signup', $user_id, $subject, 'You have successfully registered with us at ' . get_settings('system_name'));
-                    }
-                    $updated_count++;
+            // Only mark the record as emailed once SMTP has accepted the email
+            if ($user_id && $this->email_model->send_pharmacist_login_details($user_id)) {
+                $this->db->where('id', $user_id)->update('users', ['email_sent' => 1]);
+                if ($type == 'store_user') {
+                    $this->db->where('id', $id)->update('store_users', ['email_sent' => 1]);
+                } else {
+                    $this->db->where('pharmacist_id', $user_id)->update('store_users', ['email_sent' => 1]);
                 }
+                $sent_count++;
+            } else {
+                $failed_count++;
             }
         }
 
+        $message = get_phrase('login_details_email') . ': ' . $sent_count . ' ' . get_phrase('sent');
+        if ($failed_count > 0) {
+            $message .= ', ' . $failed_count . ' ' . get_phrase('failed') . '. ' . get_phrase('please_check_the_smtp_settings_and_the_email_addresses');
+        }
+
         echo json_encode([
-            'status' => 'success',
-            'message' => get_phrase('registration_mail_sent_successfully') . ' (' . $updated_count . ' ' . get_phrase('users') . ')',
-            'template_used' => $template_name,
-            'updated_count' => $updated_count
+            'status' => $sent_count > 0 ? 'success' : 'error',
+            'message' => $message,
+            'template_used' => $notification['setting_title'],
+            'sent_count' => $sent_count,
+            'failed_count' => $failed_count,
+            'updated_count' => $sent_count
         ]);
     }
 

@@ -950,6 +950,60 @@ class Email_model extends CI_Model
 		
 	}
 
+	// Login details sent from the "Send registration mail" button. The template row is
+	// created on first use so it can be edited in the notification settings.
+	public function pharmacist_login_details_notification()
+	{
+		$type = 'pharmacist_login_details';
+		$notification = $this->db->where('type', $type)->get('notification_settings')->row_array();
+		if (!$notification) {
+			$this->db->insert('notification_settings', array(
+				'type'                => $type,
+				'is_editable'         => 1,
+				'user_types'          => json_encode(array('user')),
+				'system_notification' => json_encode(array('user' => '0')),
+				'email_notification'  => json_encode(array('user' => '1')),
+				'subject'             => json_encode(array('user' => 'Your login details')),
+				'template'            => json_encode(array('user' => '<p>Dear [pharmacist_name],</p><p>Your account on <b>[system_name]</b> is ready. Use the details below to log in:</p><ul><li><b>Login link:</b> <a href="[login_url]" target="_blank">[login_url]</a></li><li><b>Username (email):</b> [username]</li><li><b>Password:</b> [password]</li></ul><p>Please change your password after you log in.</p>')),
+				'setting_title'       => 'Pharmacist login details',
+				'setting_sub_title'   => 'Sent from the send registration mail button with the pharmacist login details',
+				'date_updated'        => time(),
+			));
+			$notification = $this->db->where('type', $type)->get('notification_settings')->row_array();
+		}
+		return $notification;
+	}
+
+	public function send_pharmacist_login_details($user_id = "")
+	{
+		$user = $this->db->get_where('users', array('id' => $user_id))->row_array();
+		if (!$user || empty($user['email'])) {
+			return false;
+		}
+
+		$notification = $this->pharmacist_login_details_notification();
+
+		$template_data['replaces'] = array(
+			'pharmacist_name' => trim($user['first_name'] . ' ' . $user['last_name']),
+			'system_name'     => get_settings('system_name'),
+			'login_url'       => site_url('login'),
+			'username'        => $user['email'],
+			'password'        => $this->user_model->get_user_plain_password($user_id),
+		);
+		$template_data['to_user'] = $user;
+		$template_data['notification'] = $notification;
+		$template_data['user_type'] = 'user';
+
+		$subject = json_decode($notification['subject'], true)['user'];
+		$email_template = $this->load->view('email/common_template', $template_data, TRUE);
+
+		if (json_decode($notification['system_notification'], true)['user'] == 1) {
+			$this->notify($notification['type'], $user['id'], $subject, $email_template);
+		}
+
+		return $this->send_smtp_mail($email_template, $subject, $user['email']);
+	}
+
 	function send_pharmacist_store_credentials($user_id = "", $quiz_id = "", $obtained_marks = 0, $pass_mark = 0)
 	{
 		$user_details = $this->user_model->get_all_user($user_id)->row_array();
