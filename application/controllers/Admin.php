@@ -1842,6 +1842,104 @@ class Admin extends CI_Controller
         return $payload;
     }
 
+    /**
+     * DL Expiry Report: one row per store per drug licence (DL 20 / DL 21), bucketed by days to expiry.
+     */
+    public function dl_expiry_report()
+    {
+        if ($this->session->userdata('admin_login') != true) {
+            redirect(site_url('login'), 'refresh');
+        }
+
+        // CHECK ACCESS PERMISSION
+        if (!has_permission('user') && !has_permission('student') && !has_permission('report') && !has_permission('revenue')) {
+            check_permission('report');
+        }
+
+        $this->user_model->ensure_store_dl_columns();
+
+        $status_keys = ['all', 'expired', 'not_on_record', 'due_30', 'due_60', 'due_90', 'valid'];
+        $filters = [
+            'status'       => $this->input->get('status') ?: 'all',
+            'licence'      => $this->input->get('licence') ?: 'all',
+            'zone'         => trim((string)$this->input->get('zone')),
+            'state'        => trim((string)$this->input->get('state')),
+            'category'     => trim((string)$this->input->get('category')),
+            'store_status' => $this->input->get('store_status') !== null && $this->input->get('store_status') !== '' ? $this->input->get('store_status') : '1',
+        ];
+        if (!in_array($filters['status'], $status_keys, true)) $filters['status'] = 'all';
+        if (!in_array($filters['licence'], ['all', '20', '21'], true)) $filters['licence'] = 'all';
+        if (!in_array($filters['store_status'], ['all', '1', '0'], true)) $filters['store_status'] = '1';
+
+        $this->db->order_by('store_name', 'asc');
+        if ($filters['store_status'] !== 'all') $this->db->where('status', (int)$filters['store_status']);
+        if ($filters['zone'] !== '')            $this->db->where('zone', $filters['zone']);
+        if ($filters['state'] !== '')           $this->db->where('state', $filters['state']);
+        if ($filters['category'] !== '')        $this->db->where('store_category', $filters['category']);
+        $stores = $this->db->get('stores')->result_array();
+
+        $today  = new DateTime(date('Y-m-d'));
+        $counts = array_fill_keys($status_keys, 0);
+        $rows   = [];
+        foreach ($stores as $store) {
+            foreach (['20', '21'] as $form_no) {
+                if ($filters['licence'] !== 'all' && $filters['licence'] !== $form_no) continue;
+
+                $number    = trim((string)($store['dl_' . $form_no] ?? ''));
+                $expiry    = trim((string)($store['dl_' . $form_no . '_expiry'] ?? ''));
+                $days_left = null;
+                $exp_date  = ($expiry !== '' && $expiry !== '0000-00-00') ? DateTime::createFromFormat('!Y-m-d', $expiry) : false;
+
+                if (!$exp_date) {
+                    $status = 'not_on_record';
+                    $expiry = '';
+                } else {
+                    $days_left = (int)$today->diff($exp_date)->format('%r%a');
+                    if ($days_left < 0)       $status = 'expired';
+                    elseif ($days_left <= 30) $status = 'due_30';
+                    elseif ($days_left <= 60) $status = 'due_60';
+                    elseif ($days_left <= 90) $status = 'due_90';
+                    else                      $status = 'valid';
+                }
+
+                $counts['all']++;
+                $counts[$status]++;
+                if ($filters['status'] !== 'all' && $filters['status'] !== $status) continue;
+
+                $rows[] = [
+                    'store'     => $store,
+                    'form_no'   => $form_no,
+                    'number'    => $number,
+                    'expiry'    => $expiry,
+                    'days_left' => $days_left,
+                    'status'    => $status,
+                ];
+            }
+        }
+
+        // Most urgent first; licences without an expiry date go last
+        usort($rows, function ($a, $b) {
+            $da = $a['days_left'] === null ? PHP_INT_MAX : $a['days_left'];
+            $db = $b['days_left'] === null ? PHP_INT_MAX : $b['days_left'];
+            return $da <=> $db ?: strcasecmp($a['store']['store_name'], $b['store']['store_name']);
+        });
+
+        $distinct = function ($column) {
+            $values = $this->db->distinct()->select($column)->where("{$column} IS NOT NULL", null, false)->where("{$column} !=", '')->order_by($column, 'asc')->get('stores')->result_array();
+            return array_column($values, $column);
+        };
+
+        $page_data['rows']        = $rows;
+        $page_data['counts']      = $counts;
+        $page_data['filters']     = $filters;
+        $page_data['zones']       = $distinct('zone');
+        $page_data['states']      = $distinct('state');
+        $page_data['categories']  = $distinct('store_category');
+        $page_data['page_name']   = 'dl_expiry_report';
+        $page_data['page_title']  = get_phrase('DL expiry report');
+        $this->load->view('backend/index', $page_data);
+    }
+
     public function store_performance_report()
     {
         if ($this->session->userdata('admin_login') != true) {

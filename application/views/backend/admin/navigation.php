@@ -331,9 +331,9 @@
         <?php endif; ?>
 
         <?php if (has_permission('revenue') || has_permission('report') || has_permission('student') || has_permission('user')): ?>
-        <li class="side-nav-item<?php if ($page_name == 'licence_report' || $page_name == 'pharmacist_evaluation_report' || $page_name == 'pharmacist_progress_report' || $page_name == 'store_performance_report'): ?> active<?php endif; ?>">
+        <li class="side-nav-item<?php if ($page_name == 'licence_report' || $page_name == 'pharmacist_evaluation_report' || $page_name == 'pharmacist_progress_report' || $page_name == 'store_performance_report' || $page_name == 'dl_expiry_report'): ?> active<?php endif; ?>">
             <a href="javascript: void(0);"
-                class="side-nav-link <?php if ($page_name == 'licence_report' || $page_name == 'pharmacist_evaluation_report' || $page_name == 'pharmacist_progress_report' || $page_name == 'store_performance_report'): ?> active<?php endif; ?>">
+                class="side-nav-link <?php if ($page_name == 'licence_report' || $page_name == 'pharmacist_evaluation_report' || $page_name == 'pharmacist_progress_report' || $page_name == 'store_performance_report' || $page_name == 'dl_expiry_report'): ?> active<?php endif; ?>">
                 <i class="dripicons-graph-bar"></i>
                 <span> <?php echo get_phrase('report'); ?> </span>
                 <span class="menu-arrow"></span>
@@ -350,6 +350,9 @@
                 </li>
                 <li class="<?php if ($page_name == 'store_performance_report') { echo 'active'; } ?>">
                     <a href="<?php echo site_url('admin/store_performance_report'); ?>"><?php echo get_phrase('store_performance_report'); ?></a>
+                </li>
+                <li class="<?php if ($page_name == 'dl_expiry_report') { echo 'active'; } ?>">
+                    <a href="<?php echo site_url('admin/dl_expiry_report'); ?>"><?php echo get_phrase('DL expiry report'); ?></a>
                 </li>
             </ul>
         </li>
