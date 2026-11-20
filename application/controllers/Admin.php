@@ -1936,7 +1936,7 @@ class Admin extends CI_Controller
         $page_data['states']      = $distinct('state');
         $page_data['categories']  = $distinct('store_category');
         $page_data['page_name']   = 'dl_expiry_report';
-        $page_data['page_title']  = get_phrase('DL expiry report');
+        $page_data['page_title']  = 'DL Expiry Report';
         $this->load->view('backend/index', $page_data);
     }
 

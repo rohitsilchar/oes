@@ -49,12 +49,12 @@ $report_url = function ($overrides = []) use ($filters) {
         <div class="card">
             <div class="card-body">
                 <h4 class="page-title">
-                    <i class="mdi mdi-certificate-outline title_icon"></i> <?php echo get_phrase('DL expiry report'); ?>
+                    <i class="mdi mdi-certificate-outline title_icon"></i> DL Expiry Report
                     <a href="<?php echo site_url('admin/stores'); ?>" class="btn btn-outline-primary btn-rounded alignToTitle">
                         <i class="mdi mdi-store mr-1"></i> <?php echo get_phrase('manage_stores'); ?>
                     </a>
                 </h4>
-                <p class="text-muted mb-0 mt-1"><?php echo get_phrase('Drug licence (DL 20 / DL 21) position of every store, flagged before expiry'); ?></p>
+                <p class="text-muted mb-0 mt-1">Drug licence (DL 20 / DL 21) position of every store, flagged before expiry</p>
             </div>
         </div>
     </div>
@@ -238,7 +238,7 @@ $(document).ready(function() {
         ],
         buttons: [
             { extend: 'csvHtml5', text: '<i class="mdi mdi-file-delimited-outline mr-1"></i><?php echo get_phrase('export_csv'); ?>', className: 'btn btn-sm btn-outline-primary', title: 'DL_Expiry_Report_<?php echo date('Y-m-d'); ?>', bom: true, exportOptions: { columns: ':not(.no-export)', orthogonal: 'export' } },
-            { extend: 'print', text: '<i class="mdi mdi-printer mr-1"></i><?php echo get_phrase('print'); ?>', className: 'btn btn-sm btn-outline-primary ml-1', title: '<?php echo get_phrase('DL expiry report'); ?> (<?php echo date('d-m-Y'); ?>)', exportOptions: { columns: ':not(.no-export)', orthogonal: 'export' } }
+            { extend: 'print', text: '<i class="mdi mdi-printer mr-1"></i><?php echo get_phrase('print'); ?>', className: 'btn btn-sm btn-outline-primary ml-1', title: 'DL Expiry Report (<?php echo date('d-m-Y'); ?>)', exportOptions: { columns: ':not(.no-export)', orthogonal: 'export' } }
         ],
         language: {
             emptyTable: "<?php echo get_phrase('no_matching_records_found'); ?>",

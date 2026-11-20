@@ -105,24 +105,24 @@
                         <!-- Drug Licences (DL 20 / DL 21) -->
                         <div class="row">
                             <div class="col-md-6 form-group mb-3">
-                                <label for="dl_20"><?php echo get_phrase('DL 20'); ?></label>
+                                <label for="dl_20">DL 20</label>
                                 <input type="text" class="form-control" id="dl_20" name="dl_20" maxlength="100" placeholder="e.g. AS/BJL/20B/1234">
                             </div>
 
                             <div class="col-md-6 form-group mb-3">
-                                <label for="dl_20_expiry"><?php echo get_phrase('DL 20 expiry'); ?></label>
+                                <label for="dl_20_expiry">DL 20 Expiry</label>
                                 <input type="date" class="form-control" id="dl_20_expiry" name="dl_20_expiry" min="<?php echo date('Y-m-d'); ?>">
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 form-group mb-3">
-                                <label for="dl_21"><?php echo get_phrase('DL 21'); ?></label>
+                                <label for="dl_21">DL 21</label>
                                 <input type="text" class="form-control" id="dl_21" name="dl_21" maxlength="100" placeholder="e.g. AS/BJL/21B/1234">
                             </div>
 
                             <div class="col-md-6 form-group mb-3">
-                                <label for="dl_21_expiry"><?php echo get_phrase('DL 21 expiry'); ?></label>
+                                <label for="dl_21_expiry">DL 21 Expiry</label>
                                 <input type="date" class="form-control" id="dl_21_expiry" name="dl_21_expiry" min="<?php echo date('Y-m-d'); ?>">
                             </div>
                         </div>

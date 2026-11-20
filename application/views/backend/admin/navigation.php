@@ -352,7 +352,7 @@
                     <a href="<?php echo site_url('admin/store_performance_report'); ?>"><?php echo get_phrase('store_performance_report'); ?></a>
                 </li>
                 <li class="<?php if ($page_name == 'dl_expiry_report') { echo 'active'; } ?>">
-                    <a href="<?php echo site_url('admin/dl_expiry_report'); ?>"><?php echo get_phrase('DL expiry report'); ?></a>
+                    <a href="<?php echo site_url('admin/dl_expiry_report'); ?>">DL Expiry Report</a>
                 </li>
             </ul>
         </li>
