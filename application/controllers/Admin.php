@@ -6761,11 +6761,46 @@ $developer_html
     // ==========================================
     // STORES CRUD
     // ==========================================
+    /**
+     * Read DL 20 / DL 21 licence numbers and expiry dates (Y-m-d) from the store add/edit form.
+     * Expiry dates must be valid and not in the past; an unchanged existing date (edit) is allowed as-is.
+     * Redirects back to $error_redirect with an error message on invalid input.
+     */
+    private function get_store_dl_post_data($error_redirect, $existing = [])
+    {
+        $dl    = [];
+        $today = date('Y-m-d');
+        foreach (['20', '21'] as $form_no) {
+            $key    = 'dl_' . $form_no;
+            $number = trim((string)$this->input->post($key));
+            $expiry = trim((string)$this->input->post($key . '_expiry'));
+
+            if ($expiry !== '') {
+                $d = DateTime::createFromFormat('!Y-m-d', $expiry);
+                if (!$d || $d->format('Y-m-d') !== $expiry) {
+                    $this->session->set_flashdata('error_message', 'DL ' . $form_no . ' expiry date is invalid.');
+                    redirect(site_url($error_redirect), 'refresh');
+                }
+                $unchanged = isset($existing[$key . '_expiry']) && $existing[$key . '_expiry'] === $expiry;
+                if ($expiry < $today && !$unchanged) {
+                    $this->session->set_flashdata('error_message', 'DL ' . $form_no . ' expiry date cannot be in the past.');
+                    redirect(site_url($error_redirect), 'refresh');
+                }
+            }
+
+            $dl[$key]             = $number !== '' ? html_escape($number) : null;
+            $dl[$key . '_expiry'] = $expiry !== '' ? $expiry : null;
+        }
+        return $dl;
+    }
+
     public function stores($param1 = "", $param2 = "")
     {
         if ($this->session->userdata('admin_login') != true) {
             redirect(site_url('login'), 'refresh');
         }
+
+        $this->user_model->ensure_store_dl_columns();
 
         if ($param1 == "add") {
             $data['store_name']         = html_escape($this->input->post('store_name'));
@@ -6813,6 +6848,7 @@ $developer_html
             $data['mobile']             = !empty($mobile) ? $mobile : $phone;
             $data['email']              = html_escape($this->input->post('email'));
             $data['portal_url']         = html_escape($this->input->post('portal_url'));
+            $data                       = array_merge($data, $this->get_store_dl_post_data('admin/store_form/add_store_form'));
             $roles                      = $this->input->post('assigned_role_ids');
             $data['assigned_role_ids']  = is_array($roles) ? json_encode($roles) : json_encode([]);
             $data['address']            = html_escape($this->input->post('address'));
@@ -6871,6 +6907,8 @@ $developer_html
             $data['mobile']             = !empty($mobile) ? $mobile : $phone;
             $data['email']              = html_escape($this->input->post('email'));
             $data['portal_url']         = html_escape($this->input->post('portal_url'));
+            $existing_store             = $this->db->get_where('stores', ['id' => $param2])->row_array() ?: [];
+            $data                       = array_merge($data, $this->get_store_dl_post_data('admin/store_form/edit_store_form/' . $param2, $existing_store));
             $roles                      = $this->input->post('assigned_role_ids');
             $data['assigned_role_ids']  = is_array($roles) ? json_encode($roles) : json_encode([]);
             $data['address']            = html_escape($this->input->post('address'));
@@ -6915,6 +6953,8 @@ $developer_html
         if ($this->session->userdata('admin_login') != true) {
             redirect(site_url('login'), 'refresh');
         }
+
+        $this->user_model->ensure_store_dl_columns();
 
         if ($param1 == 'add_store_form' || $param1 == 'add') {
             $page_data['page_name']        = 'store_add';
@@ -7186,10 +7226,10 @@ $developer_html
             ];
         } elseif ($type == 'stores') {
             $filename = "stores_sample_template.csv";
-            $headers = ['Store Code', 'Email', 'State', 'Zone', 'Store Category', 'Mobile', 'Store Name', 'Store Contact Person', 'Store Live Date', 'Address', 'City', 'Pin Code', 'Portal URL', 'Status'];
+            $headers = ['Store Code', 'Email', 'State', 'Zone', 'Store Category', 'Mobile', 'Store Name', 'Store Contact Person', 'Store Live Date', 'Address', 'City', 'Pin Code', 'Portal URL', 'DL 20', 'DL 20 Expiry', 'DL 21', 'DL 21 Expiry', 'Status'];
             $sample_rows = [
-                ['CASBAK1750', 'howlyroad1750@davaindia.co.in', 'ASSAM', 'EAST', 'DAVAINDIA COCO', '6358818453', 'PATHSALA', 'SHAHINUR ISLAM', '19-02-2025', 'LY ROAD, PO- PATHSALA, PS- PATHSALA, Dist. BAJALI', 'Barpeta', '781325', 'https://store1.domain.com/login', '1'],
-                ['STR-002', 'healthplus.uptown@example.com', 'MA', 'NORTH', 'DAVAINDIA FOFO', '9876543211', 'HealthPlus Pharmacy', 'John Doe', '01-01-2025', '789 Uptown Blvd', 'Boston', '02108', 'https://store2.domain.com/login', '1']
+                ['CASBAK1750', 'howlyroad1750@davaindia.co.in', 'ASSAM', 'EAST', 'DAVAINDIA COCO', '6358818453', 'PATHSALA', 'SHAHINUR ISLAM', '19-02-2025', 'LY ROAD, PO- PATHSALA, PS- PATHSALA, Dist. BAJALI', 'Barpeta', '781325', 'https://store1.domain.com/login', 'AS/BJL/20B/1234', '31-12-2027', 'AS/BJL/21B/1234', '31-12-2027', '1'],
+                ['STR-002', 'healthplus.uptown@example.com', 'MA', 'NORTH', 'DAVAINDIA FOFO', '9876543211', 'HealthPlus Pharmacy', 'John Doe', '01-01-2025', '789 Uptown Blvd', 'Boston', '02108', 'https://store2.domain.com/login', '', '', '', '', '1']
             ];
         } elseif ($type == 'store_categories' || $type == 'categories') {
             $filename = "store_categories_sample_template.csv";
@@ -7849,6 +7889,24 @@ $developer_html
         $skipped = 0;
         $errors = [];
 
+        $this->user_model->ensure_store_dl_columns();
+
+        // Converts Excel serial dates and common d-m-Y / Y-m-d style strings to Y-m-d; returns null if unparseable
+        $normalize_date = function($value) {
+            $value = trim((string)$value);
+            if ($value === '') return null;
+            if (is_numeric($value) && (int)$value > 30000 && (int)$value < 80000) {
+                return gmdate('Y-m-d', ((int)$value - 25569) * 86400);
+            }
+            foreach (['d-m-Y', 'd/m/Y', 'Y-m-d', 'm/d/Y', 'd.m.Y', 'Y/m/d'] as $fmt) {
+                $d = DateTime::createFromFormat('!' . $fmt, $value);
+                if ($d && $d->format($fmt) === $value) {
+                    return $d->format('Y-m-d');
+                }
+            }
+            return null;
+        };
+
         // Pre-cache existing store roles
         $roles_db = $this->db->get('store_roles')->result_array();
         $roles_map = [];
@@ -8077,6 +8135,36 @@ $developer_html
             $pin_code   = $find_val(['pin_code', 'pincode', 'pin', 'zip', 'zip_code', 'postal_code', 'store_pincode', 'stores_pincode']);
             $portal_url = $find_val(['portal_url', 'portal_link', 'portal', 'url', 'login_url', 'store_portal', 'stores_portal']);
 
+            // Drug licences (DL 20 / DL 21) and their expiry dates
+            $dl_data = [];
+            $dl_past = []; // expiry key => raw value, for dates before today (checked against existing store below)
+            foreach (['20', '21'] as $form_no) {
+                $dl_number = $find_val([
+                    "dl_{$form_no}", "dl{$form_no}", "dl_{$form_no}_no", "dl_{$form_no}_number", "dl_no_{$form_no}",
+                    "dl_{$form_no}_licence", "dl_{$form_no}_license", "drug_licence_{$form_no}", "drug_license_{$form_no}", "form_{$form_no}"
+                ]);
+                $dl_expiry_raw = $find_val([
+                    "dl_{$form_no}_expiry", "dl_{$form_no}_expiry_date", "dl_{$form_no}_exp", "dl_{$form_no}_exp_date",
+                    "dl_{$form_no}_valid_till", "dl_{$form_no}_validity", "dl_{$form_no}_valid_upto", "expiry_dl_{$form_no}"
+                ]);
+
+                // Only set when present in the sheet so re-importing older sheets doesn't wipe existing licence data
+                if ($dl_number !== '') {
+                    $dl_data["dl_{$form_no}"] = html_escape($dl_number);
+                }
+                if ($dl_expiry_raw !== '') {
+                    $dl_expiry = $normalize_date($dl_expiry_raw);
+                    if ($dl_expiry !== null) {
+                        $dl_data["dl_{$form_no}_expiry"] = $dl_expiry;
+                        if ($dl_expiry < date('Y-m-d')) {
+                            $dl_past["dl_{$form_no}_expiry"] = $dl_expiry_raw;
+                        }
+                    } else {
+                        $errors[] = "Row {$line}: Invalid DL {$form_no} expiry date '{$dl_expiry_raw}' (use DD-MM-YYYY)";
+                    }
+                }
+            }
+
             $status_raw = $find_val(['status', 'store_status', 'active', 'is_active']);
             $status = ($status_raw !== '') ? (int)$status_raw : 1;
 
@@ -8099,6 +8187,7 @@ $developer_html
                 'status'            => $status,
                 'updated_at'        => time()
             ];
+            $store_data = array_merge($store_data, $dl_data);
 
             if (!empty($assigned_role_ids)) {
                 $store_data['assigned_role_ids'] = json_encode(array_values(array_unique($assigned_role_ids)));
@@ -8111,6 +8200,16 @@ $developer_html
             }
             if (!$existing && !empty($store_name)) {
                 $existing = $this->db->where('LOWER(TRIM(store_name))', strtolower(trim($store_name)))->get('stores')->row_array();
+            }
+
+            // Past DL expiry dates are rejected, unless they match the date already saved for this store
+            foreach ($dl_past as $exp_key => $exp_raw) {
+                if ($existing && isset($existing[$exp_key]) && $existing[$exp_key] === $store_data[$exp_key]) {
+                    continue;
+                }
+                unset($store_data[$exp_key]);
+                $dl_label = strtoupper(str_replace(['dl_', '_expiry'], ['DL ', ''], $exp_key));
+                $errors[] = "Row {$line}: {$dl_label} expiry date '{$exp_raw}' cannot be in the past (not saved)";
             }
 
             if ($existing) {

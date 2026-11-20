@@ -991,6 +991,34 @@ class User_model extends CI_Model
     }
 
     /**
+     * Ensure drug licence (DL 20 / DL 21) number and expiry columns exist in stores table (safe self-healing migration)
+     */
+    public function ensure_store_dl_columns()
+    {
+        try {
+            if (!$this->db->table_exists('stores')) {
+                return;
+            }
+            $fields = $this->db->list_fields('stores');
+            if (is_array($fields)) {
+                $cols_to_add = [
+                    'dl_20'        => 'VARCHAR(100) NULL DEFAULT NULL',
+                    'dl_20_expiry' => 'DATE NULL DEFAULT NULL',
+                    'dl_21'        => 'VARCHAR(100) NULL DEFAULT NULL',
+                    'dl_21_expiry' => 'DATE NULL DEFAULT NULL'
+                ];
+                foreach ($cols_to_add as $col => $sql_def) {
+                    if (!in_array($col, $fields)) {
+                        $this->db->query("ALTER TABLE stores ADD COLUMN {$col} {$sql_def}");
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'ensure_store_dl_columns error: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Check if exec() is allowed and not disabled in php.ini
      */
     private function is_exec_available()

@@ -76,7 +76,8 @@
                                     <li><strong>Store Name</strong> (or <code>store_name</code>) is mandatory.</li>
                                     <li><strong>Store Code</strong> (or <code>store_code</code>) is used to identify/update stores uniquely.</li>
                                     <li><strong>Store Category</strong> (or <code>store_category</code>, e.g. <code>DAVAINDIA COCO</code>) will automatically link to or create the category in Store Categories master.</li>
-                                    <li>Supports client columns: <code>Store Code, Email, State, Zone, Store Category, Mobile, Store Name, Store Contact Person, Store Live Date, Address</code>.</li>
+                                    <li>Supports client columns: <code>Store Code, Email, State, Zone, Store Category, Mobile, Store Name, Store Contact Person, Store Live Date, Address, DL 20, DL 20 Expiry, DL 21, DL 21 Expiry</code>.</li>
+                                    <li><strong>DL 20 Expiry</strong> / <strong>DL 21 Expiry</strong> accept <code>DD-MM-YYYY</code> (or Excel dates) and cannot be in the past. Blank DL cells keep the existing values of an existing store.</li>
                                 </ul>
                             </div>
                             <div class="ml-3">
@@ -89,7 +90,7 @@
 
                     <div class="table-responsive mb-3" style="overflow-x: auto !important;">
                         <small class="text-muted font-weight-bold"><?php echo get_phrase('template_columns_preview'); ?>:</small>
-                        <table class="table table-bordered table-sm mt-1 mb-0" style="font-size: 12px; min-width: 1100px; white-space: nowrap;">
+                        <table class="table table-bordered table-sm mt-1 mb-0" style="font-size: 12px; min-width: 1400px; white-space: nowrap;">
                             <thead class="thead-light">
                                 <tr>
                                     <th>Store Code</th>
@@ -105,6 +106,10 @@
                                     <th>City</th>
                                     <th>Pin Code</th>
                                     <th>Portal URL</th>
+                                    <th>DL 20</th>
+                                    <th>DL 20 Expiry</th>
+                                    <th>DL 21</th>
+                                    <th>DL 21 Expiry</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -123,6 +128,10 @@
                                     <td>Barpeta</td>
                                     <td>781325</td>
                                     <td>https://store1.domain.com/login</td>
+                                    <td>AS/BJL/20B/1234</td>
+                                    <td>31-12-2027</td>
+                                    <td>AS/BJL/21B/1234</td>
+                                    <td>31-12-2027</td>
                                     <td>1</td>
                                 </tr>
                             </tbody>
@@ -164,6 +173,7 @@
                                 <th><?php echo get_phrase('mobile_/_email'); ?></th>
                                 <th><?php echo get_phrase('live_date'); ?></th>
                                 <th><?php echo get_phrase('portal_url'); ?></th>
+                                <th><?php echo get_phrase('drug_licences'); ?></th>
                                 <th><?php echo get_phrase('assigned_roles'); ?></th>
                                 <th><?php echo get_phrase('status'); ?></th>
                                 <th><?php echo get_phrase('actions'); ?></th>
@@ -224,6 +234,27 @@
                                             <a href="<?php echo htmlspecialchars($store['portal_url']); ?>" target="_blank" class="text-info"><i class="mdi mdi-open-in-new mr-1"></i>Link</a>
                                         <?php else: ?>
                                             <span class="text-muted">N/A</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $has_dl = false;
+                                        foreach (['20', '21'] as $dl_no):
+                                            $dl_num = $store['dl_' . $dl_no] ?? '';
+                                            $dl_exp = $store['dl_' . $dl_no . '_expiry'] ?? '';
+                                            if ($dl_num === '' && empty($dl_exp)) continue;
+                                            $has_dl = true;
+                                            $dl_expired = !empty($dl_exp) && strtotime($dl_exp) < strtotime(date('Y-m-d'));
+                                        ?>
+                                            <div>
+                                                <strong>DL <?php echo $dl_no; ?>:</strong> <?php echo $dl_num !== '' ? htmlspecialchars($dl_num) : '-'; ?>
+                                                <?php if (!empty($dl_exp)): ?>
+                                                    <span class="badge <?php echo $dl_expired ? 'badge-danger' : 'badge-light'; ?> ml-1" title="<?php echo get_phrase('expiry'); ?>"><i class="mdi mdi-calendar mr-1"></i><?php echo date('d-m-Y', strtotime($dl_exp)); ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                        <?php if (!$has_dl): ?>
+                                            <span class="text-muted">-</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>

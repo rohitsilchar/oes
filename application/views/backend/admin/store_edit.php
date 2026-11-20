@@ -106,6 +106,31 @@ $phone_val = !empty($store_data['phone']) ? $store_data['phone'] : (!empty($stor
                             <input type="url" class="form-control" id="portal_url" name="portal_url" value="<?php echo htmlspecialchars($store_data['portal_url'] ?? ''); ?>" placeholder="https://store.domain.com/login">
                         </div>
 
+                        <!-- Drug Licences (DL 20 / DL 21) -->
+                        <div class="row">
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="dl_20"><?php echo get_phrase('DL 20'); ?></label>
+                                <input type="text" class="form-control" id="dl_20" name="dl_20" value="<?php echo htmlspecialchars($store_data['dl_20'] ?? ''); ?>" maxlength="100" placeholder="e.g. AS/BJL/20B/1234">
+                            </div>
+
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="dl_20_expiry"><?php echo get_phrase('DL 20 expiry'); ?></label>
+                                <input type="date" class="form-control" id="dl_20_expiry" name="dl_20_expiry" value="<?php echo htmlspecialchars($store_data['dl_20_expiry'] ?? ''); ?>" data-original="<?php echo htmlspecialchars($store_data['dl_20_expiry'] ?? ''); ?>" min="<?php echo (!empty($store_data['dl_20_expiry']) && $store_data['dl_20_expiry'] < date('Y-m-d')) ? $store_data['dl_20_expiry'] : date('Y-m-d'); ?>">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="dl_21"><?php echo get_phrase('DL 21'); ?></label>
+                                <input type="text" class="form-control" id="dl_21" name="dl_21" value="<?php echo htmlspecialchars($store_data['dl_21'] ?? ''); ?>" maxlength="100" placeholder="e.g. AS/BJL/21B/1234">
+                            </div>
+
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="dl_21_expiry"><?php echo get_phrase('DL 21 expiry'); ?></label>
+                                <input type="date" class="form-control" id="dl_21_expiry" name="dl_21_expiry" value="<?php echo htmlspecialchars($store_data['dl_21_expiry'] ?? ''); ?>" data-original="<?php echo htmlspecialchars($store_data['dl_21_expiry'] ?? ''); ?>" min="<?php echo (!empty($store_data['dl_21_expiry']) && $store_data['dl_21_expiry'] < date('Y-m-d')) ? $store_data['dl_21_expiry'] : date('Y-m-d'); ?>">
+                            </div>
+                        </div>
+
                         <!-- Assigned Roles -->
                         <div class="form-group mb-3">
                             <label for="assigned_role_ids"><?php echo get_phrase('assigned_roles'); ?><span class="required text-danger">*</span></label>
@@ -178,6 +203,19 @@ $('form.required-form').on('submit', function(e) {
         error_notify('<?php echo get_phrase("pin_code_must_be_6_digits"); ?>');
         $('#pin_code').focus();
         return false;
+    }
+    var dlToday = '<?php echo date('Y-m-d'); ?>';
+    var dlFields = ['20', '21'];
+    for (var i = 0; i < dlFields.length; i++) {
+        var $exp = $('#dl_' + dlFields[i] + '_expiry');
+        var exp = ($exp.val() || '').trim();
+        // An unchanged, already-saved date is allowed (edit form); any newly entered date must be today or later
+        if (exp && exp < dlToday && exp !== ($exp.data('original') || '')) {
+            e.preventDefault();
+            error_notify('DL ' + dlFields[i] + ' expiry date cannot be in the past.');
+            $exp.focus();
+            return false;
+        }
     }
 });
 </script>
